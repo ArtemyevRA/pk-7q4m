@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#2A2460">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Путь кармы">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Путь кармы</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -268,6 +275,14 @@
   .src li:first-child { border-top: 0; }
   .src .w { font-size: 13px; color: var(--ink-2); }
   .src .use { display: inline-block; font-size: 12px; margin-top: 3px; padding: 2px 8px; border-radius: 10px; background: rgba(201,154,62,.18); color: inherit; }
+  details.fold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; min-height: 44px; }
+  details.fold > summary::-webkit-details-marker { display: none; }
+  details.fold > summary .k { margin: 0; flex: 1; }
+  details.fold > summary .cnt { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+  details.fold .chev { width: 30px; height: 30px; flex: none; border-radius: 50%; background: var(--gold); box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 2px 6px rgba(160,110,30,.3); position: relative; transition: transform .2s; }
+  details.fold .chev::after { content: ""; position: absolute; left: 10px; top: 8px; width: 8px; height: 8px; border-right: 2.5px solid #2B1C05; border-bottom: 2.5px solid #2B1C05; transform: rotate(45deg); }
+  details.fold[open] .chev { transform: rotate(180deg); }
+  details.fold[open] > summary { margin-bottom: 4px; }
   .icline { display: flex; gap: 10px; align-items: flex-start; } .icline img { width: 40px; height: 40px; flex: none; margin-top: -4px; }
 
   @media (prefers-reduced-motion: reduce) { .confetti { display: none; } .orb.calc, .orb.reveal .fl, .orb.reveal .num { animation: none; } }
@@ -322,8 +337,8 @@ function basisHTML(full) {
   const psy = BASIS_PSY.map(([a, w, t, u]) => `<li><b>${esc(a)}</b>${full ? ` <span class="w">· ${esc(w)}</span>` : ""}<br>${esc(t)}${u ? `<br><span class="use">в практике: ${esc(u)}</span>` : ""}</li>`).join("");
   const num = BASIS_NUM.map(([a, w, t]) => `<li><b>${esc(a)}</b> <span class="w">· ${esc(w)}</span><br>${esc(t)}</li>`).join("");
   return `<p>${esc(BASIS_IDEA)}</p>
-    <div class="card"><div class="k">${ic("mirror")}Психология: как работаем с учителем</div><ul class="src">${psy}</ul></div>
-    <div class="card"><div class="k">${ic("star")}Число даты рождения и карма</div><ul class="src">${num}</ul><p class="small muted" style="margin:10px 0 0">${esc(BASIS_NOTE)}</p></div>`;
+    <details class="card fold"><summary><span class="k">${ic("mirror")}Психология: как работаем с учителем</span><span class="cnt">${BASIS_PSY.length} трудов</span><i class="chev" aria-hidden="true"></i></summary><ul class="src">${psy}</ul></details>
+    <details class="card fold"><summary><span class="k">${ic("star")}Число даты рождения и карма</span><span class="cnt">${BASIS_NUM.length} источников</span><i class="chev" aria-hidden="true"></i></summary><ul class="src">${num}</ul><p class="small muted" style="margin:10px 0 0">${esc(BASIS_NOTE)}</p></details>`;
 }
 const IDEA = "Твоя карма — это уроки, которые повторяются. Проходишь урок — карма очищается, вокруг меняются люди, ситуации и обстоятельства, а с ними к лучшему меняется и твоя жизнь.";
 
@@ -1796,6 +1811,7 @@ function method() {
 }
 
 route();
+if ("serviceWorker" in navigator && /github\.io$/.test(location.hostname)) navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
 </body>
 </html>
