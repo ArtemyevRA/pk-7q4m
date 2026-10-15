@@ -340,7 +340,7 @@
     const render = () => {
       if (S.offer) { const c = deck.find(x => x.id === S.offer); if (c) return offer(c); S.offer = null; }
       if (S.choose) return choose();
-      if (S.idx >= deck.length) return R.deckYes(S).length ? choose() : nothingFits();
+      if (S.idx >= deck.length) return R.deckCandidates(S).length ? choose() : nothingFits();
       const c = deck[S.idx], tut = !P.seen.swipe, red = reduce();
       app.innerHTML = `<p class="tiny" style="margin:0 0 4px">Событие ${S.idx + 1} из ${deck.length}${S.area && S.area !== "unclear" ? ` · ${esc((X.areas.find(a => a[0] === S.area) || [])[1] || "")}` : ""}</p>
         <h1 class="q">${esc(OE.title)}</h1><p class="muted small" style="margin:0 0 6px">${tut ? `${esc(OE.tutorial[0])} ${esc(OE.tutorial[1])}` : esc(OE.sub)}</p>
@@ -348,7 +348,7 @@
         <div class="swhint"><span>${esc(OE.hintLeft)}</span><span>${esc(OE.hintRight)}</span></div>
         <div class="sw2"><button class="btn secondary" id="no">${esc(OE.no)}</button><button class="btn" id="yes">${esc(OE.yes)}</button></div>
         <div class="row tight"><button class="btn ghost sm" id="unsure">${esc(OE.unsure)}</button>${S.undo ? `<button class="btn ghost sm" id="undo">${esc(OE.undo)}</button>` : ""}</div>
-        ${R.deckYes(S).length ? `<div class="row tight"><button class="btn secondary block sm" id="pick">${esc(OE.which)} (${R.deckYes(S).length})</button></div>` : ""}
+        ${R.deckCandidates(S).length ? `<div class="row tight"><button class="btn secondary block sm" id="pick">${esc(OE.which)} (${R.deckCandidates(S).length})</button></div>` : ""}
         <div class="row tight"><a class="btn ghost sm" href="#own">${esc(OE.own)}</a><a class="btn ghost sm" href="#area">Другая сфера</a></div>`;
       const sw = $("#swc"), labL = $("#labL"), labR = $("#labR");
       /* Один обработчик для свайпа, кнопок и клавиатуры: один ввод — один ответ; во время анимации ввод заблокирован. */
@@ -386,7 +386,8 @@
       $("#undo").onclick = () => { S.offer = null; if (R.deckUndo(S)) { persistOnb(); render(); } };
     };
     const nothingFits = () => {
-      app.innerHTML = `<h1 class="q">Ничего из этого не было</h1><p>${esc(OE.none)}</p>
+      const ns = R.deckNotStung(S);
+      app.innerHTML = `<h1 class="q">${ns.length ? "Было, но не задело" : "Ничего из этого не было"}</h1><p>${esc(OE.none)}</p>
         <div class="chips col"><button class="btn block" id="more">${esc(OE.moreEvents)}</button><a class="btn block secondary" href="#own">${esc(OE.own)}</a><a class="btn block secondary" href="#area">Другая сфера</a><button class="btn block secondary" id="observe">${esc(OE.observe)}</button></div>
         ${S.undo ? `<div class="row tight"><button class="btn ghost sm" id="undo">${esc(OE.undo)}</button></div>` : ""}`;
       $("#more").onclick = () => { newDeck(S); persistOnb(); render(); };
@@ -395,13 +396,15 @@
     };
     /* Несколько «было» — явный выбор одного; остальное сохраняется на потом. */
     const choose = () => {
-      const ys = R.deckYes(S);
+      const ys = R.deckCandidates(S), ns = R.deckNotStung(S);
       if (!ys.length) { S.choose = false; return nothingFits(); }
       app.innerHTML = `<h1 class="q">${esc(OE.which)}</h1><p class="muted small">${esc(OE.whichSub)}</p>
         <div class="chips col">${ys.map((x, i) => `<button class="chip" data-i="${i}">${esc(x.text)}</button>`).join("")}</div>
+        ${ns.length ? `<details class="plain"><summary>${esc(OSg.notStung)} · ${ns.length}</summary><div class="chips col">${ns.map(x => `<button class="chip dim" data-rs="${esc(x.id)}">${esc(x.text)} — пересмотреть</button>`).join("")}</div></details>` : ""}
         <div class="row tight">${S.idx < deck.length ? `<button class="btn ghost sm" id="back">Досмотреть события</button>` : `<button class="btn ghost sm" id="more">${esc(OE.moreEvents)}</button>`}<a class="btn ghost sm" href="#own">${esc(OE.own)}</a></div>
         ${S.undo ? `<div class="row tight"><button class="btn ghost sm" id="undo">${esc(OE.undo)}</button></div>` : ""}`;
       $$(".chip[data-i]").forEach(b => b.onclick = () => startSting(ys[Number(b.dataset.i)].id));
+      $$("[data-rs]").forEach(b => b.onclick = () => { const pk = (S.picks || []).find(x => x.id === b.dataset.rs); if (pk) { delete pk.notStung; persistOnb(); } startSting(b.dataset.rs); });
       const bk = $("#back"); if (bk) bk.onclick = () => { S.choose = false; persistOnb(); render(); };
       const m = $("#more"); if (m) m.onclick = () => { newDeck(S); persistOnb(); render(); };
       const un = $("#undo"); if (un) un.onclick = () => { if (R.deckUndo(S)) { S.choose = false; persistOnb(); render(); } };
@@ -431,7 +434,8 @@
     const steps = [
       { k: "m", q: OSg.title, lead: `«${evText}»`, type: "choice", opts: [...meanings.map(m => [m.id, m.text]), ...X.meaningExtra], own: true, ownPh: "Своими словами" },
       { k: "repeat", q: OSg.repeat, type: "choice", opts: X.repeat, skip: a => a.m === "__none" },
-      { k: "reaction", q: OSg.reaction, lead: OSg.reactionLead, type: "choice", opts: X.reactions, own: true, optional: true, skip: a => a.m === "__none" },
+      /* Реакция — только когда для события известен её тип; для своего текста не спрашиваем. */
+      { k: "reaction", q: OSg.reaction, lead: OSg.reactionLead, type: "choice", opts: (ev && ev.reactions) || [], own: true, optional: true, skip: a => a.m === "__none" || !(ev && ev.reactions && ev.reactions.length) },
     ];
     flow({ id: ev ? "onb-sting-" + ev.id : "onb-sting-own", scope: "onb", steps, title: "Что задело", cancelLabel: "Назад", onCancel: () => go(ev ? "cards" : "own"),
       onDone: async ans => {
@@ -440,7 +444,7 @@
           S.own = null; await persistOnb(); return go("area");
         }
         const mm = meanings.find(m => m.id === ans.m);
-        S.sting = { meaningId: mm ? mm.id : (ans.m === "__own" ? "own" : "other"), text: mm ? mm.text : (ans.m === "__own" ? ans.m_own : ""), lessonId: mm ? mm.lessonId : null, origin: mm ? "user_selected" : (ans.m === "__own" ? "user_written" : null), repeat: ans.repeat || null, reaction: val(ans, "reaction") || null };
+        S.sting = { meaningId: mm ? mm.id : (ans.m === "__own" ? "own" : "other"), text: mm ? mm.text : (ans.m === "__own" ? ans.m_own : ""), lessonId: mm ? (mm.lessonId || null) : null, observe: mm && mm.observe ? mm.observe : null, origin: mm ? "user_selected" : (ans.m === "__own" ? "user_written" : null), repeat: ans.repeat || null, reaction: val(ans, "reaction") || null };
         S.step = "path"; await persistOnb(); go("path");
       } });
   }
@@ -482,12 +486,19 @@
       } });
   }
   const packIdOf = S => (S.event && eventById(S.event) ? eventById(S.event).packId : (S.own ? S.own.packId : null)) || null;
-  function lessonsFor(S) { const pk = C.packs.find(x => x.id === packIdOf(S)); return pk ? pk.lessons : []; }
+  /* Урок по значению: глобальный id (направление может быть из другого пакета). Наблюдение по значению — предметный шаг без причины. */
+  const lessonByMeaning = S => { const st = S.sting || {}; if (st.lessonId) return R.findLesson(C.packs, st.lessonId); if (st.observe) return Object.assign({}, X.lessonObserve, { id: "observe:" + (S.event || "own") + ":" + (st.meaningId || ""), title: st.observe.title, action: st.observe.action, signal: st.observe.signal, headline: "Первый шаг — " + st.observe.title }); return null; };
+  function lessonsFor(S) {
+    const ids = new Set(), out = []; const add = pk => { if (!pk) return; pk.lessons.forEach(l => { if (!ids.has(l.id)) { ids.add(l.id); out.push(Object.assign({ packId: pk.id, packTitle: pk.title }, l)); } }); };
+    const bm = lessonByMeaning(S); if (bm && bm.packId) add(C.packs.find(x => x.id === bm.packId));
+    add(C.packs.find(x => x.id === packIdOf(S)));
+    return out;
+  }
   /* Предварительный урок — по ситуации и подтверждённому значению, не по числу. Без объяснения — наблюдение. */
   function lesson() {
     const S = onb(); if (!S.sting || !S.teacher) return go(S.sting ? "teacher" : "cards");
     const all = lessonsFor(S), rejected = S.rejected || [];
-    const byMeaning = S.sting.lessonId ? all.find(l => l.id === S.sting.lessonId) : null;
+    const byMeaning = lessonByMeaning(S);
     const L = S.lesson || (byMeaning && !rejected.includes(byMeaning.id) ? byMeaning : null) || X.lessonObserve;
     const tl = S.teacher.ownName ? S.teacher.ownName : S.teacher.label;
     const ev = S.event ? eventById(S.event) : null, evText = ev ? ev.text : (S.own ? S.own.text : "");
@@ -501,11 +512,11 @@
       $("#bk").onclick = async () => { S.pickAlt = false; await persistOnb(); lesson(); };
       return;
     }
-    const observe = L.id === X.lessonObserve.id;
+    const observe = L.id === X.lessonObserve.id || String(L.id).startsWith("observe:");
     app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(evText)}${S.sting.text ? ` · ${esc(lc1(S.sting.text))}` : ""}</p>
       <div class="card mark">
         <p style="margin:0 0 6px"><b>${esc(OB.lesson.teacherLead)} ${esc(tl)}.</b></p>
-        ${observe ? `<p style="margin:0 0 8px"><b>${esc(X.lessonObserve.headline)}</b></p><p class="small" style="margin:0 0 8px">${esc(uc1(L.action))}. ${esc(X.lessonObserve.note)}</p>` : `<p style="margin:0 0 10px"><b>${esc(OB.lesson.lessonLead)} ${esc(L.title)}.</b></p>
+        ${observe ? `<p style="margin:0 0 8px"><b>${esc(L.headline || X.lessonObserve.headline)}</b></p><p class="small" style="margin:0 0 8px">${esc(uc1(L.action))}. ${esc(X.lessonObserve.note)}</p>` : `<p style="margin:0 0 10px"><b>${esc(OB.lesson.lessonLead)} ${esc(L.title)}.</b></p>
         ${L.inner ? `<p class="small" style="margin:0 0 4px"><b>${esc(OB.lesson.inner)}</b> ${esc(lc1(L.inner))}.</p>` : ""}
         <p class="small" style="margin:0 0 8px"><b>${esc(OB.lesson.action)}</b> ${esc(lc1(L.action))}.</p>
         <p class="small muted" style="margin:0">${esc(OB.lesson.text)}</p>`}
@@ -517,12 +528,14 @@
   }
   /* Создание сюжета из входа. Происхождение каждой части резюме сохраняется; редакционная гипотеза не становится «подтверждённым» без явного ответа. */
   async function startLesson(S, L) {
-    const ts = nowTs(), k = today(), T = S.teacher, ev = S.event ? eventById(S.event) : null, packId = packIdOf(S), pk = C.packs.find(x => x.id === packId);
+    const ts = nowTs(), k = today(), T = S.teacher, ev = S.event ? eventById(S.event) : null;
+    /* Пакет сюжета — по направлению (уроку), иначе по событию: практика следует за подтверждённым значением. */
+    const packId = L.packId || packIdOf(S), pk = C.packs.find(x => x.id === packId);
     const evText = ev ? ev.text : S.own.text;
     const hasCase = T.when && T.when !== "none" && !(T.when === "earlier" && !T.date);
     const caseDate = T.when === "today" ? k : (T.date && R.isKey(T.date) ? T.date : k);
     const startDate = hasCase ? (R.diffDays(caseDate, k) <= 6 ? caseDate : k) : null;
-    const tl = T.ownName || T.label, observe = L.id === X.lessonObserve.id;
+    const tl = T.ownName || T.label, observe = L.id === X.lessonObserve.id || String(L.id).startsWith("observe:");
     const scenario = { origin: ev ? "event" : "own", eventId: ev ? ev.id : null, eventText: evText, eventOrigin: ev ? "user_selected" : "user_written", meaningId: S.sting.meaningId, meaningText: S.sting.text || "", meaningOrigin: S.sting.origin, repeat: S.sting.repeat, reaction: S.sting.reaction || null, reactionOrigin: S.sting.reaction ? "user_selected" : null, area: S.area || null, version: C.contentVersion, recognition: evText, own: ev ? "" : evText, confirmed: ev ? "yes" : "own" };
     const p = { id: R.uuid(), title: pk ? pk.title : shortTitle(evText), packId: packId || null, contexts: tl ? [tl] : [], status: hasCase ? "active" : "observe", startDate, createdAt: ts, hypothesisVersionId: null, experimentId: null, queue: [], legacy: false,
       scenario, teacher: { kind: T.kind, label: tl, what: evText },
@@ -539,7 +552,7 @@
     /* Остальные события «было» — на потом: сохранённые направления, не записи случаев. */
     const others = R.deckYes(S).filter(c => c.id !== (ev && ev.id) && !c.notStung);
     if (others.length) { const have = new Set((P.savedScenarios || []).map(x => x.id)); P.savedScenarios = [...(P.savedScenarios || []), ...others.filter(c => !have.has(c.id)).map(c => ({ id: c.id, kind: "event", packId: c.packId, text: c.text, recognition: c.text, version: C.contentVersion, savedAt: ts }))]; }
-    P.onb = null; P.seen.start = true; P.lastResult = { kind: "lesson", title: observe ? X.lessonObserve.headline : L.title, plan: uc1(L.action), observe: !hasCase };
+    P.onb = null; P.seen.start = true; P.lastResult = { kind: "lesson", title: observe ? (L.headline || X.lessonObserve.headline) : L.title, plan: uc1(L.action), observe: !hasCase };
     dropDraft("onb-teacher", "onb"); await saveProfile(); go("today");
   }
 

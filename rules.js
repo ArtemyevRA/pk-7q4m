@@ -316,6 +316,11 @@
     S.picks = (S.picks || []).filter(p => p.id !== c.id); S.idx = S.idx - 1; S.undo = null; return true;
   };
   R.deckYes = S => (S.picks || []).filter(p => p.r === "yes");
+  /* Кандидаты для разбора: «было» без пометки «не задело». Факт события сохраняется, пересмотр — явным действием. */
+  R.deckCandidates = S => (S.picks || []).filter(p => p.r === "yes" && !p.notStung);
+  R.deckNotStung = S => (S.picks || []).filter(p => p.r === "yes" && p.notStung);
+  /* Урок по глобальному id: направление задаёт выбранное значение события, а не пакет события. */
+  R.findLesson = (packs, id) => { for (const pk of packs || []) { const l = (pk.lessons || []).find(x => x.id === id); if (l) return Object.assign({ packId: pk.id, packTitle: pk.title }, l); } return null; };
 
   /* Короткий вечер: один ответ фиксирует и повод, и действие. Репетиции поводом не являются. */
   R.QUICK_EVENING = [["done", "Был повод и получилось", "yes", "done"], ["partial", "Был повод, частично", "yes", "partial"], ["not", "Был повод, не получилось", "yes", "not"], ["none", "Повода не было", "no", null], ["unsure", "Не уверен", "unsure", null]];

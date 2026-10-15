@@ -963,6 +963,24 @@ window.KARMA_CONTENT = {
      "skillId": "refuse",
      "hypothesisId": "fairness-h4",
      "signal": "меня попросят вложиться ещё"
+    },
+    {
+     "id": "fairness-l5",
+     "title": "сверять обязательства с реальными возможностями до согласия",
+     "inner": "Я могу соотносить обязательства со своими возможностями",
+     "action": "перед новым обязательством сказать: «Посмотрю, что могу, и отвечу»",
+     "skillId": "refuse",
+     "hypothesisId": "fairness-h4",
+     "signal": "меня попросят о новом расходе или обязательстве"
+    },
+    {
+     "id": "fairness-l6",
+     "title": "говорить о деньгах прямо, без оправданий",
+     "inner": "Я могу обсуждать деньги уважительно и прямо",
+     "action": "одну просьбу или отказ по деньгам сказать одной фразой, без объяснений",
+     "skillId": "need",
+     "hypothesisId": "fairness-h2",
+     "signal": "нужно попросить или отказать по деньгам"
     }
    ],
    "summary": "молчу о своих условиях и жду признания"
@@ -2223,6 +2241,14 @@ window.KARMA_CONTENT = {
     "keep": "Сохранить формулировку"
    },
    "formula": "Распознай учителя. Пройди урок. Измени привычный сценарий.",
+   "sting": {
+    "title": "Что в этом задело сильнее всего?",
+    "sub": "Что было неприятно или важно. Один вариант не устанавливает причину.",
+    "repeat": "Это знакомое повторение или один случай?",
+    "reaction": "Что ты обычно делаешь в такой момент?",
+    "reactionLead": "По желанию. Можно пропустить и вернуться к этому завтра.",
+    "notStung": "Было, но не задело"
+   },
    "number": {
     "lead": "Твоё число —",
     "text": "Найдём, с какого сюжета начать.",
@@ -2255,13 +2281,6 @@ window.KARMA_CONTENT = {
     "none": "Эта подборка не подошла. Посмотрим другие события или возьмём твой случай.",
     "which": "Что разберём сейчас?",
     "whichSub": "Остальное сохраним на потом."
-   },
-   "sting": {
-    "title": "Что в этом задело сильнее всего?",
-    "sub": "Возможные значения. Один вариант не устанавливает причину.",
-    "repeat": "Это знакомое повторение или один случай?",
-    "reaction": "Что ты обычно делаешь в такой момент?",
-    "reactionLead": "По желанию. Можно пропустить и вернуться к этому завтра."
    },
    "path": {
     "start": "С чего начинаем у тебя",
@@ -2320,27 +2339,38 @@ window.KARMA_CONTENT = {
      3,
      1
     ],
+    "reactions": [
+     "Замолкаю",
+     "Спорю",
+     "Уступаю",
+     "Ухожу",
+     "По-разному"
+    ],
     "text": "Меня перебивают, пока я говорю",
     "meanings": [
      {
       "id": "m1",
       "text": "Не дали закончить мысль",
-      "lessonId": "voice-l1"
+      "lessonId": "voice-l1",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Решили, что знают лучше меня",
-      "lessonId": "voice-l3"
+      "lessonId": "voice-l3",
+      "observe": null
      },
      {
       "id": "m3",
       "text": "Это происходит при других",
-      "lessonId": "voice-l2"
+      "lessonId": "voice-l2",
+      "observe": null
      },
      {
       "id": "m4",
-      "text": "Я не успеваю включиться в разговор",
-      "lessonId": "voice-l4"
+      "text": "Не успеваю включиться в разговор",
+      "lessonId": "voice-l4",
+      "observe": null
      }
     ]
    },
@@ -2355,27 +2385,38 @@ window.KARMA_CONTENT = {
      1,
      3
     ],
+    "reactions": [
+     "Замолкаю",
+     "Спорю",
+     "Уступаю",
+     "Ухожу",
+     "По-разному"
+    ],
     "text": "Решают за меня, не спрашивая",
     "meanings": [
      {
       "id": "m1",
       "text": "Моё мнение не учли",
-      "lessonId": "voice-l1"
+      "lessonId": "voice-l1",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Решили, что знают лучше меня",
-      "lessonId": "control-l3"
+      "lessonId": "control-l3",
+      "observe": null
      },
      {
       "id": "m3",
-      "text": "Не смог сказать, что не согласен",
-      "lessonId": "voice-l1"
+      "text": "Моё несогласие осталось невысказанным",
+      "lessonId": "voice-l1",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Так происходит постоянно",
-      "lessonId": "voice-l2"
+      "lessonId": "voice-l2",
+      "observe": null
      }
     ]
    },
@@ -2391,27 +2432,38 @@ window.KARMA_CONTENT = {
      4,
      6
     ],
+    "reactions": [
+     "Делаю сам",
+     "Напоминаю",
+     "Молчу и злюсь",
+     "Перестаю просить",
+     "По-разному"
+    ],
     "text": "Обещают помочь, но не делают",
     "meanings": [
      {
       "id": "m1",
       "text": "Всё остаётся на мне",
-      "lessonId": "refusal-l2"
+      "lessonId": "refusal-l2",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Договорённость не выполнена",
-      "lessonId": "refusal-l4"
+      "lessonId": "refusal-l4",
+      "observe": null
      },
      {
       "id": "m3",
       "text": "Я ждал взаимности",
-      "lessonId": "refusal-l3"
+      "lessonId": "refusal-l3",
+      "observe": null
      },
      {
       "id": "m4",
-      "text": "Неловко напоминать",
-      "lessonId": "refusal-l1"
+      "text": "Напоминать неловко",
+      "lessonId": "refusal-l1",
+      "observe": null
      }
     ]
    },
@@ -2426,27 +2478,38 @@ window.KARMA_CONTENT = {
      2,
      6
     ],
+    "reactions": [
+     "Соглашаюсь",
+     "Соглашаюсь и злюсь",
+     "Тяну с ответом",
+     "Отказываю с объяснениями",
+     "По-разному"
+    ],
     "text": "Просят подменить или взять лишнее",
     "meanings": [
      {
       "id": "m1",
-      "text": "Не могу отказать",
-      "lessonId": "refusal-l1"
+      "text": "Отказать страшно",
+      "lessonId": "refusal-l1",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Моя загрузка никого не интересует",
-      "lessonId": "refusal-l2"
+      "lessonId": "refusal-l2",
+      "observe": null
      },
      {
       "id": "m3",
       "text": "Просят слишком часто",
-      "lessonId": "refusal-l4"
+      "lessonId": "refusal-l4",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Жду, что заметят мой вклад",
-      "lessonId": "refusal-l3"
+      "lessonId": "refusal-l3",
+      "observe": null
      }
     ]
    },
@@ -2460,27 +2523,38 @@ window.KARMA_CONTENT = {
      4,
      8
     ],
+    "reactions": [
+     "Оправдываюсь",
+     "Молчу",
+     "Спорю",
+     "Переделываю всё",
+     "По-разному"
+    ],
     "text": "Меня поправляют при других",
     "meanings": [
      {
       "id": "m1",
       "text": "Неясно, что именно нужно изменить",
-      "lessonId": "criticism-l2"
+      "lessonId": "criticism-l2",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Со мной говорят унизительно",
-      "lessonId": "criticism-l3"
+      "lessonId": "criticism-l3",
+      "observe": null
      },
      {
       "id": "m3",
       "text": "Одна ошибка — и я чувствую себя несостоятельным",
-      "lessonId": "criticism-l1"
+      "lessonId": "criticism-l1",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Это при коллегах",
-      "lessonId": "criticism-l3"
+      "lessonId": "criticism-l3",
+      "observe": null
      }
     ]
    },
@@ -2495,27 +2569,38 @@ window.KARMA_CONTENT = {
      1,
      3
     ],
+    "reactions": [
+     "Оправдываюсь",
+     "Молчу",
+     "Спорю",
+     "Отдаляюсь",
+     "По-разному"
+    ],
     "text": "Сравнивают меня с другими",
     "meanings": [
      {
       "id": "m1",
       "text": "Меня не принимают таким, какой я есть",
-      "lessonId": "criticism-l1"
+      "lessonId": "criticism-l1",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Не понимаю, чего от меня хотят",
-      "lessonId": "criticism-l2"
+      "lessonId": "criticism-l2",
+      "observe": null
      },
      {
       "id": "m3",
       "text": "Это звучит унизительно",
-      "lessonId": "criticism-l3"
+      "lessonId": "criticism-l3",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Сравнивают при людях",
-      "lessonId": "criticism-l3"
+      "lessonId": "criticism-l3",
+      "observe": null
      }
     ]
    },
@@ -2529,27 +2614,38 @@ window.KARMA_CONTENT = {
      1,
      4
     ],
+    "reactions": [
+     "Делаю по-своему молча",
+     "Спорю",
+     "Подчиняюсь и злюсь",
+     "Переспрашиваю",
+     "По-разному"
+    ],
     "text": "Мне указывают, как именно делать",
     "meanings": [
      {
       "id": "m1",
       "text": "Моему способу не доверяют",
-      "lessonId": "control-l3"
+      "lessonId": "control-l3",
+      "observe": null
      },
      {
       "id": "m2",
-      "text": "Хочется сопротивляться любому указанию",
-      "lessonId": "control-l2"
+      "text": "Любое указание вызывает сопротивление",
+      "lessonId": "control-l2",
+      "observe": null
      },
      {
       "id": "m3",
       "text": "Указания противоречат друг другу",
-      "lessonId": "control-l2"
+      "lessonId": "control-l2",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Это звучит как приказ",
-      "lessonId": "control-l3"
+      "lessonId": "control-l3",
+      "observe": null
      }
     ]
    },
@@ -2564,27 +2660,38 @@ window.KARMA_CONTENT = {
      4,
      1
     ],
+    "reactions": [
+     "Переделываю сам",
+     "Делаю замечание",
+     "Молчу и злюсь",
+     "Проверяю каждый шаг",
+     "По-разному"
+    ],
     "text": "Другой делает задачу не так, как я",
     "meanings": [
      {
       "id": "m1",
-      "text": "Хочу переделать всё сам",
-      "lessonId": "control-l1"
+      "text": "Руки тянутся переделать",
+      "lessonId": "control-l1",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Результат будет хуже",
-      "lessonId": "control-l2"
+      "lessonId": "control-l2",
+      "observe": null
      },
      {
       "id": "m3",
-      "text": "Потом отвечать мне",
-      "lessonId": "control-l3"
+      "text": "Отвечать потом мне",
+      "lessonId": "control-l3",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Я и так на пределе",
-      "lessonId": "control-l4"
+      "lessonId": "control-l4",
+      "observe": null
      }
     ]
    },
@@ -2599,27 +2706,38 @@ window.KARMA_CONTENT = {
      5,
      4
     ],
+    "reactions": [
+     "Раздражаюсь на близких",
+     "Соглашаюсь молча",
+     "Спорю",
+     "Пытаюсь вернуть прежний план",
+     "По-разному"
+    ],
     "text": "Планы меняют в последний момент",
     "meanings": [
      {
       "id": "m1",
       "text": "Не успеваю перестроиться",
-      "lessonId": "control-l4"
+      "lessonId": "control-l4",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Меня не предупредили",
-      "lessonId": "control-l3"
+      "lessonId": "control-l3",
+      "observe": null
      },
      {
       "id": "m3",
       "text": "Снова всё решили без меня",
-      "lessonId": "voice-l1"
+      "lessonId": "voice-l1",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Раздражение достаётся близким",
-      "lessonId": "control-l4"
+      "lessonId": "control-l4",
+      "observe": null
      }
     ]
    },
@@ -2633,27 +2751,38 @@ window.KARMA_CONTENT = {
      2,
      6
     ],
+    "reactions": [
+     "Замолкаю и отдаляюсь",
+     "Делаю замечание",
+     "Жду, когда заметят",
+     "Ухожу в своё",
+     "По-разному"
+    ],
     "text": "Близкий смотрит в телефон, когда я хочу поговорить",
     "meanings": [
      {
       "id": "m1",
       "text": "Не чувствую, что важен в этот момент",
-      "lessonId": "closeness-l2"
+      "lessonId": "closeness-l2",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Не получаю ответа на важное",
-      "lessonId": "closeness-l3"
+      "lessonId": "closeness-l3",
+      "observe": null
      },
      {
       "id": "m3",
       "text": "Неловко просить внимания",
-      "lessonId": "closeness-l1"
+      "lessonId": "closeness-l1",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Так каждый вечер",
-      "lessonId": "closeness-l3"
+      "lessonId": "closeness-l3",
+      "observe": null
      }
     ]
    },
@@ -2668,27 +2797,38 @@ window.KARMA_CONTENT = {
      7,
      2
     ],
+    "reactions": [
+     "Проверяю снова и снова",
+     "Пишу ещё раз",
+     "Отвлекаюсь через силу",
+     "Решаю, что всё плохо",
+     "По-разному"
+    ],
     "text": "Мне долго не отвечают на сообщение",
     "meanings": [
      {
       "id": "m1",
-      "text": "Начинаю искать причину в себе",
-      "lessonId": "uncertainty-l1"
+      "text": "Кажется, дело во мне",
+      "lessonId": "uncertainty-l1",
+      "observe": null
      },
      {
       "id": "m2",
-      "text": "Не могу заняться своим, пока жду",
-      "lessonId": "uncertainty-l3"
+      "text": "Жизнь на паузе, пока нет ответа",
+      "lessonId": "uncertainty-l3",
+      "observe": null
      },
      {
       "id": "m3",
       "text": "Не знаю, можно ли спросить ещё раз",
-      "lessonId": "uncertainty-l2"
+      "lessonId": "uncertainty-l2",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Планы зависли из-за ответа",
-      "lessonId": "uncertainty-l4"
+      "lessonId": "uncertainty-l4",
+      "observe": null
      }
     ]
    },
@@ -2702,27 +2842,38 @@ window.KARMA_CONTENT = {
      2,
      6
     ],
+    "reactions": [
+     "Молчу",
+     "Обижаюсь",
+     "Справляюсь сам",
+     "Намекаю",
+     "По-разному"
+    ],
     "text": "Не замечают, что мне нужна поддержка",
     "meanings": [
      {
       "id": "m1",
       "text": "Ждал, что поймут без слов",
-      "lessonId": "closeness-l2"
+      "lessonId": "closeness-l2",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Просить — значит быть слабым",
-      "lessonId": "closeness-l1"
+      "lessonId": "closeness-l1",
+      "observe": null
      },
      {
       "id": "m3",
-      "text": "Сам отказываюсь от помощи",
-      "lessonId": "closeness-l4"
+      "text": "Помощь предлагали, а взять трудно",
+      "lessonId": "closeness-l4",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Внимание достаётся другим",
-      "lessonId": "closeness-l3"
+      "lessonId": "closeness-l3",
+      "observe": null
      }
     ]
    },
@@ -2737,27 +2888,38 @@ window.KARMA_CONTENT = {
      8,
      4
     ],
+    "reactions": [
+     "Молчу и продолжаю",
+     "Делаю меньше",
+     "Намекаю",
+     "Говорю прямо и жалею",
+     "По-разному"
+    ],
     "text": "Мой вклад воспринимают как само собой разумеющееся",
     "meanings": [
      {
       "id": "m1",
-      "text": "Молчу о своих условиях",
-      "lessonId": "fairness-l1"
+      "text": "Условия так и не названы",
+      "lessonId": "fairness-l1",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Жду признания",
-      "lessonId": "fairness-l3"
+      "lessonId": "fairness-l3",
+      "observe": null
      },
      {
       "id": "m3",
       "text": "Неловко говорить о деньгах",
-      "lessonId": "fairness-l2"
+      "lessonId": "fairness-l6",
+      "observe": null
      },
      {
       "id": "m4",
-      "text": "Вкладываюсь больше, чем могу",
-      "lessonId": "fairness-l4"
+      "text": "Вклад больше, чем мне по силам",
+      "lessonId": "fairness-l4",
+      "observe": null
      }
     ]
    },
@@ -2772,27 +2934,38 @@ window.KARMA_CONTENT = {
      8,
      4
     ],
+    "reactions": [
+     "Молчу и надеюсь",
+     "Уточняю и чувствую себя мелочным",
+     "Соглашаюсь на что есть",
+     "Откладываю разговор",
+     "По-разному"
+    ],
     "text": "Условия договорённости остаются неясными",
     "meanings": [
      {
       "id": "m1",
-      "text": "Не уточняю вовремя",
-      "lessonId": "fairness-l2"
+      "text": "Неясно, о чём договорились",
+      "lessonId": "fairness-l2",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Потом чувствую себя обманутым",
-      "lessonId": "fairness-l1"
+      "lessonId": "fairness-l1",
+      "observe": null
      },
      {
       "id": "m3",
       "text": "Боюсь показаться мелочным",
-      "lessonId": "fairness-l2"
+      "lessonId": "fairness-l6",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Каждый понимает по-своему",
-      "lessonId": "fairness-l3"
+      "lessonId": "fairness-l3",
+      "observe": null
      }
     ]
    },
@@ -2807,27 +2980,56 @@ window.KARMA_CONTENT = {
      8,
      5
     ],
+    "reactions": [
+     "Молчу и терплю",
+     "Занимаю или прошу",
+     "Урезаю своё",
+     "Ругаю себя",
+     "По-разному"
+    ],
     "text": "Деньги заканчиваются раньше, чем я рассчитывал",
     "meanings": [
      {
       "id": "m1",
-      "text": "Беру обязательства сверх возможностей",
-      "lessonId": "fairness-l4"
+      "text": "Не хватает на необходимое",
+      "lessonId": null,
+      "observe": {
+       "title": "отличать обязательные траты от решений, о которых потом жалею",
+       "action": "в конце дня отметить одну трату: обязательная она была или решение, о котором жалею",
+       "signal": "замечу неожиданный расход"
+      }
      },
      {
       "id": "m2",
-      "text": "Не могу отказать в расходах ради других",
-      "lessonId": "refusal-l2"
+      "text": "Теряю ощущение контроля",
+      "lessonId": null,
+      "observe": {
+       "title": "замечать момент неожиданного расхода и состояние перед ним",
+       "action": "в момент неожиданного расхода отметить, что было перед этим и что я решил",
+       "signal": "потянусь к неожиданной трате"
+      }
      },
      {
       "id": "m3",
-      "text": "Не вижу, куда уходят",
-      "lessonId": null
+      "text": "Приходится просить или отказывать",
+      "lessonId": "fairness-l6",
+      "observe": null
      },
      {
       "id": "m4",
-      "text": "Стыдно обсуждать это с близкими",
-      "lessonId": "fairness-l2"
+      "text": "Злюсь на конкретный расход",
+      "lessonId": null,
+      "observe": {
+       "title": "записывать конкретный расход и решение, которое к нему привело",
+       "action": "записать один расход, который злит, и что я решил в тот момент",
+       "signal": "вспомню расход, который злит"
+      }
+     },
+     {
+      "id": "m5",
+      "text": "Обязательства оказались больше возможностей",
+      "lessonId": "fairness-l5",
+      "observe": null
      }
     ]
    },
@@ -2842,27 +3044,38 @@ window.KARMA_CONTENT = {
      6,
      8
     ],
+    "reactions": [
+     "Молчу и терплю",
+     "Занимаю или прошу",
+     "Урезаю своё",
+     "Ругаю себя",
+     "По-разному"
+    ],
     "text": "Просят в долг или о расходах ради других",
     "meanings": [
      {
       "id": "m1",
-      "text": "Не могу отказать",
-      "lessonId": "refusal-l1"
+      "text": "Отказать страшно",
+      "lessonId": "refusal-l1",
+      "observe": null
      },
      {
       "id": "m2",
-      "text": "Потом злюсь на себя",
-      "lessonId": "refusal-l2"
+      "text": "Мои планы снова отодвигаются",
+      "lessonId": "fairness-l5",
+      "observe": null
      },
      {
       "id": "m3",
       "text": "Не возвращают, а напомнить неловко",
-      "lessonId": "refusal-l4"
+      "lessonId": "refusal-l4",
+      "observe": null
      },
      {
       "id": "m4",
-      "text": "Мои планы снова отодвигаются",
-      "lessonId": "refusal-l2"
+      "text": "Говорить о деньгах неловко",
+      "lessonId": "fairness-l6",
+      "observe": null
      }
     ]
    },
@@ -2877,27 +3090,38 @@ window.KARMA_CONTENT = {
      8,
      1
     ],
+    "reactions": [
+     "Молчу",
+     "Говорю и жалею",
+     "Отстраняюсь",
+     "Делаю меньше",
+     "По-разному"
+    ],
     "text": "Другому разрешено то, за что меня критикуют",
     "meanings": [
      {
       "id": "m1",
       "text": "Правила двойные",
-      "lessonId": "fairness-l1"
+      "lessonId": "fairness-l1",
+      "observe": null
      },
      {
       "id": "m2",
-      "text": "Молчу, а обида растёт",
-      "lessonId": "fairness-l2"
+      "text": "Обида растёт, а сказать нельзя",
+      "lessonId": "fairness-l2",
+      "observe": null
      },
      {
       "id": "m3",
-      "text": "Это несправедливо, но спорить бесполезно",
-      "lessonId": "fairness-l3"
+      "text": "Спорить бесполезно",
+      "lessonId": "fairness-l3",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Сомневаюсь, что заслуживаю того же",
-      "lessonId": "criticism-l1"
+      "lessonId": "criticism-l1",
+      "observe": null
      }
     ]
    },
@@ -2911,27 +3135,38 @@ window.KARMA_CONTENT = {
      4,
      6
     ],
+    "reactions": [
+     "Продолжаю через силу",
+     "Откладываю",
+     "Ругаю себя",
+     "Переделываю",
+     "По-разному"
+    ],
     "text": "После отдыха чувствую, что потратил время зря",
     "meanings": [
      {
       "id": "m1",
       "text": "Отдых надо заслужить",
-      "lessonId": "rest-l1"
+      "lessonId": "rest-l1",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Все вокруг работают",
-      "lessonId": "rest-l2"
+      "lessonId": "rest-l2",
+      "observe": null
      },
      {
       "id": "m3",
-      "text": "Я уже истощён и не могу остановиться",
-      "lessonId": "rest-l3"
+      "text": "Остановиться не получается",
+      "lessonId": "rest-l3",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Вижу чужую лёгкость, а себе не разрешаю",
-      "lessonId": "rest-l1"
+      "lessonId": "rest-l1",
+      "observe": null
      }
     ]
    },
@@ -2946,27 +3181,38 @@ window.KARMA_CONTENT = {
      4,
      6
     ],
+    "reactions": [
+     "Продолжаю через силу",
+     "Откладываю",
+     "Ругаю себя",
+     "Переделываю",
+     "По-разному"
+    ],
     "text": "Берусь за задачи, хотя уже устал",
     "meanings": [
      {
       "id": "m1",
-      "text": "Не могу остановиться",
-      "lessonId": "rest-l1"
+      "text": "Остановиться не получается",
+      "lessonId": "rest-l1",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Если не я, то никто",
-      "lessonId": "rest-l2"
+      "lessonId": "rest-l2",
+      "observe": null
      },
      {
       "id": "m3",
       "text": "Я на пределе",
-      "lessonId": "rest-l3"
+      "lessonId": "rest-l3",
+      "observe": null
      },
      {
       "id": "m4",
-      "text": "Решил, что другие бездельничают",
-      "lessonId": "rest-l4"
+      "text": "Кажется, другие не делают свою часть",
+      "lessonId": "rest-l4",
+      "observe": null
      }
     ]
    },
@@ -2981,27 +3227,38 @@ window.KARMA_CONTENT = {
      3,
      1
     ],
+    "reactions": [
+     "Продолжаю через силу",
+     "Откладываю",
+     "Ругаю себя",
+     "Переделываю",
+     "По-разному"
+    ],
     "text": "Откладываю показ работы из страха оценки",
     "meanings": [
      {
       "id": "m1",
       "text": "Боюсь замечаний",
-      "lessonId": "criticism-l1"
+      "lessonId": "criticism-l1",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Не понимаю критерии",
-      "lessonId": "criticism-l2"
+      "lessonId": "criticism-l2",
+      "observe": null
      },
      {
       "id": "m3",
       "text": "Сил на обратную связь сейчас нет",
-      "lessonId": "criticism-l4"
+      "lessonId": "criticism-l4",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Однажды уже было унизительно",
-      "lessonId": "criticism-l3"
+      "lessonId": "criticism-l3",
+      "observe": null
      }
     ]
    },
@@ -3015,27 +3272,38 @@ window.KARMA_CONTENT = {
      4,
      7
     ],
+    "reactions": [
+     "Продолжаю через силу",
+     "Откладываю",
+     "Ругаю себя",
+     "Переделываю",
+     "По-разному"
+    ],
     "text": "После одного замечания переделываю всё",
     "meanings": [
      {
       "id": "m1",
       "text": "Одна ошибка значит, что всё плохо",
-      "lessonId": "criticism-l1"
+      "lessonId": "criticism-l1",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Не знаю, что именно не так",
-      "lessonId": "criticism-l2"
+      "lessonId": "criticism-l2",
+      "observe": null
      },
      {
       "id": "m3",
-      "text": "Хочу избежать нового замечания",
-      "lessonId": "criticism-l1"
+      "text": "Страшно получить новое замечание",
+      "lessonId": "criticism-l1",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Устал и всё кажется неверным",
-      "lessonId": "criticism-l4"
+      "lessonId": "criticism-l4",
+      "observe": null
      }
     ]
    },
@@ -3050,27 +3318,38 @@ window.KARMA_CONTENT = {
      5,
      3
     ],
+    "reactions": [
+     "Продолжаю через силу",
+     "Откладываю",
+     "Ругаю себя",
+     "Переделываю",
+     "По-разному"
+    ],
     "text": "Вижу чужую лёгкость и думаю, что мне так нельзя",
     "meanings": [
      {
       "id": "m1",
       "text": "Себе лёгкость не разрешаю",
-      "lessonId": "rest-l1"
+      "lessonId": "rest-l1",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Кажется, я тяну больше всех",
-      "lessonId": "rest-l2"
+      "lessonId": "rest-l2",
+      "observe": null
      },
      {
       "id": "m3",
       "text": "Сил на лёгкость нет",
-      "lessonId": "rest-l3"
+      "lessonId": "rest-l3",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Сравнение несправедливо, но цепляет",
-      "lessonId": "rest-l4"
+      "lessonId": "rest-l4",
+      "observe": null
      }
     ]
    },
@@ -3084,27 +3363,38 @@ window.KARMA_CONTENT = {
      9,
      7
     ],
+    "reactions": [
+     "Проверяю снова и снова",
+     "Пишу ещё раз",
+     "Отвлекаюсь через силу",
+     "Решаю, что всё плохо",
+     "По-разному"
+    ],
     "text": "Разговор обрывается без объяснения",
     "meanings": [
      {
       "id": "m1",
-      "text": "Додумываю худшее",
-      "lessonId": "uncertainty-l1"
+      "text": "В голове худшие версии",
+      "lessonId": "uncertainty-l1",
+      "observe": null
      },
      {
       "id": "m2",
-      "text": "Не могу переключиться на своё",
-      "lessonId": "uncertainty-l3"
+      "text": "Своё дело стоит, пока нет ответа",
+      "lessonId": "uncertainty-l3",
+      "observe": null
      },
      {
       "id": "m3",
-      "text": "Боюсь спросить, что случилось",
-      "lessonId": "uncertainty-l2"
+      "text": "Страшно спросить, что случилось",
+      "lessonId": "uncertainty-l2",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Это повторяется с этим человеком",
-      "lessonId": "uncertainty-l4"
+      "lessonId": "uncertainty-l4",
+      "observe": null
      }
     ]
    },
@@ -3119,27 +3409,38 @@ window.KARMA_CONTENT = {
      3,
      2
     ],
+    "reactions": [
+     "Замолкаю",
+     "Спорю",
+     "Уступаю",
+     "Ухожу",
+     "По-разному"
+    ],
     "text": "Мои слова называют «усложнением»",
     "meanings": [
      {
       "id": "m1",
       "text": "Моё важное обесценили",
-      "lessonId": "voice-l1"
+      "lessonId": "voice-l1",
+      "observe": null
      },
      {
       "id": "m2",
       "text": "Разговор ведут в неподходящей форме",
-      "lessonId": "voice-l2"
+      "lessonId": "voice-l2",
+      "observe": null
      },
      {
       "id": "m3",
       "text": "Может, я и правда усложняю",
-      "lessonId": "voice-l3"
+      "lessonId": "voice-l3",
+      "observe": null
      },
      {
       "id": "m4",
       "text": "Это уже не первый раз",
-      "lessonId": "voice-l2"
+      "lessonId": "voice-l2",
+      "observe": null
      }
     ]
    }
@@ -3179,27 +3480,32 @@ window.KARMA_CONTENT = {
    {
     "id": "m1",
     "text": "Меня не услышали",
-    "lessonId": null
+    "lessonId": null,
+    "observe": null
    },
    {
     "id": "m2",
     "text": "Со мной не считались",
-    "lessonId": null
+    "lessonId": null,
+    "observe": null
    },
    {
     "id": "m3",
     "text": "Это было несправедливо",
-    "lessonId": null
+    "lessonId": null,
+    "observe": null
    },
    {
     "id": "m4",
     "text": "Мне навязали чужое",
-    "lessonId": null
+    "lessonId": null,
+    "observe": null
    },
    {
     "id": "m5",
     "text": "Я остался один с этим",
-    "lessonId": null
+    "lessonId": null,
+    "observe": null
    }
   ],
   "lessonObserve": {
