@@ -211,17 +211,17 @@
     let [h, arg] = (location.hash || "#today").slice(1).split("/");
     const p = anyPattern();
     /* Новому человеку — вход (проблема → дата → число → сценарии → учитель → урок). Действующий сюжет или записи прошлой версии — сразу свой путь. */
-    const ONB = ["start", "birth", "symbol", "cards", "teacher", "lesson", "new", "entry", "help", "about", "settings"];
+    const ONB = ["start", "birth", "symbol", "area", "cards", "own", "sting", "path", "teacher", "lesson", "new", "entry", "help", "about", "settings"];
     const needStart = !p && !D.meta.migratedFromV9 && !(P.seen.start && !P.onb);
     if (needStart && !ONB.includes(h)) h = (P.onb && P.onb.step && ONB.includes(P.onb.step)) ? P.onb.step : "start";
-    if (needStart && ["start", "birth", "symbol", "cards", "teacher", "lesson"].includes(h)) { P.onb = P.onb || {}; if (P.onb.step !== h) { P.onb.step = h; saveProfile(true); } }
+    if (needStart && ["start", "birth", "symbol", "area", "cards", "own", "sting", "path", "teacher", "lesson"].includes(h)) { P.onb = P.onb || {}; if (P.onb.step !== h) { P.onb.step = h; saveProfile(true); } }
     const live = !!p || !!D.meta.migratedFromV9 || (P.seen.start && !P.onb);
     document.body.classList.toggle("live", live && !["start", "entry", "birth"].includes(h));
     hero.innerHTML = ""; $("#stagebar").innerHTML = "";
     nav.innerHTML = `<a class="pill sos" href="#help" aria-label="Сейчас тяжело">${ic("flame", "")}<span>Сейчас тяжело</span></a><a class="pill ${h === "settings" ? "on" : ""}" href="#settings" aria-label="Настройки">${ic("key", "")}</a>`;
     tabs.innerHTML = [["today", "Сегодня", phaseIc()], ["story", "Мой путь", "eye"], ["history", "История", "hourglass"]].map(([k, l, i]) => `<a href="#${k}" class="${h === k ? "on" : ""}">${ic(i, "")}${l}</a>`).join("");
     $("#testbar").innerHTML = P.devMode && P.offsetH ? `<div class="testbar">Тестовое время: ${R.human(today())}, ${R.fmtTime(nowTs())} (сдвиг ${P.offsetH > 0 ? "+" : ""}${P.offsetH} ч) — <a href="#settings">сбросить</a></div>` : "";
-    const V = { start, birth, entry, new: newEpisode, cards, teacher, lesson, help, today: todayScreen, story, history, settings, morning, event, action, evening, module: moduleScreen, review, flag: flagScreen, about, symbol, detail, legacy, episode: episodeView };
+    const V = { start, birth, entry, new: newEpisode, area, cards, own: ownScenario, sting, path: pathScreen, teacher, lesson, help, today: todayScreen, story, history, settings, morning, event, action, evening, module: moduleScreen, review, flag: flagScreen, about, symbol, detail, legacy, episode: episodeView };
     (V[h] || V.today)(arg);
     window.scrollTo(0, 0);
   }
@@ -250,23 +250,24 @@
   /* Шаг 2. Дата рождения — по желанию. Без даты путь тот же, только подборка общая. */
   function birth() {
     document.body.classList.remove("live");
-    const S = P.symbolic || {};
+    const S = P.symbolic || {}, O = onb();
     app.innerHTML = `<h1>${esc(OB.birth.title)}</h1><p>${esc(OB.birth.text)}</p>
-      <label for="b">Дата рождения</label><input type="date" id="b" min="1920-01-01" max="${today()}" value="${esc(S.birth || "")}">
+      <label for="b">Дата рождения</label><input type="date" id="b" min="1920-01-01" max="${today()}" value="${esc(O.birthDraft || S.birth || "")}">
       <p class="tiny" style="margin:4px 0 10px">${esc(OB.birth.note)}</p>
       <div class="row"><button class="btn block" id="go">${esc(OB.birth.cta)}</button></div>
-      <div class="row tight"><a class="btn ghost" href="#cards" id="skip">${esc(OB.birth.skip)}</a><a class="btn ghost" href="#help">Сейчас тяжело</a></div>`;
+      <div class="row tight"><a class="btn ghost" href="#area" id="skip">${esc(OB.birth.skip)}</a><a class="btn ghost" href="#help">Сейчас тяжело</a></div>`;
+    $("#b").onchange = () => { O.birthDraft = $("#b").value; saveProfile(true); };
     $("#go").onclick = async () => {
       const v = $("#b").value; const r = R.calcNum(v); if (!r || !R.isKey(v)) return toast("Укажи дату");
-      P.symbolic = Object.assign({}, S, { birth: v, num: r.num, chosen: S.birth === v ? S.chosen : null }); onb().step = "symbol"; onb().deck = null; await saveProfile(true); go("symbol");
+      P.symbolic = Object.assign({}, S, { birth: v, num: r.num, chosen: S.birth === v ? S.chosen : null }); onb().step = "symbol"; await saveProfile(true); go(onb().sting ? "path" : "symbol");
     };
-    $("#skip").onclick = async e => { e.preventDefault(); onb().step = "cards"; onb().deck = null; await saveProfile(true); go("cards"); };
+    $("#skip").onclick = async e => { e.preventDefault(); onb().step = onb().sting ? "path" : "area"; await saveProfile(true); go(onb().sting ? "path" : "area"); };
   }
   function entry() {
     document.body.classList.remove("live");
     app.innerHTML = `<h1>С чем начнём?</h1><p class="muted">Один вопрос за раз. Можно уйти в любой момент — всё сохранится.</p>
       <div class="chips col">
-        <a class="btn block" href="#cards">Узнать свои сюжеты</a>
+        <a class="btn block" href="#area">Найти, с чего начать</a>
         <a class="btn block secondary" href="#new">${esc(C.entryCopy.choices[0])}</a>
         <a class="btn block sos" href="#help">${esc(C.entryCopy.choices[2])}</a>
       </div>
@@ -314,45 +315,55 @@
     return uc1(t) || "Мой сюжет";
   }
 
-  /* Шаг 4. Знакомый сценарий: карточки «ситуация → привычная реакция → знакомый результат». Узнавание, не тест и не диагноз. */
-  const CI = C.cardInteraction, OC = OB.cards;
-  function newDeck(S) {
-    const path = pathOf(), seed = (P.installId || "").charCodeAt(0) || 0;
-    const shown = (S.shown || []);
-    let deck = R.buildDeck({ packs: C.packs, pathPacks: path ? path.packs : null, pathCards: CI.pathCards, otherCards: CI.otherCards, seed, exclude: shown });
-    if (!deck.length) { S.shown = []; deck = R.buildDeck({ packs: C.packs, pathPacks: path ? path.packs : null, pathCards: CI.pathCards, otherCards: CI.otherCards, seed }); }
-    S.deck = deck; S.idx = 0; S.picks = S.picks || []; S.undo = null; S.choose = false; S.shown = [...shown, ...deck.map(c => c.id)];
+  /* =================== ВХОД v4: число (интрига) → сфера → событие → что задело → повторение → тема отдельно от резюме → учитель → урок =================== */
+  const CI = C.cardInteraction, OE = OB.events, OA = OB.area, OSg = OB.sting, OPth = OB.path;
+  const eventById = id => X.events.find(e => e.id === id) || null;
+  const persistOnb = () => saveProfile(true);
+  /* Сфера: навигация, не тест. Конкретная ситуация — сразу свой текст. */
+  function area() {
+    const S = onb();
+    app.innerHTML = `<h1 class="q">${esc(OA.title)}</h1><p class="muted small">${esc(OA.sub)}</p>
+      <div class="chips col">${X.areas.map(([v, l]) => `<button class="chip ${S.area === v ? "on" : ""}" data-v="${v}">${esc(l)}</button>`).join("")}</div>
+      <div class="row tight"><a class="btn ghost sm" href="#help">Сейчас тяжело</a></div>`;
+    $$("[data-v]").forEach(b => b.onclick = async () => { const v = b.dataset.v; if (v === "own") { S.area = "own"; S.step = "own"; await persistOnb(); return go("own"); } if (S.area !== v) { S.area = v; S.deck = null; S.picks = []; S.undo = null; S.shown = []; } S.step = "cards"; await persistOnb(); go("cards"); });
   }
+  function newDeck(S) {
+    const seed = (P.installId || "").charCodeAt(0) || 0, shown = S.shown || [];
+    let deck = R.buildEventDeck({ events: X.events, area: S.area, first: CI.firstDeck || 4, seed, exclude: shown });
+    if (!deck.length) { S.shown = []; deck = R.buildEventDeck({ events: X.events, area: S.area, first: CI.firstDeck || 4, seed }); }
+    S.deck = deck; S.idx = 0; S.picks = S.picks || []; S.undo = null; S.choose = false; S.offer = null; S.shown = [...(S.shown || []), ...deck.map(c => c.id)];
+  }
+  /* События: одна строка, без реакции и причины. «Было» — узнавание события, не триггер. */
   function cards() {
-    const S = onb(); if (!S.deck) newDeck(S);
+    const S = onb(); if (!S.area) return go("area"); if (!S.deck) newDeck(S);
     const deck = S.deck; let busy = false;
-    const persist = () => saveProfile(true);
     const render = () => {
+      if (S.offer) { const c = deck.find(x => x.id === S.offer); if (c) return offer(c); S.offer = null; }
       if (S.choose) return choose();
       if (S.idx >= deck.length) return R.deckYes(S).length ? choose() : nothingFits();
-      const c = deck[S.idx], yes = R.deckYes(S), tut = !P.seen.swipe, red = reduce();
-      app.innerHTML = `<p class="tiny" style="margin:0 0 4px">Карточка ${S.idx + 1} из ${deck.length}${pathOf() ? ` · ${esc(pathOf().name)}` : ""}</p>
-        <h1 class="q">${esc(tut ? OC.tutorialTitle : OC.title)}</h1><p class="muted small" style="margin:0 0 6px">${tut ? `${esc(OC.tutorial[0])} ${esc(OC.tutorial[1])}` : esc(OC.sub)}</p>
-        <div class="swwrap"><div class="swcard ${tut && !red ? "demo" : ""}" id="swc" tabindex="0" role="group" aria-label="${esc(c.text)}"><div class="pk">${esc(c.packTitle)}</div>${esc(c.text)}<span class="swlab l" id="labL" aria-hidden="true">${esc(OC.no)}</span><span class="swlab r" id="labR" aria-hidden="true">${esc(OC.yes)}</span></div></div>
-        <div class="swhint"><span>${esc(OC.hintLeft)}</span><span>${esc(OC.hintRight)}</span></div>
-        <div class="sw2"><button class="btn secondary" id="no">${esc(OC.no)}</button><button class="btn" id="yes">${esc(OC.yes)}</button></div>
-        <div class="row tight"><button class="btn ghost sm" id="unsure">${esc(OC.unsure)}</button>${S.undo ? `<button class="btn ghost sm" id="undo">${esc(OC.undo)}</button>` : ""}</div>
-        ${yes.length >= CI.offerSelectionAfterPositiveCards ? `<div class="row tight"><button class="btn secondary block sm" id="pick">Выбрать сюжет из отмеченных (${yes.length})</button></div>` : ""}
-        <div class="row tight"><a class="btn ghost sm" href="#new">${esc(OC.own)}</a></div>`;
+      const c = deck[S.idx], tut = !P.seen.swipe, red = reduce();
+      app.innerHTML = `<p class="tiny" style="margin:0 0 4px">Событие ${S.idx + 1} из ${deck.length}${S.area && S.area !== "unclear" ? ` · ${esc((X.areas.find(a => a[0] === S.area) || [])[1] || "")}` : ""}</p>
+        <h1 class="q">${esc(OE.title)}</h1><p class="muted small" style="margin:0 0 6px">${tut ? `${esc(OE.tutorial[0])} ${esc(OE.tutorial[1])}` : esc(OE.sub)}</p>
+        <div class="swwrap"><div class="swcard ${tut && !red ? "demo" : ""}" id="swc" tabindex="0" role="group" aria-label="${esc(c.text)}">${esc(c.text)}<span class="swlab l" id="labL" aria-hidden="true">${esc(OE.no)}</span><span class="swlab r" id="labR" aria-hidden="true">${esc(OE.yes)}</span></div></div>
+        <div class="swhint"><span>${esc(OE.hintLeft)}</span><span>${esc(OE.hintRight)}</span></div>
+        <div class="sw2"><button class="btn secondary" id="no">${esc(OE.no)}</button><button class="btn" id="yes">${esc(OE.yes)}</button></div>
+        <div class="row tight"><button class="btn ghost sm" id="unsure">${esc(OE.unsure)}</button>${S.undo ? `<button class="btn ghost sm" id="undo">${esc(OE.undo)}</button>` : ""}</div>
+        ${R.deckYes(S).length ? `<div class="row tight"><button class="btn secondary block sm" id="pick">${esc(OE.which)} (${R.deckYes(S).length})</button></div>` : ""}
+        <div class="row tight"><a class="btn ghost sm" href="#own">${esc(OE.own)}</a><a class="btn ghost sm" href="#area">Другая сфера</a></div>`;
       const sw = $("#swc"), labL = $("#labL"), labR = $("#labR");
       /* Один обработчик для свайпа, кнопок и клавиатуры: один ввод — один ответ; во время анимации ввод заблокирован. */
       const answer = (r) => {
         if (busy) return; busy = true;
         if (!R.deckAnswer(S, r)) { busy = false; return; }
         if (tut) P.seen.swipe = true;
+        if (r === "yes") S.offer = c.id;
         sw.classList.remove("demo"); sw.style.transform = ""; sw.classList.add(r === "yes" ? "out-r" : r === "no" ? "out-l" : "out-d");
-        persist(); setTimeout(() => { busy = false; render(); }, red ? 0 : 220);
+        persistOnb(); setTimeout(() => { busy = false; render(); }, red ? 0 : 220);
       };
       $("#yes").onclick = () => answer("yes"); $("#no").onclick = () => answer("no"); $("#unsure").onclick = () => answer("unsure");
-      const un = $("#undo"); if (un) un.onclick = () => { if (busy) return; if (R.deckUndo(S)) { persist(); render(); } };
-      const pk = $("#pick"); if (pk) pk.onclick = () => { S.choose = true; persist(); choose(); };
+      const un = $("#undo"); if (un) un.onclick = () => { if (busy) return; if (R.deckUndo(S)) { persistOnb(); render(); } };
+      const pk = $("#pick"); if (pk) pk.onclick = () => { S.choose = true; persistOnb(); choose(); };
       sw.onkeydown = e => { if (e.key === "ArrowRight") { e.preventDefault(); answer("yes"); } if (e.key === "ArrowLeft") { e.preventDefault(); answer("no"); } if (e.key === "ArrowDown") { e.preventDefault(); answer("unsure"); } };
-      /* Перетаскивание: pointer events для пальца и мыши; вертикальное движение отдаётся прокрутке и ответом не считается. */
       let sx = null, sy = null, mode = null, dx = 0;
       const reset = () => { sw.style.transform = ""; sw.classList.remove("drag"); labL.style.opacity = 0; labR.style.opacity = 0; sx = sy = null; mode = null; dx = 0; };
       sw.onpointerdown = e => { if (busy || e.button) return; sx = e.clientX; sy = e.clientY; mode = null; dx = 0; try { sw.setPointerCapture(e.pointerId); } catch (_) {} };
@@ -366,44 +377,88 @@
       const up = e => { if (sx == null) return; const d = dx, m = mode; reset(); try { sw.releasePointerCapture(e.pointerId); } catch (_) {} if (m === "h") { if (d > 70) answer("yes"); else if (d < -70) answer("no"); } };
       sw.onpointerup = up; sw.onpointercancel = () => reset(); sw.onlostpointercapture = () => { if (mode !== "h") reset(); };
     };
-    /* Ничего не подошло: без тупика и без вывода о человеке. */
-    const nothingFits = () => {
-      app.innerHTML = `<h1 class="q">Не узнал ни одного</h1><p>${esc(OC.none)}</p>
-        <div class="chips col"><button class="btn block" id="more">${esc(OC.more)}</button><a class="btn block secondary" href="#new">${esc(OC.own)}</a><button class="btn block secondary" id="observe">${esc(OC.observe)}</button></div>
-        <div class="row tight"><button class="btn ghost sm" id="undo">${esc(OC.undo)}</button></div>`;
-      $("#more").onclick = () => { newDeck(S); persist(); render(); };
-      $("#observe").onclick = () => observeMode();
-      $("#undo").onclick = () => { if (R.deckUndo(S)) { persist(); render(); } };
+    /* После первого «было»: разобрать сейчас или смотреть дальше. Два положительных ответа не требуются. */
+    const offer = (c) => {
+      app.innerHTML = `<p class="tiny" style="margin:0 0 4px">Было</p><h1 class="q">${esc(c.text)}</h1><p class="muted small">Разберём этот случай сейчас или посмотрим ещё события?</p>
+        <div class="row"><button class="btn block" id="take">${esc(OE.take)}</button></div><div class="row tight"><button class="btn ghost" id="more">${esc(OE.more)}</button><button class="btn ghost sm" id="undo">${esc(OE.undo)}</button></div>`;
+      $("#take").onclick = () => startSting(c.id);
+      $("#more").onclick = () => { S.offer = null; persistOnb(); render(); };
+      $("#undo").onclick = () => { S.offer = null; if (R.deckUndo(S)) { persistOnb(); render(); } };
     };
+    const nothingFits = () => {
+      app.innerHTML = `<h1 class="q">Ничего из этого не было</h1><p>${esc(OE.none)}</p>
+        <div class="chips col"><button class="btn block" id="more">${esc(OE.moreEvents)}</button><a class="btn block secondary" href="#own">${esc(OE.own)}</a><a class="btn block secondary" href="#area">Другая сфера</a><button class="btn block secondary" id="observe">${esc(OE.observe)}</button></div>
+        ${S.undo ? `<div class="row tight"><button class="btn ghost sm" id="undo">${esc(OE.undo)}</button></div>` : ""}`;
+      $("#more").onclick = () => { newDeck(S); persistOnb(); render(); };
+      $("#observe").onclick = () => observeMode();
+      const un = $("#undo"); if (un) un.onclick = () => { if (R.deckUndo(S)) { persistOnb(); render(); } };
+    };
+    /* Несколько «было» — явный выбор одного; остальное сохраняется на потом. */
     const choose = () => {
       const ys = R.deckYes(S);
       if (!ys.length) { S.choose = false; return nothingFits(); }
-      app.innerHTML = `<h1 class="q">Какой сюжет разберём первым?</h1><p class="muted small">Остальные никуда не денутся — к ним можно вернуться.</p>
+      app.innerHTML = `<h1 class="q">${esc(OE.which)}</h1><p class="muted small">${esc(OE.whichSub)}</p>
         <div class="chips col">${ys.map((x, i) => `<button class="chip" data-i="${i}">${esc(x.text)}</button>`).join("")}</div>
-        <div class="row tight">${S.idx < deck.length ? `<button class="btn ghost sm" id="back">Досмотреть карточки</button>` : `<button class="btn ghost sm" id="more">${esc(OC.more)}</button>`}<a class="btn ghost sm" href="#new">${esc(OC.own)}</a></div>`;
-      $$(".chip[data-i]").forEach(b => b.onclick = () => recognized(ys[Number(b.dataset.i)]));
-      const bk = $("#back"); if (bk) bk.onclick = () => { S.choose = false; persist(); render(); };
-      const m = $("#more"); if (m) m.onclick = () => { newDeck(S); persist(); render(); };
+        <div class="row tight">${S.idx < deck.length ? `<button class="btn ghost sm" id="back">Досмотреть события</button>` : `<button class="btn ghost sm" id="more">${esc(OE.moreEvents)}</button>`}<a class="btn ghost sm" href="#own">${esc(OE.own)}</a></div>
+        ${S.undo ? `<div class="row tight"><button class="btn ghost sm" id="undo">${esc(OE.undo)}</button></div>` : ""}`;
+      $$(".chip[data-i]").forEach(b => b.onclick = () => startSting(ys[Number(b.dataset.i)].id));
+      const bk = $("#back"); if (bk) bk.onclick = () => { S.choose = false; persistOnb(); render(); };
+      const m = $("#more"); if (m) m.onclick = () => { newDeck(S); persistOnb(); render(); };
+      const un = $("#undo"); if (un) un.onclick = () => { if (R.deckUndo(S)) { S.choose = false; persistOnb(); render(); } };
     };
-    /* Краткое резюме: узнавание, не доказанная причина. */
-    const recognized = (card) => {
-      const pk = C.packs.find(x => x.id === card.packId);
-      app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(pk ? pk.title : "")}</p><h1 class="q">${esc(OC.recognized)}</h1>
-        <div class="card mark"><p class="quote" style="margin:0">${esc(card.recognition || card.text)}</p></div>
-        <div class="row"><button class="btn block" id="ok">${esc(OC.confirm)}</button></div>
-        <div class="row tight"><button class="btn ghost" id="refine">${esc(OC.refine)}</button><button class="btn ghost" id="other">${esc(OC.another)}</button></div>`;
-      const pick = async (confirmed, ownText) => { S.pick = { cardId: card.id, packId: card.packId, text: card.text, recognition: card.recognition || card.text, own: ownText || "", confirmed, version: C.contentVersion }; S.step = "teacher"; dropDraft("onb-teacher", "onb"); await saveProfile(true); go("teacher"); };
-      $("#ok").onclick = () => pick("yes");
-      $("#other").onclick = () => { S.choose = true; persist(); choose(); };
-      $("#refine").onclick = () => {
-        app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(card.recognition || card.text)}</p><h1 class="q">Как это звучит твоими словами?</h1><p class="muted small">Что повторяется: ситуация, твоя реакция, знакомый результат.</p>
-          <textarea id="a" placeholder="Например: соглашаюсь, чтобы не спорить, потом злюсь на себя">${esc((S.pick && S.pick.own) || "")}</textarea>
-          <div class="row"><button class="btn block" id="ok2">Дальше</button></div><div class="row tight"><button class="btn ghost" id="bk">Назад</button></div>`;
-        $("#ok2").onclick = () => { const v = $("#a").value.trim(); if (!v) return toast("Напиши пару слов"); pick("refine", v); };
-        $("#bk").onclick = () => recognized(card);
-      };
-    };
+    /* Черновик «что задело» хранится по событию: возврат к тому же событию его не стирает, другое событие — свой черновик. */
+    const startSting = async (eventId) => { if (S.event && S.event !== eventId) { S.sting = null; } S.event = eventId; S.offer = null; S.choose = false; S.step = "sting"; await persistOnb(); go("sting"); };
     render();
+  }
+  /* Своя ситуация: текст — полноценный вход. Тема по желанию; анализ текста не обещаем. */
+  function ownScenario() {
+    const S = onb();
+    flow({ id: "onb-own", scope: "onb", title: "Свой случай", cancelLabel: "Назад", onCancel: () => go(S.area && S.area !== "own" ? "cards" : "area"),
+      steps: [
+        { k: "own", q: "Что произошло?", lead: "Одно событие, как запись камеры: без оценок и выводов.", type: "text", ph: "Например: коллега попросил подменить в выходной", req: "Напиши пару слов: что именно произошло" },
+        { k: "pack", q: OB.own.theme, lead: OB.own.themeLead, type: "choice", opts: [...C.packs.map(pk => [pk.id, pk.title]), ["__unclear", OB.own.unclear]] },
+      ],
+      onDone: async ans => {
+        S.event = null; S.own = { text: ans.own, packId: ans.pack === "__unclear" ? null : ans.pack, version: C.contentVersion }; S.sting = null; S.step = "sting"; dropDraft("onb-sting-own", "onb"); await persistOnb(); go("sting");
+      } });
+  }
+  /* Что задело, повторение, привычная реакция по желанию. Один вариант не устанавливает причину. */
+  function sting() {
+    const S = onb(); const ev = S.event ? eventById(S.event) : null;
+    if (!ev && !S.own) return go("cards");
+    const evText = ev ? ev.text : S.own.text;
+    const meanings = ev ? ev.meanings : X.ownMeanings;
+    const steps = [
+      { k: "m", q: OSg.title, lead: `«${evText}»`, type: "choice", opts: [...meanings.map(m => [m.id, m.text]), ...X.meaningExtra], own: true, ownPh: "Своими словами" },
+      { k: "repeat", q: OSg.repeat, type: "choice", opts: X.repeat, skip: a => a.m === "__none" },
+      { k: "reaction", q: OSg.reaction, lead: OSg.reactionLead, type: "choice", opts: X.reactions, own: true, optional: true, skip: a => a.m === "__none" },
+    ];
+    flow({ id: ev ? "onb-sting-" + ev.id : "onb-sting-own", scope: "onb", steps, title: "Что задело", cancelLabel: "Назад", onCancel: () => go(ev ? "cards" : "own"),
+      onDone: async ans => {
+        if (ans.m === "__none") { /* не задело: событие остаётся отмеченным, но не становится триггером; возвращаемся к подборке без потери ответов */
+          if (ev) { const pk = (S.picks || []).find(x => x.id === ev.id); if (pk) pk.notStung = true; S.event = null; S.offer = null; await persistOnb(); toast("Хорошо: было, но не задело. Посмотрим другие."); return go("cards"); }
+          S.own = null; await persistOnb(); return go("area");
+        }
+        const mm = meanings.find(m => m.id === ans.m);
+        S.sting = { meaningId: mm ? mm.id : (ans.m === "__own" ? "own" : "other"), text: mm ? mm.text : (ans.m === "__own" ? ans.m_own : ""), lessonId: mm ? mm.lessonId : null, origin: mm ? "user_selected" : (ans.m === "__own" ? "user_written" : null), repeat: ans.repeat || null, reaction: val(ans, "reaction") || null };
+        S.step = "path"; await persistOnb(); go("path");
+      } });
+  }
+  /* Понятное открытие пути: описание темы числа отдельно от подтверждённого резюме. Число не предсказывало ответы. */
+  function pathScreen() {
+    const S = onb(); if (!S.sting) return go("sting");
+    const ev = S.event ? eventById(S.event) : null, evText = ev ? ev.text : (S.own ? S.own.text : "");
+    const num = P.symbolic && P.symbolic.num ? (P.symbolic.chosen || P.symbolic.num) : null, t = num ? X.paths[num] : null;
+    const hint = t && ev && (ev.pathHint || []).includes(Number(num));
+    const st = S.sting;
+    const summary = `<div class="card mark"><div class="k">${ic("eye")}${esc(OPth.start)}</div><p style="margin:2px 0 4px">${esc(OPth.noted)} ${esc(lc1(evText))}${st.text ? `; ${esc(OPth.sting)} ${esc(lc1(st.text))}` : `; ${esc(OPth.stingUnknown)}`}${st.repeat ? `; ${esc(OPth.repeat[st.repeat] || "")}` : ""}.</p>${st.reaction ? `<p class="small" style="margin:0">Обычно ты: ${esc(lc1(st.reaction))}.</p>` : ""}${t ? `<p class="small muted" style="margin:6px 0 0">${hint ? esc(t.offer) : esc(OPth.other)}</p>` : ""}</div>`;
+    app.innerHTML = `${t ? `<div class="astro" style="height:150px"><img src="${IMG("astrolabe")}" alt=""><div class="orb shown"><div class="core"><i class="fl"></i><img class="num" src="${IMG("num-" + num)}" alt="Число ${num}"></div></div></div>
+      <h1 style="margin-top:6px">${num} — ${esc(t.title)}</h1><p>${esc(t.description)}</p>
+      <details class="plain"><summary>${esc(OPth.more)}</summary><p class="small">${esc(t.name)} · ${esc(t.theme)}. ${esc(t.question)}</p><p class="tiny">${esc(OPth.note)}</p></details>` : `<h1>${esc(OPth.noDateTitle)}</h1><p class="muted small">${esc(OPth.other)}</p>`}
+      ${summary}
+      <div class="row"><button class="btn block" id="go">${esc(OPth.cta)}</button></div>
+      <div class="row tight"><a class="btn ghost" href="#sting">${esc(OPth.refine)}</a>${!t ? `<a class="btn ghost" href="#birth">${esc(OPth.addDate)}</a>` : ""}</div>`;
+    $("#go").onclick = async () => { S.step = "teacher"; dropDraft("onb-teacher", "onb"); await persistOnb(); go("teacher"); };
   }
   /* Режим наблюдения: сюжет без назначенного урока и без выдуманной даты старта. */
   async function observeMode(card) {
@@ -411,75 +466,80 @@
     if (!p) { const np = { id: R.uuid(), title: card ? card.text : "Наблюдаю", packId: card ? card.packId : null, contexts: [], status: "observe", startDate: null, createdAt: nowTs(), hypothesisVersionId: null, experimentId: null, queue: [], legacy: false }; await savePattern(np); }
     P.onb = null; P.seen.start = true; P.lastResult = { kind: "observe" }; await saveProfile(); go("today");
   }
-
-  /* Шаг 5. Распознать учителя: кто, что повторяется, когда в последний раз. Один учитель; без реального случая — наблюдение. */
+  /* Учитель: с кем или с чем, когда в последний раз. Один учитель; без реального случая — наблюдение. */
   function teacher() {
-    const S = onb(); if (!S.pick) return go("cards");
-    const pk = C.packs.find(x => x.id === S.pick.packId);
+    const S = onb(); if (!S.sting) return go(S.event || S.own ? "sting" : "cards");
     const steps = [
       { k: "who", q: OB.teacher.title, lead: OB.teacher.text, type: "choice", opts: X.teachers, own: true, ownPh: "Кто это, своими словами (имя не нужно)" },
-      { k: "what", q: OB.teacher.what, lead: a => `Сюжет: «${S.pick.own || S.pick.recognition}»`, type: "choice", opts: (pk ? pk.teacherExamples : []), own: true, ownPh: "Что происходит снова и снова" },
       { k: "when", q: OB.teacher.when, type: "choice", opts: X.lastTime },
       { k: "date", q: "Когда именно?", lead: a => a.when === "week" ? "Любой день этой недели." : "Если помнишь дату — укажи, если нет — пропусти.", type: "date", optional: true, def: a => a.when === "week" ? today() : "", min: a => a.when === "week" ? R.addDays(today(), -6) : "1990-01-01", max: () => today(), skip: a => a.when !== "week" && a.when !== "earlier" },
     ];
-    flow({ id: "onb-teacher", scope: "onb", steps, title: "Учитель", cancelLabel: "Назад к сценариям", onCancel: () => { S.choose = true; saveProfile(true); go("cards"); },
+    flow({ id: "onb-teacher", scope: "onb", steps, title: "Учитель", cancelLabel: "Назад", onCancel: () => go("path"),
       onDone: async ans => {
         const kind = ans.who === "__own" ? "other" : ans.who; const label = ans.who === "__own" ? ans.who_own : (X.teacherLabels[kind] || "");
-        S.teacher = { kind, label, ownName: ans.who === "__own" ? ans.who_own : "", what: val(ans, "what") || "", when: ans.when, date: ans.date || null };
-        S.lesson = null; S.rejected = []; S.step = "lesson"; await saveProfile(true); go("lesson");
+        S.teacher = { kind, label, ownName: ans.who === "__own" ? ans.who_own : "", when: ans.when, date: ans.date || null };
+        S.lesson = null; S.rejected = []; S.step = "lesson"; await persistOnb(); go("lesson");
       } });
   }
-  function lessonsFor(S) {
-    const pk = C.packs.find(x => x.id === (S.pick && S.pick.packId)); return pk ? pk.lessons : [];
-  }
-  /* Шаг 6. Предварительный урок и первый шаг. Урок уточняется позже без потери записей. */
+  const packIdOf = S => (S.event && eventById(S.event) ? eventById(S.event).packId : (S.own ? S.own.packId : null)) || null;
+  function lessonsFor(S) { const pk = C.packs.find(x => x.id === packIdOf(S)); return pk ? pk.lessons : []; }
+  /* Предварительный урок — по ситуации и подтверждённому значению, не по числу. Без объяснения — наблюдение. */
   function lesson() {
-    const S = onb(); if (!S.pick || !S.teacher) return go(S.pick ? "teacher" : "cards");
+    const S = onb(); if (!S.sting || !S.teacher) return go(S.sting ? "teacher" : "cards");
     const all = lessonsFor(S), rejected = S.rejected || [];
-    const L = S.lesson || all.find(l => !rejected.includes(l.id)) || X.lessonUnknown;
+    const byMeaning = S.sting.lessonId ? all.find(l => l.id === S.sting.lessonId) : null;
+    const L = S.lesson || (byMeaning && !rejected.includes(byMeaning.id) ? byMeaning : null) || X.lessonObserve;
     const tl = S.teacher.ownName ? S.teacher.ownName : S.teacher.label;
+    const ev = S.event ? eventById(S.event) : null, evText = ev ? ev.text : (S.own ? S.own.text : "");
     if (S.pickAlt) {
-      const alts = all.filter(l => !rejected.includes(l.id));
-      app.innerHTML = `<h1 class="q">${esc(OB.lesson.alt)}</h1><p class="muted small">Учитель и сценарий сохранены. Урок предварительный — его можно уточнить позже.</p>
-        <div class="chips col">${alts.map(l => `<button class="chip" data-l="${l.id}">${esc(uc1(l.title))}</button>`).join("")}<button class="chip dim" data-l="__unknown">${esc(OB.lesson.unknown)}</button></div>
+      const alts = all.filter(l => !rejected.includes(l.id) && l.id !== L.id);
+      app.innerHTML = `<h1 class="q">${esc(all.length ? OB.lesson.alt : OB.own.theme)}</h1><p class="muted small">Учитель и ситуация сохранены. Урок предварительный — его можно уточнить позже.</p>
+        <div class="chips col">${all.length ? alts.map(l => `<button class="chip" data-l="${l.id}">${esc(uc1(l.title))}</button>`).join("") : C.packs.map(pk => `<button class="chip" data-pk="${pk.id}">${esc(pk.title)}</button>`).join("")}<button class="chip dim" data-l="__observe">${esc(X.lessonObserve.headline)}</button></div>
         <div class="row tight"><button class="btn ghost" id="bk">Назад</button></div>`;
-      $$("[data-l]").forEach(b => b.onclick = async () => { const id = b.dataset.l; S.lesson = id === "__unknown" ? X.lessonUnknown : all.find(l => l.id === id); S.pickAlt = false; await saveProfile(true); lesson(); });
-      $("#bk").onclick = async () => { S.pickAlt = false; await saveProfile(true); lesson(); };
+      $$("[data-l]").forEach(b => b.onclick = async () => { const id = b.dataset.l; S.lesson = id === "__observe" ? X.lessonObserve : all.find(l => l.id === id); S.pickAlt = false; await persistOnb(); lesson(); });
+      $$("[data-pk]").forEach(b => b.onclick = async () => { S.own = Object.assign({}, S.own || { text: evText }, { packId: b.dataset.pk }); S.lesson = null; S.rejected = []; S.pickAlt = false; await persistOnb(); lesson(); });
+      $("#bk").onclick = async () => { S.pickAlt = false; await persistOnb(); lesson(); };
       return;
     }
-    app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(S.pick.own || S.pick.recognition)}</p>
+    const observe = L.id === X.lessonObserve.id;
+    app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(evText)}${S.sting.text ? ` · ${esc(lc1(S.sting.text))}` : ""}</p>
       <div class="card mark">
         <p style="margin:0 0 6px"><b>${esc(OB.lesson.teacherLead)} ${esc(tl)}.</b></p>
-        <p style="margin:0 0 10px"><b>${esc(OB.lesson.lessonLead)} ${esc(L.title)}.</b></p>
-        <p class="small" style="margin:0 0 4px"><b>${esc(OB.lesson.inner)}</b> ${esc(lc1(L.inner))}.</p>
+        ${observe ? `<p style="margin:0 0 8px"><b>${esc(X.lessonObserve.headline)}</b></p><p class="small" style="margin:0 0 8px">${esc(uc1(L.action))}. ${esc(X.lessonObserve.note)}</p>` : `<p style="margin:0 0 10px"><b>${esc(OB.lesson.lessonLead)} ${esc(L.title)}.</b></p>
+        ${L.inner ? `<p class="small" style="margin:0 0 4px"><b>${esc(OB.lesson.inner)}</b> ${esc(lc1(L.inner))}.</p>` : ""}
         <p class="small" style="margin:0 0 8px"><b>${esc(OB.lesson.action)}</b> ${esc(lc1(L.action))}.</p>
-        <p class="small muted" style="margin:0">${esc(OB.lesson.text)}</p>
+        <p class="small muted" style="margin:0">${esc(OB.lesson.text)}</p>`}
       </div>
-      <div class="row"><button class="btn block" id="go">${esc(OB.lesson.start)}</button></div>
-      <div class="row tight"><button class="btn ghost" id="rej">${esc(OB.lesson.reject)}</button><a class="btn ghost" href="#teacher">Назад</a></div>`;
-    $("#rej").onclick = async () => { if (L.id !== X.lessonUnknown.id && !rejected.includes(L.id)) rejected.push(L.id); S.rejected = rejected; S.lesson = null; S.pickAlt = true; await saveProfile(true); lesson(); };
+      <div class="row"><button class="btn block" id="go">${esc(observe ? "Начать с наблюдения" : OB.lesson.start)}</button></div>
+      <div class="row tight"><button class="btn ghost" id="rej">${esc(observe ? "Выбрать направление" : OB.lesson.reject)}</button><a class="btn ghost" href="#teacher">Назад</a></div>`;
+    $("#rej").onclick = async () => { if (!observe && !rejected.includes(L.id)) rejected.push(L.id); S.rejected = rejected; S.lesson = null; S.pickAlt = true; await persistOnb(); lesson(); };
     $("#go").onclick = () => startLesson(S, L);
   }
-  /* Создание сюжета из входа: сценарий, учитель, урок, первый план с навыком, разрешение с происхождением «lesson». */
+  /* Создание сюжета из входа. Происхождение каждой части резюме сохраняется; редакционная гипотеза не становится «подтверждённым» без явного ответа. */
   async function startLesson(S, L) {
-    const ts = nowTs(), k = today(), pk = C.packs.find(x => x.id === S.pick.packId), T = S.teacher;
+    const ts = nowTs(), k = today(), T = S.teacher, ev = S.event ? eventById(S.event) : null, packId = packIdOf(S), pk = C.packs.find(x => x.id === packId);
+    const evText = ev ? ev.text : S.own.text;
     const hasCase = T.when && T.when !== "none" && !(T.when === "earlier" && !T.date);
     const caseDate = T.when === "today" ? k : (T.date && R.isKey(T.date) ? T.date : k);
     const startDate = hasCase ? (R.diffDays(caseDate, k) <= 6 ? caseDate : k) : null;
-    const tl = T.ownName || T.label;
-    const p = { id: R.uuid(), title: pk ? pk.title : shortTitle(S.pick.text), packId: S.pick.packId, contexts: tl ? [tl] : [], status: hasCase ? "active" : "observe", startDate, createdAt: ts, hypothesisVersionId: null, experimentId: null, queue: [], legacy: false,
-      scenario: { cardId: S.pick.cardId, text: S.pick.text, recognition: S.pick.recognition, own: S.pick.own || "", confirmed: S.pick.confirmed, version: S.pick.version },
-      teacher: { kind: T.kind, label: tl, what: T.what || "" },
-      lesson: { id: L.id, title: L.title, inner: L.inner, action: L.action, skillId: L.skillId, hypothesisId: L.hypothesisId || null, signal: L.signal, status: "preliminary", chosenAt: ts, rejected: S.rejected || [] },
-      firstPlan: { id: L.id, text: uc1(L.action), skill: L.skillId, signal: L.signal, action: L.action }, skillId: L.skillId, habitualResponse: null, permission: L.inner, permissionSource: { origin: "lesson", hypothesisVersionId: null } };
-    const x = { id: R.uuid(), patternId: p.id, hypothesisVersionId: null, version: 1, permission: L.inner, prediction: "", action: uc1(L.action), skillId: L.skillId, ifThen: { signal: L.signal, action: L.action }, criterion: "", status: "active", results: [], createdAt: ts, kind: "first-plan", lessonId: L.id };
+    const tl = T.ownName || T.label, observe = L.id === X.lessonObserve.id;
+    const scenario = { origin: ev ? "event" : "own", eventId: ev ? ev.id : null, eventText: evText, eventOrigin: ev ? "user_selected" : "user_written", meaningId: S.sting.meaningId, meaningText: S.sting.text || "", meaningOrigin: S.sting.origin, repeat: S.sting.repeat, reaction: S.sting.reaction || null, reactionOrigin: S.sting.reaction ? "user_selected" : null, area: S.area || null, version: C.contentVersion, recognition: evText, own: ev ? "" : evText, confirmed: ev ? "yes" : "own" };
+    const p = { id: R.uuid(), title: pk ? pk.title : shortTitle(evText), packId: packId || null, contexts: tl ? [tl] : [], status: hasCase ? "active" : "observe", startDate, createdAt: ts, hypothesisVersionId: null, experimentId: null, queue: [], legacy: false,
+      scenario, teacher: { kind: T.kind, label: tl, what: evText },
+      lesson: { id: L.id, title: L.title, inner: L.inner || "", action: L.action, skillId: L.skillId, hypothesisId: L.hypothesisId || null, signal: L.signal, status: "preliminary", chosenAt: ts, rejected: S.rejected || [], origin: "editorial_hypothesis", basis: { eventId: ev ? ev.id : null, meaningId: S.sting.meaningId } },
+      firstPlan: { id: L.id, text: uc1(L.action), skill: L.skillId, signal: L.signal, action: L.action }, skillId: L.skillId, habitualResponse: S.sting.reaction || null };
+    if (L.inner) { p.permission = L.inner; p.permissionSource = { origin: "lesson", hypothesisVersionId: null }; }
+    const x = { id: R.uuid(), patternId: p.id, hypothesisVersionId: null, version: 1, permission: L.inner || "", prediction: "", action: uc1(L.action), skillId: L.skillId, ifThen: { signal: L.signal, action: L.action }, criterion: "", status: "active", results: [], createdAt: ts, kind: "first-plan", lessonId: L.id };
     p.experimentId = x.id; await saveExp(x); await savePattern(p);
     if (hasCase) {
-      const e = { id: R.uuid(), patternId: p.id, linkStatus: "confirmed", occurredAt: ts, loggedAt: ts, dateKey: caseDate, tz: R.tz(), event: T.what || S.pick.text, person: tl, emotion: null, intensity: null, response: null, verificationStatus: "onboarding", isRehearsal: false, legacy: false };
+      const e = { id: R.uuid(), patternId: p.id, linkStatus: "confirmed", occurredAt: ts, loggedAt: ts, dateKey: caseDate, tz: R.tz(), event: evText, person: tl, emotion: null, intensity: null, response: S.sting.reaction || null, verificationStatus: "onboarding", isRehearsal: false, legacy: false, meaning: S.sting.text || null };
       await saveEpisode(e);
-      await saveResearch({ patternId: p.id, modules: { episode: { status: "done", dateKey: k, doneAt: ts, answers: { source: "onboarding", episodeId: e.id } } } });
+      await saveResearch({ patternId: p.id, modules: { episode: { status: "done", dateKey: k, doneAt: ts, answers: { source: "onboarding", episodeId: e.id, response: S.sting.reaction || null } } } });
     }
-    P.onb = null; P.seen.start = true; P.lastResult = { kind: "lesson", title: L.title, plan: uc1(L.action), observe: !hasCase };
+    /* Остальные события «было» — на потом: сохранённые направления, не записи случаев. */
+    const others = R.deckYes(S).filter(c => c.id !== (ev && ev.id) && !c.notStung);
+    if (others.length) { const have = new Set((P.savedScenarios || []).map(x => x.id)); P.savedScenarios = [...(P.savedScenarios || []), ...others.filter(c => !have.has(c.id)).map(c => ({ id: c.id, kind: "event", packId: c.packId, text: c.text, recognition: c.text, version: C.contentVersion, savedAt: ts }))]; }
+    P.onb = null; P.seen.start = true; P.lastResult = { kind: "lesson", title: observe ? X.lessonObserve.headline : L.title, plan: uc1(L.action), observe: !hasCase };
     dropDraft("onb-teacher", "onb"); await saveProfile(); go("today");
   }
 
@@ -493,7 +553,7 @@
     hero.innerHTML = `<div class="hero"><div class="hl">${ic(phaseIc(), "")}${R.fmtTime(nowTs())} · ${PHASE_TXT[ph]}</div><div class="hd">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ""}</div>`;
     let main = "", extra = "";
     const res = P.lastResult;
-    if (res) { if (res.kind === "first") extra += `<div class="card mark"><div class="k">${ic("star")}Сегодня исследуем</div><p style="margin:2px 0 4px"><b>${esc(res.title)}</b></p><p class="small" style="margin:0">Первый шаг: ${esc(lc1(res.plan))}. Причину пока не назначаем — будем уточнять по одному вопросу в день.</p></div>`; if (res.kind === "lesson") extra += `<div class="card mark"><div class="k">${ic("star")}Урок начат</div><p style="margin:2px 0 4px"><b>${esc(uc1(res.title))}</b></p><p class="small" style="margin:0">${res.observe ? "Реального случая пока нет: запиши ближайший — с него начнётся неделя." : `Первый шаг: ${esc(lc1(res.plan))}.`} Урок предварительный — уточним его по одному вопросу в день.</p></div>`; if (res.kind === "observe") extra += `<div class="card mark"><div class="k">${ic("eye")}Наблюдение</div><p class="small" style="margin:2px 0 0">${esc(C.entryCopy.emptyMatch)} Когда случится ближайший случай, нажми «${esc(OB.home.event)}».</p></div>`; delete P.lastResult; saveProfile(); }
+    if (res) { if (res.kind === "first") extra += `<div class="card mark"><div class="k">${ic("star")}Сегодня исследуем</div><p style="margin:2px 0 4px"><b>${esc(res.title)}</b></p><p class="small" style="margin:0">Первый шаг: ${esc(lc1(res.plan))}. Причину пока не назначаем — будем уточнять по одному вопросу в день.</p></div>`; if (res.kind === "lesson") extra += `<div class="card tight"><p class="small" style="margin:0"><b>Урок начат.</b> Он предварительный — уточним по одному вопросу в день.</p></div>`; if (res.kind === "observe") extra += `<div class="card mark"><div class="k">${ic("eye")}Наблюдение</div><p class="small" style="margin:2px 0 0">${esc(C.entryCopy.emptyMatch)} Когда случится ближайший случай, нажми «${esc(OB.home.event)}».</p></div>`; delete P.lastResult; saveProfile(); }
     /* Возвращение после пропуска: продолжаем с того места, ничего не заполняем задним числом. */
     const lastAct = [...Object.values(D.checkins).filter(c => !c.legacy && (c.evening || c.morning)).map(c => c.dateKey), ...D.episodes.filter(e => !e.legacy && e.dateKey).map(e => e.dateKey)].sort().pop();
     if (p && lastAct && R.diffDays(lastAct, k) >= 2 && P.backSeen !== k) { extra = `<div class="card tight"><p class="small" style="margin:0">${esc(OB.home.back)} Пропущенные дни остаются пропущенными — это не обнуляет путь.</p></div>` + extra; P.backSeen = k; saveProfile(true); }
@@ -501,7 +561,7 @@
     if (p && p.status === "paused") {
       main = `<div class="card"><div class="k">${ic("hourglass")}Сюжет на паузе</div><p class="small" style="margin:2px 0 8px">«${esc(p.title)}». Записи и помощь доступны. Вернуться можно в любой момент.</p><div class="row tight"><a class="btn block secondary" href="#story">Открыть сюжет</a></div></div>`;
     } else if (!p || p.status === "observe") {
-      main = `<div class="card mark"><div class="k">${ic("eye")}Следующий шаг</div><p style="margin:2px 0 8px">${p ? (p.lesson ? `Пока наблюдаем. Когда случится реальный случай с учителем — запиши его: с этого дня начнётся неделя. Шаг уже есть: ${esc(lc1(planText(p)))}.` : "Запиши ближайший реальный случай — с него начнётся неделя.") : "Начни с одного случая или посмотри карточки."}</p><div class="row tight">${p ? `<a class="btn block" href="#new">Записать случай</a>` : `<a class="btn block" href="#start">Начать</a>`}</div></div>`;
+      main = `<div class="card mark"><div class="k">${ic("eye")}Следующий шаг</div><p style="margin:2px 0 8px">${p ? (p.lesson ? "Пока наблюдаем. Когда случится реальный случай с учителем — запиши его: с этого дня начнётся неделя." : "Запиши ближайший реальный случай — с него начнётся неделя.") : "Начни с одного случая или посмотри карточки."}</p><div class="row tight">${p ? `<a class="btn block" href="#new">Записать случай</a>` : `<a class="btn block" href="#start">Начать</a>`}</div></div>`;
     } else {
       const elig = eligibility(p), due = R.reviewDue(p.startDate, k, D.reviews.filter(r => r.patternId === p.id));
       const cy = checkinOf(yesterday(), p);
@@ -779,7 +839,9 @@
         { k: "signal", q: "Если …", lead: "Узнаваемый внешний или телесный сигнал.", type: "choice", opts: [...(bodySignal(p) ? [`замечаю ${bodySignal(p)}`] : []), "заденет", "меня перебьют", "меня попросят", "мне откажут", "захочется объяснять"], own: true },
       ], onDone: ans => done(ans, async () => {
         const skill = ans.skill || defSkill;
-        await newExperimentVersion(p, { action: ans.action, prediction: val(ans, "prediction") === "unknown" ? "" : val(ans, "prediction"), criterion: val(ans, "criterion"), skillId: skill, ifThen: { signal: val(ans, "signal"), action: ans.action }, permission: p.permission || "", hypothesisVersionId: p.hypothesisVersionId, kind: "experiment" });
+        const nx = await newExperimentVersion(p, { action: ans.action, prediction: val(ans, "prediction") === "unknown" ? "" : val(ans, "prediction"), criterion: val(ans, "criterion"), skillId: skill, ifThen: { signal: val(ans, "signal"), action: ans.action }, permission: p.permission || "", hypothesisVersionId: p.hypothesisVersionId, kind: "experiment" });
+        /* Урок подтверждается практикой, если навык совпал; иначе «Мой путь» предложит уточнить название. */
+        if (p.lesson && p.lesson.skillId === skill && p.lesson.status === "preliminary") { p.lesson.status = "confirmed"; p.lesson.keptForExperimentId = nx.id; await savePattern(p); }
         P.lastResult2 = M.resultCopy;
       }) });
     } else if (id === "transfer") {
@@ -809,9 +871,14 @@
     const contra = h && (h.contradictingEpisodeIds || []).length ? `<div class="nudge">Есть ${h.contradictingEpisodeIds.length} ${R.plural(h.contradictingEpisodeIds.length, "случай", "случая", "случаев")}, где объяснение не подошло. Это не отменяет работу — можно <a href="#module/need">уточнить версию</a> или понаблюдать дальше.</div>` : "";
     /* Объяснение сменилось или отвергнуто: подобранные под него разрешение и шаг ждут решения, а не действуют молча. */
     const dep = R.dependencyReview({ pattern: p, experiment: x });
+    /* Урок и практика разошлись по навыку: подпись урока ждёт решения, текст человека не перезаписывается. */
+    const drift = R.lessonDrift({ pattern: p, experiment: x });
+    const driftHtml = drift.drift ? `<div class="card mark"><div class="k">${ic("mirror")}${esc(OB.drift.title)}</div><p class="small" style="margin:2px 0 8px">${esc(OB.drift.text.replace("{lesson}", p.lesson.title).replace("{old}", skillLabel(drift.oldSkill)).replace("{new}", skillLabel(drift.newSkill)))}</p><div class="row tight"><button class="btn secondary sm" id="keepLesson">${esc(OB.drift.keep)}</button><button class="btn sm" id="refineLesson">${esc(OB.drift.refine)}</button></div></div>` : "";
     const migrated = dep.permission && dep.permissionOrigin === "migrated";
     const depHtml = dep.any ? `<div class="card mark"><div class="k">${ic("mirror")}Объяснение изменилось</div><p class="small" style="margin:2px 0 8px">${[dep.permission ? `разрешение «${esc(p.permission)}»` : "", dep.plan ? `шаг «${esc(x.action)}»` : ""].filter(Boolean).join(" и ")} ${migrated ? (dep.plan ? "появились при прежнем объяснении (происхождение разрешения не записано)" : "появилось при прежнем объяснении, его происхождение не записано") : `${dep.permission && dep.plan ? "были подобраны" : dep.permission ? "было подобрано" : "был подобран"} под прежнее объяснение`}. Оставить или выбрать другое?</p><div class="row tight"><button class="btn secondary sm" id="keepDep">Оставить</button><button class="btn sm" id="redoDep">Выбрать другое</button></div></div>` : "";
-    const note = (P.lastResult2 ? `<div class="card mark tight"><p class="small" style="margin:0">${esc(P.lastResult2)}</p></div>` : "") + depHtml + contra; if (P.lastResult2) { delete P.lastResult2; saveProfile(); }
+    const note = (P.lastResult2 ? `<div class="card mark tight"><p class="small" style="margin:0">${esc(P.lastResult2)}</p></div>` : "") + depHtml + driftHtml + contra; if (P.lastResult2) { delete P.lastResult2; saveProfile(); }
+    const saved = (P.savedScenarios || []);
+    const savedHtml = saved.length ? `<div class="card tight"><div class="k">${ic("hourglass")}${esc(OB.saved.title)} · ${saved.length}</div><p class="tiny" style="margin:2px 0 6px">${esc(OB.saved.lead)}</p><ul class="list">${saved.map((sc, i) => `<li><div class="small">${esc(sc.recognition || sc.text)}</div><div class="row tight" style="margin-top:4px"><button class="btn secondary sm" data-saved="${i}">${esc(OB.saved.start)}</button><button class="btn ghost sm" data-unsave="${i}">${esc(OB.saved.remove)}</button></div></li>`).join("")}</ul></div>` : "";
     const field = (k, v, edit, ph) => `<div class="prow"><div class="k"><span>${k}</span>${edit ? `<button data-edit="${edit}" data-ph="${esc(ph || "")}">изменить</button>` : ""}</div>${v ? esc(v) : `<span class="muted">${esc(ph || "пока пусто")}</span>`}</div>`;
     const flags = flagsReal().filter(f => f.patternId === p.id);
     const sup = h ? (h.supportingEpisodeIds || []).length : 0;
@@ -820,7 +887,7 @@
     app.innerHTML = `${note}
       <div class="card">
         ${sym ? `<div class="prow"><div class="k"><span>Символический путь</span><a href="#symbol">открыть</a></div>${esc(sym.name)} <span class="muted small">· ${esc(sym.theme)}</span></div>` : ""}
-        ${p.scenario ? field("Знакомый сценарий", p.scenario.own || p.scenario.recognition, "scenario", "что повторяется") : field("Сюжет", p.title, "title", "как назвать")}
+        ${p.scenario ? field("Знакомый сценарий", (p.scenario.own || p.scenario.recognition) + (p.scenario.meaningText ? ` — задевает: ${lc1(p.scenario.meaningText)}` : "") + (p.scenario.repeat === "repeat" ? " (повторяется)" : p.scenario.repeat === "once" ? " (пока один случай)" : ""), "scenario", "что повторяется") : field("Сюжет", p.title, "title", "как назвать")}
         ${p.teacher ? field("Учитель", `${p.teacher.label}${p.teacher.what ? ` — ${lc1(p.teacher.what)}` : ""}`, "teacher", "кто или что возвращает в сюжет") : field("Кто или что", (p.contexts || []).join(", "), "contexts", "коллега, партнёр, ситуация")}
         ${p.lesson ? field("Урок", uc1(p.lesson.title) + (p.lesson.status === "preliminary" ? " (предварительный)" : ""), "lesson", "направление урока") : ""}
         ${field("Последний случай", lastEvent(p), null, `запиши через «${OB.home.event}»`)}
@@ -842,15 +909,20 @@
       </div>
       ${p.startDate ? `<div class="card tight"><div class="k">${ic("flag")}Навык и флаг</div><p class="small" style="margin:2px 0 6px">${elig.eligible ? "Условия проверки выполнены." : esc(elig.reasons[0] || "")}${elig.reasons.length > 1 ? ` <span class="tiny">и ещё ${elig.reasons.length - 1}</span>` : ""}</p>${flags.length ? `<p class="small" style="margin:0">Освоено: ${flags.map(f => esc(skillLabel(f.skillId))).join(", ")}</p>` : ""}<div class="row tight"><a class="btn secondary sm" href="#flag">${elig.eligible && !hasFlag(p) ? "Проверить навык" : "Как считается флаг"}</a></div></div>` : ""}
       ${queueCard()}
+      ${savedHtml}
       <div class="card tight"><div class="k">${ic("star")}Символическая тема</div>${P.symbolic && P.symbolic.num ? `<p class="small" style="margin:2px 0 4px"><b>${esc(X.paths[P.symbolic.chosen || P.symbolic.num].name)}</b> · ${esc(X.paths[P.symbolic.chosen || P.symbolic.num].prompt)}</p>` : `<p class="small" style="margin:2px 0 4px">По желанию: число по дате рождения как тема для размышления. На выводы и упражнения не влияет.</p>`}<div class="row tight"><a class="btn ghost sm" href="#symbol">${P.symbolic && P.symbolic.num ? "Открыть астролябию" : "Добавить"}</a></div></div>
       <details class="plain"><summary>Версии гипотез и экспериментов</summary><ul class="list">${D.hypotheses.filter(v => v.patternId === p.id).map(v => `<li><div class="date">гипотеза v${v.version || 1} · ${esc(statusLabel(v.status))} · ${esc(R.human(R.dateKey(v.createdAt)))}</div>${esc(v.text)}</li>`).join("")}${D.experiments.filter(v => v.patternId === p.id).map(v => `<li><div class="date">шаг v${v.version} · ${v.status === "active" ? "действует" : "заменён"} · ${esc(R.human(R.dateKey(v.createdAt)))}</div>${esc(v.action)}${v.prediction ? ` — ожидание: ${esc(v.prediction)}` : ""}</li>`).join("") || "<li class='muted'>пока пусто</li>"}</ul></details>
       <div class="row tight">${p.status === "paused" ? `<button class="btn secondary" id="resume">Вернуться к сюжету</button>` : `<button class="btn ghost" id="pauseP">Пауза по сюжету</button>`}<button class="btn ghost" id="newP">Другой сюжет</button></div>`;
     $$("[data-edit]").forEach(b => b.onclick = () => editField(p, b.dataset.edit, b.dataset.ph));
+    const kl = $("#keepLesson"); if (kl) kl.onclick = async () => { p.lesson.keptForExperimentId = x.id; p.lesson.status = "confirmed"; await savePattern(p); toast("Формулировка сохранена"); story(); };
+    const rl = $("#refineLesson"); if (rl) rl.onclick = () => editField(p, "lesson");
+    $$("[data-unsave]").forEach(b => b.onclick = async () => { P.savedScenarios.splice(Number(b.dataset.unsave), 1); await saveProfile(); story(); });
+    $$("[data-saved]").forEach(b => b.onclick = async () => { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Текущий сюжет уйдёт в историю. Нажми ещё раз"; return; } const sc = P.savedScenarios[Number(b.dataset.saved)]; P.savedScenarios.splice(Number(b.dataset.saved), 1); p.status = "done"; await savePattern(p); const isEv = sc.kind === "event" && X.events.some(e => e.id === sc.id); P.onb = isEv ? { step: "sting", event: sc.id, picks: [{ id: sc.id, packId: sc.packId, text: sc.text, r: "yes" }], area: null } : { step: "sting", own: { text: sc.recognition || sc.text, packId: sc.packId || null, version: C.contentVersion }, picks: [] }; dropDraft("onb-sting-" + (isEv ? sc.id : "own"), "onb"); await saveProfile(true); go("sting"); });
     const kd = $("#keepDep"); if (kd) kd.onclick = async () => { const cur = p.hypothesisVersionId || null; if (dep.permission) { p.permissionSource = Object.assign({}, p.permissionSource, { keptFor: cur }); await savePattern(p); } if (dep.plan) { x.keptFor = cur; await saveExp(x); } toast("Оставлено осознанно"); story(); };
     const rd = $("#redoDep"); if (rd) rd.onclick = async () => { if (dep.permission) { p.permissionSource = null; await savePattern(p); } deepToday = true; go(dep.permission ? "module/rule" : "module/experiment"); };
     const rp = $("#resume"); if (rp) rp.onclick = async () => { p.status = "active"; await savePattern(p); story(); };
     const pp = $("#pauseP"); if (pp) pp.onclick = async () => { if (!pp.dataset.sure) { pp.dataset.sure = 1; pp.textContent = "Точно поставить на паузу? Нажми ещё раз"; return; } p.status = "paused"; await savePattern(p); go("today"); };
-    $("#newP").onclick = async () => { const b = $("#newP"); if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Текущий уйдёт в историю. Нажми ещё раз"; return; } p.status = "done"; await savePattern(p); P.onb = { step: "cards" }; await saveProfile(true); go("cards"); };
+    $("#newP").onclick = async () => { const b = $("#newP"); if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Текущий уйдёт в историю. Нажми ещё раз"; return; } p.status = "done"; await savePattern(p); P.onb = { step: "area" }; await saveProfile(true); go("area"); };
   }
   const branchLabel = b => ({ rule: "внутреннее правило", boundary: "граница", expectation: "интерпретация", resource: "ресурс", own_behavior: "своё поведение", unknown: "пока неясно" })[b] || b;
   const statusLabel = s => ({ candidate: "версия", selected: "проверяется", supported_by_user: "подтверждена мной", rejected: "отвергнута", revised: "пересмотрена" })[s] || s;
@@ -867,9 +939,23 @@
     /* Смена навыка — новая версия плана. Прежние записи остаются с прежним навыком: история задним числом не переименовывается. */
     if (k === "skill") { app.innerHTML = `<h1 class="q">Какой навык тренируем?</h1><p class="small muted">Прошлые применения останутся за прежним навыком. Для флага по новому навыку нужны свои подтверждения.</p><div class="chips col">${SKILLS.map(s => `<button class="chip ${skillOfPattern(p) === s.id ? "on" : ""}" data-v="${s.id}">${s.label}</button>`).join("")}</div><div class="row tight"><button class="btn ghost" id="bk">Назад</button></div>`; $$(".chip").forEach(b => b.onclick = async () => { const v = b.dataset.v; if (v === skillOfPattern(p)) return story(); if (expOf(p)) await newExperimentVersion(p, { skillId: v, reason: "skill-changed" }); else { p.skillId = v; await savePattern(p); } story(); }); $("#bk").onclick = story; return; }
     if (k === "lesson") {
-      const pk = packOf(p), all = pk ? pk.lessons : [], curId = p.lesson ? p.lesson.id : null;
-      app.innerHTML = `<h1 class="q">${esc(OB.lesson.alt)}</h1><p class="small muted">Смена урока создаёт новую версию шага и навыка. Записи и история остаются.</p><div class="chips col">${all.map(l => `<button class="chip ${l.id === curId ? "on" : ""}" data-l="${l.id}">${esc(uc1(l.title))}</button>`).join("")}<button class="chip dim ${curId === X.lessonUnknown.id ? "on" : ""}" data-l="__unknown">${esc(OB.lesson.unknown)}</button></div><div class="row tight"><button class="btn ghost" id="bk">Назад</button></div>`;
-      $$("[data-l]").forEach(b => b.onclick = async () => { const id = b.dataset.l; const L = id === "__unknown" ? X.lessonUnknown : all.find(l => l.id === id); if (!L || L.id === curId) return story(); const prev = p.lesson; p.lesson = { id: L.id, title: L.title, inner: L.inner, action: L.action, skillId: L.skillId, hypothesisId: L.hypothesisId || null, signal: L.signal, status: "preliminary", chosenAt: nowTs(), rejected: [...((prev && prev.rejected) || []), ...(prev ? [prev.id] : [])] }; await newExperimentVersion(p, { action: uc1(L.action), skillId: L.skillId, ifThen: { signal: L.signal, action: L.action }, permission: L.inner, reason: "lesson-changed", lessonId: L.id }); setPermissionFromPack(p, L.inner, p.hypothesisVersionId); await savePattern(p); toast("Урок изменён"); story(); });
+      const x = expOf(p), drift = R.lessonDrift({ pattern: p, experiment: x }), curSkill = skillOfPattern(p);
+      const all = C.packs.flatMap(pk => pk.lessons.map(l => Object.assign({ packId: pk.id, packTitle: pk.title }, l)));
+      /* При расхождении показываем уроки под текущий навык: подпись подгоняется под практику, а не практика под подпись. */
+      const list = drift.drift ? all.filter(l => l.skillId === curSkill) : all.filter(l => l.packId === (p.packId || l.packId));
+      const curId = p.lesson ? p.lesson.id : null;
+      app.innerHTML = `<h1 class="q">${esc(drift.drift ? "Как назвать урок?" : OB.lesson.alt)}</h1><p class="small muted">${drift.drift ? `Сейчас тренируем: ${esc(skillLabel(curSkill))}. Название урока подстроим под практику; план и записи не меняются.` : "Смена урока создаёт новую версию шага и навыка. Записи и история остаются."}</p>
+        <div class="chips col">${list.map(l => `<button class="chip ${l.id === curId ? "on" : ""}" data-l="${l.id}">${esc(uc1(l.title))}${drift.drift && l.packId !== p.packId ? ` <span class="tiny">· ${esc(l.packTitle)}</span>` : ""}</button>`).join("")}${drift.drift ? "" : `<button class="chip dim ${curId === X.lessonObserve.id ? "on" : ""}" data-l="__observe">${esc(X.lessonObserve.headline)}</button>`}</div>
+        <label for="a">Своими словами</label><textarea id="a" placeholder="например: учитывать свою нагрузку, прежде чем соглашаться">${esc(p.lesson && p.lesson.origin === "user" ? p.lesson.title : "")}</textarea><div class="row tight"><button class="btn secondary sm" id="own">Сохранить свою формулировку</button></div>
+        <div class="row tight"><button class="btn ghost" id="bk">Назад</button></div>`;
+      const prevRejected = () => [...((p.lesson && p.lesson.rejected) || []), ...(p.lesson ? [p.lesson.id] : [])];
+      $$("[data-l]").forEach(b => b.onclick = async () => {
+        const id = b.dataset.l; const L = id === "__observe" ? X.lessonObserve : id === "__unknown" ? X.lessonUnknown : all.find(l => l.id === id); if (!L || L.id === curId) return story();
+        if (drift.drift) { p.lesson = { id: L.id, title: L.title, inner: L.inner, action: p.lesson.action, skillId: curSkill, hypothesisId: L.hypothesisId || null, signal: L.signal, status: "confirmed", chosenAt: nowTs(), rejected: prevRejected(), keptForExperimentId: x ? x.id : null, origin: "pack" }; await savePattern(p); toast("Урок уточнён"); return story(); }
+        p.lesson = { id: L.id, title: L.title, inner: L.inner, action: L.action, skillId: L.skillId, hypothesisId: L.hypothesisId || null, signal: L.signal, status: "preliminary", chosenAt: nowTs(), rejected: prevRejected(), origin: "pack" };
+        await newExperimentVersion(p, { action: uc1(L.action), skillId: L.skillId, ifThen: { signal: L.signal, action: L.action }, permission: L.inner, reason: "lesson-changed", lessonId: L.id }); setPermissionFromPack(p, L.inner, p.hypothesisVersionId); await savePattern(p); toast("Урок изменён"); story();
+      });
+      $("#own").onclick = async () => { const v = $("#a").value.trim(); if (!v) return toast("Напиши формулировку"); p.lesson = Object.assign({}, p.lesson || {}, { id: "lesson-own", title: lc1(v), skillId: curSkill, status: "confirmed", chosenAt: nowTs(), keptForExperimentId: x ? x.id : null, origin: "user", rejected: prevRejected() }); await savePattern(p); toast("Урок записан твоими словами"); story(); };
       $("#bk").onclick = story; return;
     }
     if (k === "teacher") {
@@ -944,11 +1030,11 @@
       const cl = R.clarity(D.flags, TOTAL_SKILLS), cols = ["#FBE7A8", "#E2B65A", "#B9822A", "#C9BFFF", "#8C84C8", "#F2C4B0"];
       app.innerHTML = `${reduce() ? "" : `<div class="confetti" aria-hidden="true">${Array.from({ length: 50 }, (_, k) => `<i style="left:${(k * 37) % 100}%;background:${cols[k % 6]};animation-delay:${(k % 12) * 0.12}s"></i>`).join("")}</div>`}
         <p class="fanfare">Флаг твой</p><div class="trail" style="height:130px"><img src="${IMG("traveler")}" alt=""><i class="glow"></i></div>
-        <h2>Ты научился отвечать иначе</h2><p>В этом уроке ты практиковал: <b>${esc(skillLabel(sk))}</b>${p.lesson ? ` — ${esc(p.lesson.title)}` : ""}.</p>
+        <h2>Ты научился отвечать иначе</h2><p>В этом уроке ты практиковал: <b>${esc(skillLabel(sk))}</b>${p.lesson && p.lesson.skillId === sk ? ` — ${esc(p.lesson.title)}` : ""}.</p>
         <p class="small">${(() => { const w = el.windows; const eps = D.episodes.filter(e => e.patternId === p.id && !e.legacy && !e.isRehearsal).length; const opp = w.reduce((a, s) => a + s.opportunities, 0); const ratings = w.map(s => s.impactRatings.map(r => r.value).join("·")).join(" | "); return `За две недели: реальных поводов ${opp}, применений в разные дни ${el.actionDays.length}, оценки трудности ${esc(ratings)}. Всего записано случаев по сюжету: ${eps}.`; })()}</p>
         <p class="small muted">Небо над тропой: ${cl.pct}% — ${cl.count} из ${cl.total} навыков. Неприятные чувства могут оставаться — это не отменяет навык. Тема жизни не закрыта навсегда: это освоенный ответ в наблюдавшихся ситуациях.</p>
         <div class="row"><a class="btn block" href="#today">Продолжить закрепление</a></div><div class="row tight"><button class="btn ghost" id="nextScenario">Выбрать следующий сюжет</button></div>`;
-      $("#nextScenario").onclick = async () => { p.status = "done"; await savePattern(p); P.onb = { step: "cards" }; await saveProfile(true); go("cards"); };
+      $("#nextScenario").onclick = async () => { p.status = "done"; await savePattern(p); P.onb = { step: "area" }; await saveProfile(true); go("area"); };
     };
   }
 
@@ -1028,13 +1114,14 @@
   /* Шаг 3 входа. Открытие числа: астролябия, золотая цифра, название пути. Анимацию можно пропустить; при reduced motion — статично. */
   function reveal(n) {
     const S = P.symbolic, t = X.paths[n], r = R.calcNum(S.birth) || { digits: [], chain: [n] }, red = reduce() || !!(P.onb && P.onb.revealed);
-    const finalHtml = () => `<h1 style="margin-top:6px">${esc(OB.reveal.lead)} ${esc(t.name)}</h1><p>Его тема — ${esc(t.theme)}.</p><p class="muted">${esc(t.intro || "")}</p>
-      <div class="row"><button class="btn block" id="go">${esc(OB.reveal.cta)}</button></div>
+    /* Коротко: цифра и интрига. Без черт характера — толкование темы будет после подтверждённой ситуации. */
+    const finalHtml = () => `<h1 style="margin-top:6px">${esc(OB.number.lead)} ${n}</h1><p>${esc(OB.number.text)}</p>
+      <div class="row"><button class="btn block" id="go">${esc(OB.number.cta)}</button></div>
       <p class="tiny" style="margin-top:8px">${esc(OB.reveal.note)}</p><div class="row tight"><a class="btn ghost sm" href="#birth">Другая дата</a></div>`;
     app.innerHTML = `<div class="astro"><img src="${IMG("astrolabe")}" alt=""><div class="orb ${red ? "shown" : "calc"}" id="orb"><div class="core"><i class="fl"></i><img class="num" src="${IMG("num-" + n)}" alt="Число ${n}"></div></div></div>
       <div class="digits" id="digits">${r.digits.map(d => `<span class="d">${d}</span>`).join("<span class='d'> + </span>")}<span class="sum d" id="sum"></span></div>
       <div id="after">${red ? "" : `<div class="row tight"><button class="btn ghost sm" id="skipAnim">Пропустить</button></div>`}</div>`;
-    const done = () => { if (P.onb) { P.onb.revealed = true; saveProfile(true); } $("#after").innerHTML = finalHtml(); $("#go").onclick = async () => { onb().step = "cards"; onb().deck = null; await saveProfile(true); go("cards"); }; };
+    const done = () => { if (P.onb) { P.onb.revealed = true; saveProfile(true); } $("#after").innerHTML = finalHtml(); $("#go").onclick = async () => { onb().step = "area"; await saveProfile(true); go("area"); }; };
     const spans = $$("#digits .d"); let i = 0, stopped = false;
     const finishNow = () => { stopped = true; spans.forEach(x => x.style.opacity = 1); $("#sum").textContent = r.chain.length ? "= " + r.chain.join(" → ") : ""; $("#sum").style.opacity = 1; const orb = $("#orb"); orb.classList.remove("calc"); orb.classList.add("shown"); done(); };
     if (red) return finishNow();

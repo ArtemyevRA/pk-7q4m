@@ -255,6 +255,15 @@
     return { drafts: out, recovered };
   };
 
+  /* Урок и практика: если действующий план тренирует другой навык, чем записано в уроке, подпись урока ждёт решения
+     (уточнить или сохранить формулировку). Сохранённое решение привязано к версии плана. */
+  R.lessonDrift = function ({ pattern, experiment }) {
+    const L = pattern && pattern.lesson, x = experiment;
+    if (!L || !x || !x.skillId || !L.skillId) return { drift: false };
+    if (x.skillId === L.skillId || L.keptForExperimentId === x.id) return { drift: false };
+    return { drift: true, oldSkill: L.skillId, newSkill: x.skillId };
+  };
+
   /* ---------- колода карточек ----------
      Число пути задаёт только порядок первой подборки: pathCards карточек из сценариев пути и otherCards из других тем.
      Без числа — карточки из разных тем. Это редакционная настройка, не диагностическая шкала. Дубликатов нет; exclude — уже показанные. */
@@ -275,6 +284,25 @@
     } else out.push(...roundRobin(packs, pathCards + otherCards, s));
     return out;
   };
+  /* Колода событий v4: сфера определяет подборку (до first карточек), число не влияет. «Пока трудно понять» — по одному событию из разных сфер.
+     Расширение — следующие события той же сферы, затем других. exclude — уже показанные. */
+  R.buildEventDeck = function ({ events = [], area = null, first = 4, seed = 0, exclude = [] }) {
+    const ex = new Set(exclude), s = Math.abs(Number(seed) || 0);
+    const pool = events.filter(e => !ex.has(e.id));
+    const own = area && area !== "unclear" ? pool.filter(e => (e.areas || []).includes(area)) : [];
+    const rest = pool.filter(e => !own.includes(e));
+    const rot = (list, k) => list.length ? [...list.slice(k % list.length), ...list.slice(0, k % list.length)] : [];
+    const out = [];
+    if (own.length) out.push(...rot(own, s).slice(0, first));
+    if (out.length < first) {
+      /* разные сферы по очереди */
+      const byArea = {}; rest.forEach(e => { const a = (e.areas || ["other"])[0]; (byArea[a] = byArea[a] || []).push(e); });
+      const keys = rot(Object.keys(byArea).sort(), s); let i = 0, guard = 0;
+      while (out.length < first && guard++ < 100) { const q = byArea[keys[i % keys.length]]; if (q && q.length) out.push(q.shift()); if (Object.values(byArea).every(q => !q.length)) break; i++; }
+    }
+    return out.map(e => ({ id: e.id, text: e.text, packId: e.packId, areas: e.areas, pathHint: e.pathHint || [] }));
+  };
+
   /* Ответы по колоде: один ответ на карточку; отмена возвращает карточку и прежний ответ; дубликатов нет. */
   R.deckAnswer = function (S, r) {
     const deck = S.deck || [], idx = S.idx || 0; if (idx >= deck.length) return false;
