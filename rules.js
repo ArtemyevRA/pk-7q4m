@@ -94,7 +94,8 @@
   R.eveningEvidence = (c, patternId) => !!(c && c.evening && !c.legacy && !c.evening.legacy && patternId && c.patternId === patternId);
 
   /* ---------- измеренное состояние: только явные оценки ---------- */
-  R.lastRating = function ({ checkins = {}, episodes = [] }) {
+  /* Одна явно названная шкала для рюкзака: оценка состояния («как сейчас», утром или вечером). Сила эмоции события в камни не входит. */
+  R.lastRating = function ({ checkins = {}, episodes = [], includeEpisodes = false }) {
     let best = null;
     const push = (value, kind, at) => { if (value == null || isNaN(value)) return; if (!best || at > best.at) best = { value: Number(value), kind, at }; };
     Object.values(checkins).forEach(c => {
@@ -102,8 +103,22 @@
       if (c.morning && c.morning.intensity != null) push(c.morning.intensity, "morning", c.morning.at);
       if (c.evening && c.evening.currentImpact != null) push(c.evening.currentImpact, "evening", c.evening.at);
     });
-    episodes.forEach(e => { if (e.intensity != null && !e.legacy) push(e.intensity, "episode", e.loggedAt); });
+    if (includeEpisodes) episodes.forEach(e => { if (e.intensity != null && !e.legacy) push(e.intensity, "episode", e.loggedAt); });
     return best;
+  };
+  /* Старт практики: день 1 — день, когда человек начал практиковать выбранный ответ, не дата вспомненного случая.
+     Вечерний первый запуск (после начала вечера) — практика начинается завтра, если сегодня не было реальной попытки. */
+  R.practiceStartFor = function ({ todayKey, hour, times, actedToday }) {
+    const ph = R.phaseOf(hour, times);
+    /* Ночь (после полуночи) — утро этого же календарного дня ещё впереди: практика начинается сегодня. */
+    return ph === "evening" && !actedToday ? R.addDays(todayKey, 1) : todayKey;
+  };
+  R.practiceStart = p => (p && (p.practiceStartDate || p.startDate)) || null;
+  /* Схема 5: у действующих сюжетов старт практики = прежний startDate (история не переписывается). Возвращает число изменённых. */
+  R.migrateV5 = function (patterns) {
+    let n = 0;
+    (patterns || []).forEach(p => { if (p && !p.legacy && p.startDate && !p.practiceStartDate) { p.practiceStartDate = p.startDate; p.practiceStartOrigin = "migrated"; n++; } });
+    return n;
   };
 
   /* Подтверждённое применение выбранного ответа: не репетиция; пауза — только выбранная.
@@ -162,11 +177,14 @@
   R.flagEligibility = function ({ pattern, checkins = {}, episodes = [], todayKey, policy, experiment, skillId }) {
     const P = Object.assign({}, R.DEFAULT_POLICY, policy || {});
     const skill = skillId || (experiment && experiment.skillId) || (pattern && pattern.skillId) || null;
-    const out = { eligible: false, reasons: [], windows: [], skillId: skill, daysElapsed: pattern && pattern.startDate ? R.daysSince(pattern.startDate, todayKey) : -1 };
-    if (!pattern || !pattern.startDate) { out.reasons.push("Нет первого реального эпизода."); return out; }
+    /* Срок считается от фактического старта практики, не от даты вспомненного случая. */
+    const start = R.practiceStart(pattern);
+    const out = { eligible: false, reasons: [], windows: [], skillId: skill, daysElapsed: start ? R.daysSince(start, todayKey) : -1 };
+    if (!pattern || !start) { out.reasons.push("Нет первого реального эпизода."); return out; }
     if (!skill) { out.reasons.push("Навык для флага не выбран."); return out; }
-    if (out.daysElapsed < P.minElapsedCalendarDays) out.reasons.push(`Прошло ${out.daysElapsed} из ${P.minElapsedCalendarDays} календарных дней.`);
-    const done = R.completedWindows(pattern.startDate, todayKey);
+    if (out.daysElapsed < 0) { out.reasons.push(`Практика начнётся ${R.human(start)}.`); return out; }
+    if (out.daysElapsed < P.minElapsedCalendarDays) out.reasons.push(`Прошло ${out.daysElapsed} из ${P.minElapsedCalendarDays} календарных дней практики.`);
+    const done = R.completedWindows(start, todayKey);
     if (done.length < P.stabilityWindowCount) { out.reasons.push(`Завершённых недель: ${done.length} из ${P.stabilityWindowCount}.`); return out; }
     const last = done.slice(-P.stabilityWindowCount).map(w => R.windowSummary({ checkins, episodes, window: w, patternId: pattern.id, skillId: skill, experiment }));
     out.windows = last;
@@ -286,21 +304,23 @@
   };
   /* Колода событий v4: сфера определяет подборку (до first карточек), число не влияет. «Пока трудно понять» — по одному событию из разных сфер.
      Расширение — следующие события той же сферы, затем других. exclude — уже показанные. */
-  R.buildEventDeck = function ({ events = [], area = null, first = 4, seed = 0, exclude = [] }) {
+  R.buildEventDeck = function ({ events = [], area = null, ctx = null, first = 6, primary = 4, seed = 0, exclude = [] }) {
     const ex = new Set(exclude), s = Math.abs(Number(seed) || 0);
     const pool = events.filter(e => !ex.has(e.id));
-    const own = area && area !== "unclear" ? pool.filter(e => (e.areas || []).includes(area)) : [];
-    const rest = pool.filter(e => !own.includes(e));
     const rot = (list, k) => list.length ? [...list.slice(k % list.length), ...list.slice(0, k % list.length)] : [];
-    const out = [];
-    if (own.length) out.push(...rot(own, s).slice(0, first));
+    const inArea = e => area && area !== "unclear" && (e.areas || []).includes(area);
+    const inCtx = e => ctx && ctx !== "any" && (e.ctx || []).includes(ctx);
+    const out = [], used = new Set();
+    const take = (list, n) => { for (const e of rot(list, s)) { if (out.length >= n) break; if (!used.has(e.id)) { used.add(e.id); out.push(e); } } };
+    if (ctx && ctx !== "any") { take(pool.filter(e => inArea(e) && inCtx(e)), primary); take(pool.filter(inArea), first); }
+    else if (area && area !== "unclear") { take(pool.filter(inArea), primary); take(pool.filter(e => !inArea(e)), first); take(pool.filter(inArea), first); }
     if (out.length < first) {
       /* разные сферы по очереди */
-      const byArea = {}; rest.forEach(e => { const a = (e.areas || ["other"])[0]; (byArea[a] = byArea[a] || []).push(e); });
+      const rest = pool.filter(e => !used.has(e.id)), byArea = {}; rest.forEach(e => { const a = (e.areas || ["other"])[0]; (byArea[a] = byArea[a] || []).push(e); });
       const keys = rot(Object.keys(byArea).sort(), s); let i = 0, guard = 0;
-      while (out.length < first && guard++ < 100) { const q = byArea[keys[i % keys.length]]; if (q && q.length) out.push(q.shift()); if (Object.values(byArea).every(q => !q.length)) break; i++; }
+      while (out.length < first && keys.length && guard++ < 100) { const q = byArea[keys[i % keys.length]]; if (q && q.length) { const e = q.shift(); used.add(e.id); out.push(e); } if (Object.values(byArea).every(q => !q.length)) break; i++; }
     }
-    return out.map(e => ({ id: e.id, text: e.text, packId: e.packId, areas: e.areas, pathHint: e.pathHint || [] }));
+    return out.map(e => ({ id: e.id, text: e.text, packId: e.packId, areas: e.areas, ctx: e.ctx || [], pathHint: e.pathHint || [] }));
   };
 
   /* Ответы по колоде: один ответ на карточку; отмена возвращает карточку и прежний ответ; дубликатов нет. */
@@ -393,7 +413,7 @@
   /* ---------- экспорт / импорт ---------- */
   /* Схема 3: записи дня по ключу «дата|сюжет», действия помнят навык. Схема 4: у разрешений есть происхождение.
      Файлы схем 2–4 читаются и приводятся к текущей. Валидатор никогда не бросает исключение: всегда {ok, errors}. */
-  R.SCHEMA_VERSION = 4;
+  R.SCHEMA_VERSION = 5;
   R.MIN_IMPORT_SCHEMA = 2;
   R.COLLECTIONS = ["patterns", "episodes", "hypotheses", "experiments", "reviews", "flags"];
   R.validateImport = function (obj) {
@@ -438,6 +458,7 @@
     const iv = Number(incomingVersion) || R.SCHEMA_VERSION;
     if (iv < 3) R.backfillEvidence(out);
     if (iv < 4) R.markMigratedPermissions(out.patterns);
+    if (iv < 5) R.migrateV5(out.patterns);
     return { data: out, stats };
   };
 

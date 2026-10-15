@@ -80,17 +80,23 @@
   }
 
   /* ---------- тропа ---------- */
+  /* Камни — только последняя явная оценка состояния (сила эмоции события не входит); шаги — завершённые вечера; небо — освоенные навыки числом, не процентом.
+     Линия тропы — дни практики до срока проверки навыка; до старта практики она пуста. До обучения и первой практики — иллюстрация без панели метрик. */
   function trailHTML(p) {
-    const steps = R.practiceDays(D.checkins).length;
-    const cl = R.clarity(D.flags, TOTAL_SKILLS), rating = R.lastRating({ checkins: D.checkins, episodes: D.episodes });
-    const elig = p && p.startDate ? eligibility(p) : null;
-    const wk = p && p.startDate ? Math.min(1, (R.daysSince(p.startDate, today()) + 1) / 21) : 0;
-    const prog = p && p.startDate ? Math.min(0.92, 0.06 + wk * 0.86) : 0.06;
+    const T = OB.trail, steps = R.practiceDays(D.checkins).length;
+    const cl = R.clarity(D.flags, TOTAL_SKILLS), rating = R.lastRating({ checkins: D.checkins });
+    const ps = R.practiceStart(p), d = ps ? R.daysSince(ps, today()) : -1, horizon = policy().minElapsedCalendarDays || 21;
+    const elig = p && ps && d >= 0 ? eligibility(p) : null;
+    const wk = d >= 0 ? Math.min(1, (d + 1) / horizon) : 0;
+    const prog = d >= 0 ? Math.min(0.92, 0.06 + wk * 0.86) : 0.06;
     const veil = Math.max(0, 0.55 - cl.pct / 100 * 0.55);
-    const st = rating ? `${rating.value} ${R.stonesWord(rating.value)}` : "оценки нет";
-    return `<div class="trail" role="img" aria-label="Тропа. Состояние: ${esc(st)}. Шагов: ${steps}. Ясность: ${cl.pct}%.">
+    const st = rating ? `${rating.value} ${R.stonesWord(rating.value)}` : T.noRating;
+    const stepsTxt = `${steps} ${R.plural(steps, "шаг", "шага", "шагов")} практики`;
+    const cap = d >= 0 ? (d + 1 < horizon ? T.caption : T.captionLate).replace("{n}", d + 1).replace("{h}", horizon) : ps ? T.before.replace("{d}", R.human(ps)) : (p ? T.observe : "");
+    const bare = !P.seen.trail && !steps;
+    return `<div class="trail ${bare ? "bare" : ""}" role="img" aria-label="Тропа. Состояние: ${esc(st)}. ${esc(stepsTxt)}. ${esc(T.skills)}: ${cl.count} из ${cl.total}.">
       <img src="${IMG("traveler")}" alt=""><i class="veil" style="opacity:${veil.toFixed(2)}"></i>${elig && elig.eligible ? `<i class="glow"></i>` : ""}
-      <span class="tb l">${ic("backpack", "")}${esc(st)}</span><span class="tb c">${ic("mountain", "")}${steps} ${R.plural(steps, "шаг", "шага", "шагов")}</span><span class="tb r">${ic("star", "")}${cl.pct}%</span>
+      ${bare ? "" : `<span class="tb l">${ic("backpack", "")}${esc(st)}</span><span class="tb r">${ic("star", "")}${esc(T.skills)}: ${cl.count}</span><span class="tb c2">${ic("mountain", "")}${esc(stepsTxt)}</span>${cap ? `<span class="tcap">${esc(cap)}</span>` : ""}`}
       <div class="tpath"><div class="tline"><i style="width:${(prog * 100).toFixed(1)}%"></i></div><span class="me" style="left:${(prog * 100).toFixed(1)}%"></span>${ic("flag", "tflag")}</div>
       <div id="trailpop"></div></div>`;
   }
@@ -210,18 +216,21 @@
     applyTheme();
     let [h, arg] = (location.hash || "#today").slice(1).split("/");
     const p = anyPattern();
-    /* Новому человеку — вход (проблема → дата → число → сценарии → учитель → урок). Действующий сюжет или записи прошлой версии — сразу свой путь. */
-    const ONB = ["start", "birth", "symbol", "area", "cards", "own", "sting", "path", "teacher", "lesson", "new", "entry", "help", "about", "settings"];
+    /* Новому человеку — вход (проблема → дата → число → сфера → события → фокус → учитель → случай → что задело → резюме → урок → карта дня). Действующий сюжет или записи прошлой версии — сразу свой путь. */
+    const STEPS = ["start", "birth", "symbol", "area", "workctx", "cards", "own", "teacher", "case", "sting", "summary", "path", "lesson"];
+    const ONB = [...STEPS, "map", "guide", "new", "entry", "help", "about", "settings"];
     const needStart = !p && !D.meta.migratedFromV9 && !(P.seen.start && !P.onb);
     if (needStart && !ONB.includes(h)) h = (P.onb && P.onb.step && ONB.includes(P.onb.step)) ? P.onb.step : "start";
-    if (needStart && ["start", "birth", "symbol", "area", "cards", "own", "sting", "path", "teacher", "lesson"].includes(h)) { P.onb = P.onb || {}; if (P.onb.step !== h) { P.onb.step = h; saveProfile(true); } }
+    if (needStart && STEPS.includes(h)) { P.onb = P.onb || {}; if (P.onb.step !== h) { P.onb.step = h; saveProfile(true); } }
+    /* Карта дня — один раз, до обычной главной: отдельное состояние обучения, не часть смыслового входа. */
+    if (p && !P.seen.map && !D.meta.migratedFromV9 && h === "today") h = "map";
     const live = !!p || !!D.meta.migratedFromV9 || (P.seen.start && !P.onb);
     document.body.classList.toggle("live", live && !["start", "entry", "birth"].includes(h));
     hero.innerHTML = ""; $("#stagebar").innerHTML = "";
     nav.innerHTML = `<a class="pill sos" href="#help" aria-label="Сейчас тяжело">${ic("flame", "")}<span>Сейчас тяжело</span></a><a class="pill ${h === "settings" ? "on" : ""}" href="#settings" aria-label="Настройки">${ic("key", "")}</a>`;
     tabs.innerHTML = [["today", "Сегодня", phaseIc()], ["story", "Мой путь", "eye"], ["history", "История", "hourglass"]].map(([k, l, i]) => `<a href="#${k}" class="${h === k ? "on" : ""}">${ic(i, "")}${l}</a>`).join("");
     $("#testbar").innerHTML = P.devMode && P.offsetH ? `<div class="testbar">Тестовое время: ${R.human(today())}, ${R.fmtTime(nowTs())} (сдвиг ${P.offsetH > 0 ? "+" : ""}${P.offsetH} ч) — <a href="#settings">сбросить</a></div>` : "";
-    const V = { start, birth, entry, new: newEpisode, area, cards, own: ownScenario, sting, path: pathScreen, teacher, lesson, help, today: todayScreen, story, history, settings, morning, event, action, evening, module: moduleScreen, review, flag: flagScreen, about, symbol, detail, legacy, episode: episodeView };
+    const V = { start, birth, entry, new: newEpisode, area, workctx, cards, own: ownScenario, teacher, case: caseScreen, sting, summary, path: summary, lesson, map: mapScreen, guide, help, today: todayScreen, story, history, settings, morning, event, action, evening, module: moduleScreen, review, flag: flagScreen, about, symbol, detail, legacy, episode: episodeView };
     (V[h] || V.today)(arg);
     window.scrollTo(0, 0);
   }
@@ -230,24 +239,30 @@
   setInterval(() => { if (!P) return; if (today() !== lastKey || phase() !== lastPhase) { lastKey = today(); lastPhase = phase(); if (/^#?(today)?$/.test(location.hash)) route(); else applyTheme(); } }, 30e3);
   document.addEventListener("visibilitychange", () => { if (!document.hidden && P && (today() !== lastKey || phase() !== lastPhase)) { lastKey = today(); lastPhase = phase(); route(); } });
 
-  /* =================== ВХОД: число пути → знакомый сценарий → учитель → урок → новый ответ =================== */
+  /* =================== ВХОД v5: число (интрига) → сфера (+контекст работы) → шесть событий → фокус → учитель → случай → что задело → резюме → урок → карта дня =================== */
   const OB = X.onboarding;
   const onb = () => { P.onb = P.onb || {}; return P.onb; };
   const pathOf = () => (P.symbolic && P.symbolic.num) ? X.paths[P.symbolic.chosen || P.symbolic.num] : null;
-  /* Шаг 1. Узнавание проблемы. */
+  const WD = ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"];
+  const humanWd = k => `${WD[R.parseKey(k).getDay()]}, ${R.human(k)}`;
+  /* Шаг 1. Узнавание проблемы и «О подходе»: одна раскрываемая справка и пустой чекбокс. Согласие хранится локально с версией текста; чекбокс не проставляется сам. */
   function start() {
     document.body.classList.remove("live");
+    const A = OB.approach, agreed = !!(P.consent && P.consent.version === A.version);
     app.innerHTML = `
       <h1>${esc(OB.problem.title)}</h1>
       <p>${esc(OB.problem.text)}</p>
       <p class="quote">${esc(OB.problem.hint)}</p>
       <div class="trail" style="height:120px"><img src="${IMG("traveler")}" alt=""><i class="veil" style="opacity:.3"></i></div>
-      <div class="row"><button class="btn block" id="go">${esc(OB.problem.cta)}</button></div>
-      <div class="row tight"><a class="btn ghost" href="#help">Сейчас тяжело</a><a class="btn ghost" href="#about">Как это работает</a></div>
-      <p class="tiny" style="margin-top:8px">Записи хранятся только на этом устройстве. Это не психологическая помощь и не диагностика.</p>`;
-    $("#go").onclick = async () => { P.seen.start = true; onb().step = "birth"; await saveProfile(true); go("birth"); };
+      <div class="card tight" id="approach"><p class="small" style="margin:0 0 2px">${esc(OB.problem.approachLine)}</p>
+        <details class="plain"><summary>${esc(A.title)}</summary><p class="small" style="margin:0 0 6px">${esc(A.text)}</p></details>
+        <label class="consent"><input type="checkbox" id="consent" ${agreed ? "checked" : ""}><span>${esc(A.consent)}</span></label></div>
+      <div class="row"><button class="btn block" id="go" ${agreed ? "" : "disabled"}>${esc(OB.problem.cta)}</button></div>
+      <div class="row tight"><a class="btn ghost" href="#help">${esc(OB.buttons.sos.label)}</a><a class="btn ghost" href="#about">Как это работает</a></div>`;
+    $("#consent").onchange = e => { $("#go").disabled = !e.target.checked; };
+    $("#go").onclick = async () => { if (!$("#consent").checked) return toast("Отметь, что прочитал(а) о подходе"); P.consent = { version: A.version, at: nowTs() }; P.seen.start = true; onb().step = "birth"; await saveProfile(true); go("birth"); };
   }
-  /* Шаг 2. Дата рождения — по желанию. Без даты путь тот же, только подборка общая. */
+  /* Шаг 2. Дата рождения — по желанию. Без даты путь тот же, только без темы числа. */
   function birth() {
     document.body.classList.remove("live");
     const S = P.symbolic || {}, O = onb();
@@ -255,13 +270,14 @@
       <label for="b">Дата рождения</label><input type="date" id="b" min="1920-01-01" max="${today()}" value="${esc(O.birthDraft || S.birth || "")}">
       <p class="tiny" style="margin:4px 0 10px">${esc(OB.birth.note)}</p>
       <div class="row"><button class="btn block" id="go">${esc(OB.birth.cta)}</button></div>
-      <div class="row tight"><a class="btn ghost" href="#area" id="skip">${esc(OB.birth.skip)}</a><a class="btn ghost" href="#help">Сейчас тяжело</a></div>`;
+      <div class="row tight"><a class="btn ghost" href="#area" id="skip">${esc(OB.birth.skip)}</a><a class="btn ghost" href="#help">${esc(OB.buttons.sos.label)}</a></div>`;
     $("#b").onchange = () => { O.birthDraft = $("#b").value; saveProfile(true); };
+    const back = () => onb().sting ? "summary" : null;
     $("#go").onclick = async () => {
       const v = $("#b").value; const r = R.calcNum(v); if (!r || !R.isKey(v)) return toast("Укажи дату");
-      P.symbolic = Object.assign({}, S, { birth: v, num: r.num, chosen: S.birth === v ? S.chosen : null }); onb().step = "symbol"; await saveProfile(true); go(onb().sting ? "path" : "symbol");
+      P.symbolic = Object.assign({}, S, { birth: v, num: r.num, chosen: S.birth === v ? S.chosen : null }); onb().step = "symbol"; await saveProfile(true); go(back() || "symbol");
     };
-    $("#skip").onclick = async e => { e.preventDefault(); onb().step = onb().sting ? "path" : "area"; await saveProfile(true); go(onb().sting ? "path" : "area"); };
+    $("#skip").onclick = async e => { e.preventDefault(); const b = back() || "area"; onb().step = b; await saveProfile(true); go(b); };
   }
   function entry() {
     document.body.classList.remove("live");
@@ -274,7 +290,7 @@
       ${anyPattern() ? `<div class="row tight"><a class="btn ghost" href="#today">На главную</a></div>` : ""}`;
   }
   const EMOTIONS = C.emotions.primary;
-  /* Эпизод и первый план. Создаёт сюжет, если его нет. */
+  /* Эпизод и первый план. Создаёт сюжет, если его нет. Старт практики — день записи, не дата вспомненного случая. */
   function newEpisode(arg) {
     const existing = activePattern();
     const fromCard = P.drafts && P.drafts.cardPick;
@@ -292,19 +308,18 @@
         let p = existing;
         if (!p) {
           const plan = X.firstPlans.find(f => f.id === ans.plan) || X.firstPlans[0];
-          p = { id: R.uuid(), title: shortTitle(ans.event, fromCard), packId: fromCard ? fromCard.packId : null, contexts: val(ans, "who") ? [val(ans, "who")] : [], status: "active", startDate: k, createdAt: ts, hypothesisVersionId: null, experimentId: null, queue: [], firstPlan: plan, skillId: plan.skill || null, habitualResponse: val(ans, "response") || null, legacy: false };
+          p = { id: R.uuid(), title: shortTitle(ans.event, fromCard), packId: fromCard ? fromCard.packId : null, contexts: val(ans, "who") ? [val(ans, "who")] : [], status: "active", startDate: k, practiceStartDate: k, practiceStartOrigin: "user", createdAt: ts, hypothesisVersionId: null, experimentId: null, queue: [], firstPlan: plan, skillId: plan.skill || null, habitualResponse: val(ans, "response") || null, legacy: false };
           const x = { id: R.uuid(), patternId: p.id, hypothesisVersionId: null, version: 1, permission: "", prediction: "", action: plan.text, skillId: plan.skill || null, ifThen: { signal: plan.signal, action: plan.action }, criterion: "", status: "active", results: [], createdAt: ts, kind: "first-plan" };
           p.experimentId = x.id; await saveExp(x); await savePattern(p);
           const r = { patternId: p.id, modules: { episode: { status: "done", dateKey: k, doneAt: ts, answers: { response: val(ans, "response") } } } }; await saveResearch(r);
-        } else if (p.status === "observe") { p.status = "active"; p.startDate = p.startDate || k; if (!p.habitualResponse && val(ans, "response")) p.habitualResponse = val(ans, "response"); await savePattern(p); const r = researchOf(p); r.modules.episode = r.modules.episode || { status: "done", dateKey: k, doneAt: ts }; await saveResearch(r); }
+        } else if (p.status === "observe") { p.status = "active"; p.startDate = p.startDate || k; p.practiceStartDate = p.practiceStartDate || p.startDate; if (!p.habitualResponse && val(ans, "response")) p.habitualResponse = val(ans, "response"); await savePattern(p); const r = researchOf(p); r.modules.episode = r.modules.episode || { status: "done", dateKey: k, doneAt: ts }; await saveResearch(r); }
         const fromId = P.drafts && P.drafts.fromEpisode, prev = fromId ? D.episodes.find(x => x.id === fromId) : null;
         const e = prev || { id: R.uuid(), occurredAt: ts, loggedAt: ts, dateKey: k, tz: R.tz(), isRehearsal: false, legacy: false };
         Object.assign(e, { patternId: p.id, linkStatus: "confirmed", event: ans.event, person: val(ans, "who") || e.person || "", emotion: val(ans, "emotion") || e.emotion || null, intensity: ans.intensity, response: val(ans, "response") || null, verificationStatus: "detailed" });
-        if (prev && prev.dateKey && R.diffDays(prev.dateKey, p.startDate) > 0) { p.startDate = prev.dateKey; await savePattern(p); }
         await saveEpisode(e);
         if (P.drafts) { delete P.drafts.cardPick; delete P.drafts.fromEpisode; }
         P.onb = null; P.seen.start = true; P.lastResult = { kind: "first", title: p.title, plan: planText(p) }; await saveProfile();
-        go("today");
+        go(P.seen.map ? "today" : "map");
       } });
   }
   function shortTitle(event, card) {
@@ -315,48 +330,71 @@
     return uc1(t) || "Мой сюжет";
   }
 
-  /* =================== ВХОД v4: число (интрига) → сфера → событие → что задело → повторение → тема отдельно от резюме → учитель → урок =================== */
   const CI = C.cardInteraction, OE = OB.events, OA = OB.area, OSg = OB.sting, OPth = OB.path;
+  const DECK_N = CI.firstDeck || 6, DECK_MIN = CI.minAnsweredBeforePick || 5;
   const eventById = id => X.events.find(e => e.id === id) || null;
   const persistOnb = () => saveProfile(true);
-  /* Сфера: навигация, не тест. Конкретная ситуация — сразу свой текст. */
+  const areaLabel = a => (X.areas.find(x => x[0] === a) || [])[1] || "";
+  const ctxLabel = c => (X.workContexts.find(x => x[0] === c) || [])[1] || "";
+  /* Черновик шага входа заполняется прежним ответом, когда человек возвращается поправить: ответы не исчезают. */
+  const seedDraft = (id, ans) => { P.drafts = P.drafts || {}; const key = draftKey(id, "onb"); if (!P.drafts[key] && ans) P.drafts[key] = { i: 0, ans, at: nowTs() }; };
+  /* Сфера: навигация, не тест. Конкретная ситуация — сразу свой текст. Работа — ещё один короткий выбор контекста. */
   function area() {
     const S = onb();
     app.innerHTML = `<h1 class="q">${esc(OA.title)}</h1><p class="muted small">${esc(OA.sub)}</p>
       <div class="chips col">${X.areas.map(([v, l]) => `<button class="chip ${S.area === v ? "on" : ""}" data-v="${v}">${esc(l)}</button>`).join("")}</div>
-      <div class="row tight"><a class="btn ghost sm" href="#help">Сейчас тяжело</a></div>`;
-    $$("[data-v]").forEach(b => b.onclick = async () => { const v = b.dataset.v; if (v === "own") { S.area = "own"; S.step = "own"; await persistOnb(); return go("own"); } if (S.area !== v) { S.area = v; S.deck = null; S.picks = []; S.undo = null; S.shown = []; } S.step = "cards"; await persistOnb(); go("cards"); });
+      <div class="row tight"><a class="btn ghost sm" href="#help">${esc(OB.buttons.sos.label)}</a></div>`;
+    $$("[data-v]").forEach(b => b.onclick = async () => {
+      const v = b.dataset.v;
+      if (v === "own") { S.area = "own"; S.step = "own"; await persistOnb(); return go("own"); }
+      if (S.area !== v) { S.area = v; S.ctx = null; S.areaSwitched = null; S.deck = null; S.picks = []; S.undo = null; S.shown = []; S.choose = false; }
+      if (v === "work") { S.step = "workctx"; await persistOnb(); return go("workctx"); }
+      S.step = "cards"; await persistOnb(); go("cards");
+    });
+  }
+  /* Работа и общение: где именно напряжение. Колода: четыре события под контекст и два соседних. */
+  function workctx() {
+    const S = onb(); if (S.area !== "work") return go("area");
+    app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(areaLabel("work"))}</p><h1 class="q">${esc(OB.workctx.title)}</h1><p class="muted small">${esc(OB.workctx.sub)}</p>
+      <div class="chips col">${X.workContexts.map(([v, l]) => `<button class="chip ${S.ctx === v ? "on" : ""}" data-v="${v}">${esc(l)}</button>`).join("")}</div>
+      <div class="row tight"><a class="btn ghost sm" href="#area">Другая сфера</a><a class="btn ghost sm" href="#own">${esc(OE.own)}</a></div>`;
+    $$("[data-v]").forEach(b => b.onclick = async () => { const v = b.dataset.v; if (S.ctx !== v) { S.ctx = v; S.deck = null; S.picks = []; S.undo = null; S.shown = []; S.choose = false; } S.step = "cards"; await persistOnb(); go("cards"); });
   }
   function newDeck(S) {
     const seed = (P.installId || "").charCodeAt(0) || 0, shown = S.shown || [];
-    let deck = R.buildEventDeck({ events: X.events, area: S.area, first: CI.firstDeck || 4, seed, exclude: shown });
-    if (!deck.length) { S.shown = []; deck = R.buildEventDeck({ events: X.events, area: S.area, first: CI.firstDeck || 4, seed }); }
+    const opts = { events: X.events, area: S.area, ctx: S.area === "work" ? S.ctx : null, first: DECK_N, primary: CI.pathCards || 4, seed };
+    let deck = R.buildEventDeck(Object.assign({ exclude: shown }, opts));
+    if (!deck.length) { S.shown = []; deck = R.buildEventDeck(opts); }
     S.deck = deck; S.idx = 0; S.picks = S.picks || []; S.undo = null; S.choose = false; S.offer = null; S.shown = [...(S.shown || []), ...deck.map(c => c.id)];
   }
-  /* События: одна строка, без реакции и причины. «Было» — узнавание события, не триггер. */
+  /* Чекап: шесть событий, ответ «цепляет / не цепляет / не уверен» — первичное узнавание, не триггер и не тест.
+     Первое совпадение подбор не завершает: выбрать фокус можно после пяти ответов или в конце колоды. */
   function cards() {
-    const S = onb(); if (!S.area) return go("area"); if (!S.deck) newDeck(S);
+    const S = onb(); if (!S.area) return go("area"); if (S.area === "work" && !S.ctx) return go("workctx"); if (!S.deck) newDeck(S);
     const deck = S.deck; let busy = false;
+    const answered = () => (S.picks || []).length;
+    const canPick = () => answered() >= DECK_MIN && R.deckCandidates(S).length > 0;
     const render = () => {
-      if (S.offer) { const c = deck.find(x => x.id === S.offer); if (c) return offer(c); S.offer = null; }
+      S.offer = null;
       if (S.choose) return choose();
       if (S.idx >= deck.length) return R.deckCandidates(S).length ? choose() : nothingFits();
-      const c = deck[S.idx], tut = !P.seen.swipe, red = reduce();
-      app.innerHTML = `<p class="tiny" style="margin:0 0 4px">Событие ${S.idx + 1} из ${deck.length}${S.area && S.area !== "unclear" ? ` · ${esc((X.areas.find(a => a[0] === S.area) || [])[1] || "")}` : ""}</p>
-        <h1 class="q">${esc(OE.title)}</h1><p class="muted small" style="margin:0 0 6px">${tut ? `${esc(OE.tutorial[0])} ${esc(OE.tutorial[1])}` : esc(OE.sub)}</p>
+      const c = deck[S.idx], tut = !P.seen.swipe, red = reduce(), first = !answered();
+      const ctxTxt = S.area === "work" && S.ctx && S.ctx !== "any" ? ctxLabel(S.ctx) : (S.area && S.area !== "unclear" ? areaLabel(S.area) : "");
+      app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${S.idx + 1} из ${deck.length}${ctxTxt ? ` · ${esc(ctxTxt)}` : ""}</p>
+        <h1 class="q">${esc(OE.title)}</h1><p class="muted small" style="margin:0 0 6px">${first ? esc(OE.intro) : esc(OE.sub)}</p>
         <div class="swwrap"><div class="swcard ${tut && !red ? "demo" : ""}" id="swc" tabindex="0" role="group" aria-label="${esc(c.text)}">${esc(c.text)}<span class="swlab l" id="labL" aria-hidden="true">${esc(OE.no)}</span><span class="swlab r" id="labR" aria-hidden="true">${esc(OE.yes)}</span></div></div>
         <div class="swhint"><span>${esc(OE.hintLeft)}</span><span>${esc(OE.hintRight)}</span></div>
+        ${tut ? `<p class="tiny" style="margin:0 0 6px;text-align:center">${esc(OE.tutorial[0])} ${esc(OE.tutorial[1])}</p>` : ""}
         <div class="sw2"><button class="btn secondary" id="no">${esc(OE.no)}</button><button class="btn" id="yes">${esc(OE.yes)}</button></div>
         <div class="row tight"><button class="btn ghost sm" id="unsure">${esc(OE.unsure)}</button>${S.undo ? `<button class="btn ghost sm" id="undo">${esc(OE.undo)}</button>` : ""}</div>
-        ${R.deckCandidates(S).length ? `<div class="row tight"><button class="btn secondary block sm" id="pick">${esc(OE.which)} (${R.deckCandidates(S).length})</button></div>` : ""}
-        <div class="row tight"><a class="btn ghost sm" href="#own">${esc(OE.own)}</a><a class="btn ghost sm" href="#area">Другая сфера</a></div>`;
+        ${canPick() ? `<div class="row tight"><button class="btn secondary block sm" id="pick">${esc(OE.pick)} (${R.deckCandidates(S).length})</button></div>` : (R.deckCandidates(S).length ? `<p class="tiny" style="margin:4px 0 0;text-align:center">${esc(OE.minHint)}</p>` : "")}
+        <div class="row tight"><a class="btn ghost sm" href="#own">${esc(OE.own)}</a><a class="btn ghost sm" href="${S.area === "work" ? "#workctx" : "#area"}">${S.area === "work" ? "Другой контекст" : "Другая сфера"}</a></div>`;
       const sw = $("#swc"), labL = $("#labL"), labR = $("#labR");
       /* Один обработчик для свайпа, кнопок и клавиатуры: один ввод — один ответ; во время анимации ввод заблокирован. */
       const answer = (r) => {
         if (busy) return; busy = true;
         if (!R.deckAnswer(S, r)) { busy = false; return; }
         if (tut) P.seen.swipe = true;
-        if (r === "yes") S.offer = c.id;
         sw.classList.remove("demo"); sw.style.transform = ""; sw.classList.add(r === "yes" ? "out-r" : r === "no" ? "out-l" : "out-d");
         persistOnb(); setTimeout(() => { busy = false; render(); }, red ? 0 : 220);
       };
@@ -377,115 +415,139 @@
       const up = e => { if (sx == null) return; const d = dx, m = mode; reset(); try { sw.releasePointerCapture(e.pointerId); } catch (_) {} if (m === "h") { if (d > 70) answer("yes"); else if (d < -70) answer("no"); } };
       sw.onpointerup = up; sw.onpointercancel = () => reset(); sw.onlostpointercapture = () => { if (mode !== "h") reset(); };
     };
-    /* После первого «было»: разобрать сейчас или смотреть дальше. Два положительных ответа не требуются. */
-    const offer = (c) => {
-      app.innerHTML = `<p class="tiny" style="margin:0 0 4px">Было</p><h1 class="q">${esc(c.text)}</h1><p class="muted small">Разберём этот случай сейчас или посмотрим ещё события?</p>
-        <div class="row"><button class="btn block" id="take">${esc(OE.take)}</button></div><div class="row tight"><button class="btn ghost" id="more">${esc(OE.more)}</button><button class="btn ghost sm" id="undo">${esc(OE.undo)}</button></div>`;
-      $("#take").onclick = () => startSting(c.id);
-      $("#more").onclick = () => { S.offer = null; persistOnb(); render(); };
-      $("#undo").onclick = () => { S.offer = null; if (R.deckUndo(S)) { persistOnb(); render(); } };
-    };
+    const altLinks = () => `<a class="btn block secondary" href="${S.area === "work" ? "#workctx" : "#area"}">${S.area === "work" ? "Другой контекст" : "Другая сфера"}</a><a class="btn block secondary" href="#own">${esc(OE.own)}</a>`;
+    const reviewList = ns => ns.length ? `<details class="plain"><summary>${esc(OSg.notStung)} · ${ns.length}</summary><div class="chips col">${ns.map(x => `<button class="chip dim" data-rs="${esc(x.id)}">${esc(x.text)} — пересмотреть</button>`).join("")}</div></details>` : "";
+    /* Ничего не зацепило — нормальный результат, не сопротивление: другой контекст, свои слова или наблюдение. */
     const nothingFits = () => {
       const ns = R.deckNotStung(S);
-      app.innerHTML = `<h1 class="q">${ns.length ? "Было, но не задело" : "Ничего из этого не было"}</h1><p>${esc(OE.none)}</p>
-        <div class="chips col"><button class="btn block" id="more">${esc(OE.moreEvents)}</button><a class="btn block secondary" href="#own">${esc(OE.own)}</a><a class="btn block secondary" href="#area">Другая сфера</a><button class="btn block secondary" id="observe">${esc(OE.observe)}</button></div>
-        ${S.undo ? `<div class="row tight"><button class="btn ghost sm" id="undo">${esc(OE.undo)}</button></div>` : ""}`;
+      app.innerHTML = `<h1 class="q">${ns.length ? esc(OSg.notStung) : "Ничего не зацепило"}</h1><p>${esc(OE.none)}</p>
+        <div class="chips col"><button class="btn block" id="more">${esc(OE.moreEvents)}</button>${altLinks()}<button class="btn block secondary" id="observe">${esc(OE.observe)}</button></div>
+        ${reviewList(ns)}${S.undo ? `<div class="row tight"><button class="btn ghost sm" id="undo">${esc(OE.undo)}</button></div>` : ""}`;
       $("#more").onclick = () => { newDeck(S); persistOnb(); render(); };
       $("#observe").onclick = () => observeMode();
+      bindReview();
       const un = $("#undo"); if (un) un.onclick = () => { if (R.deckUndo(S)) { persistOnb(); render(); } };
     };
-    /* Несколько «было» — явный выбор одного; остальное сохраняется на потом. */
+    /* Горячая точка: из отмеченных — одна на неделю; остальное сохраняется на потом. */
     const choose = () => {
       const ys = R.deckCandidates(S), ns = R.deckNotStung(S);
       if (!ys.length) { S.choose = false; return nothingFits(); }
       app.innerHTML = `<h1 class="q">${esc(OE.which)}</h1><p class="muted small">${esc(OE.whichSub)}</p>
         <div class="chips col">${ys.map((x, i) => `<button class="chip" data-i="${i}">${esc(x.text)}</button>`).join("")}</div>
-        ${ns.length ? `<details class="plain"><summary>${esc(OSg.notStung)} · ${ns.length}</summary><div class="chips col">${ns.map(x => `<button class="chip dim" data-rs="${esc(x.id)}">${esc(x.text)} — пересмотреть</button>`).join("")}</div></details>` : ""}
+        ${reviewList(ns)}
         <div class="row tight">${S.idx < deck.length ? `<button class="btn ghost sm" id="back">Досмотреть события</button>` : `<button class="btn ghost sm" id="more">${esc(OE.moreEvents)}</button>`}<a class="btn ghost sm" href="#own">${esc(OE.own)}</a></div>
         ${S.undo ? `<div class="row tight"><button class="btn ghost sm" id="undo">${esc(OE.undo)}</button></div>` : ""}`;
-      $$(".chip[data-i]").forEach(b => b.onclick = () => startSting(ys[Number(b.dataset.i)].id));
-      $$("[data-rs]").forEach(b => b.onclick = () => { const pk = (S.picks || []).find(x => x.id === b.dataset.rs); if (pk) { delete pk.notStung; persistOnb(); } startSting(b.dataset.rs); });
+      $$(".chip[data-i]").forEach(b => b.onclick = () => pickEvent(ys[Number(b.dataset.i)].id));
+      bindReview();
       const bk = $("#back"); if (bk) bk.onclick = () => { S.choose = false; persistOnb(); render(); };
       const m = $("#more"); if (m) m.onclick = () => { newDeck(S); persistOnb(); render(); };
       const un = $("#undo"); if (un) un.onclick = () => { if (R.deckUndo(S)) { S.choose = false; persistOnb(); render(); } };
     };
-    /* Черновик «что задело» хранится по событию: возврат к тому же событию его не стирает, другое событие — свой черновик. */
-    const startSting = async (eventId) => { if (S.event && S.event !== eventId) { S.sting = null; } S.event = eventId; S.offer = null; S.choose = false; S.step = "sting"; await persistOnb(); go("sting"); };
+    const bindReview = () => $$("[data-rs]").forEach(b => b.onclick = () => { const pk = (S.picks || []).find(x => x.id === b.dataset.rs); if (pk) { delete pk.notStung; persistOnb(); } pickEvent(b.dataset.rs); });
+    /* Выбор фокуса: событие остаётся фактом; уточнения (случай, что задело) — свои для каждого события, учитель сохраняется. */
+    const pickEvent = async (eventId) => { if (S.event !== eventId) { S.case = null; S.sting = null; S.confirmed = false; } S.event = eventId; S.own = null; S.offer = null; S.choose = false; S.step = "teacher"; await persistOnb(); go("teacher"); };
     render();
   }
-  /* Своя ситуация: текст — полноценный вход. Тема по желанию; анализ текста не обещаем. */
+  /* Своя ситуация: текст — полноценный вход, без колоды. Дальше те же уточнения: учитель, когда было, что задело. */
   function ownScenario() {
     const S = onb();
-    flow({ id: "onb-own", scope: "onb", title: "Свой случай", cancelLabel: "Назад", onCancel: () => go(S.area && S.area !== "own" ? "cards" : "area"),
+    flow({ id: "onb-own", scope: "onb", title: "Свой случай", cancelLabel: "Назад", onCancel: () => go(S.area && S.area !== "own" ? (S.area === "work" && !S.ctx ? "workctx" : "cards") : "area"),
       steps: [
         { k: "own", q: "Что произошло?", lead: "Одно событие, как запись камеры: без оценок и выводов.", type: "text", ph: "Например: коллега попросил подменить в выходной", req: "Напиши пару слов: что именно произошло" },
         { k: "pack", q: OB.own.theme, lead: OB.own.themeLead, type: "choice", opts: [...C.packs.map(pk => [pk.id, pk.title]), ["__unclear", OB.own.unclear]] },
       ],
       onDone: async ans => {
-        S.event = null; S.own = { text: ans.own, packId: ans.pack === "__unclear" ? null : ans.pack, version: C.contentVersion }; S.sting = null; S.step = "sting"; dropDraft("onb-sting-own", "onb"); await persistOnb(); go("sting");
+        S.event = null; S.own = { text: ans.own, packId: ans.pack === "__unclear" ? null : ans.pack, version: C.contentVersion }; S.case = null; S.sting = null; S.confirmed = false; S.step = "teacher";
+        dropDraft("onb-sting-own", "onb"); dropDraft("onb-case-own", "onb"); await persistOnb(); go("teacher");
       } });
   }
-  /* Что задело, повторение, привычная реакция по желанию. Один вариант не устанавливает причину. */
+  const suggestTeacher = S => S.area === "work" && S.ctx ? (X.workTeacher || {})[S.ctx] || null : null;
+  /* Учитель: с кем или с чем связано. Выбранный контекст работы предлагается к подтверждению. Партнёр при рабочей сфере — явное переключение. */
+  function teacher() {
+    const S = onb(); if (!S.event && !S.own) return go("cards");
+    const ev = S.event ? eventById(S.event) : null, evText = ev ? ev.text : S.own.text, sug = suggestTeacher(S);
+    seedDraft("onb-teacher", S.teacher ? { who: S.teacher.ownName ? "__own" : S.teacher.kind, who_own: S.teacher.ownName || "" } : (sug ? { who: sug } : null));
+    const steps = [
+      { k: "who", q: OB.teacher.title, lead: `«${evText}». ${OB.teacher.text}`, type: "choice", opts: X.teachers, own: true, ownPh: "Кто это, своими словами (имя не нужно)" },
+      { k: "sw", q: OB.teacher.switch.q, lead: "Фокус можно сменить. Ответы по работе никуда не денутся.", type: "choice", opts: [["yes", OB.teacher.switch.yes], ["back", OB.teacher.switch.back]], skip: a => !(S.area === "work" && a.who === "partner") },
+    ];
+    flow({ id: "onb-teacher", scope: "onb", steps, title: "Учитель", cancelLabel: "Назад", onCancel: () => go(S.own ? "own" : "cards"),
+      onDone: async ans => {
+        if (ans.sw === "back") { S.areaSwitched = null; await persistOnb(); return setTimeout(teacher, 0); }
+        const kind = ans.who === "__own" ? "other" : ans.who; const label = ans.who === "__own" ? ans.who_own : (X.teacherLabels[kind] || "");
+        S.teacher = { kind, label, ownName: ans.who === "__own" ? ans.who_own : "" };
+        S.areaSwitched = ans.sw === "yes" ? "close" : null;
+        S.step = "case"; await persistOnb(); go("case");
+      } });
+  }
+  const packIdOf = S => (S.event && eventById(S.event) ? eventById(S.event).packId : (S.own ? S.own.packId : null)) || null;
+  /* Последний случай: одна фраза (можно взять пример), когда было, повторяется ли. Дата события хранится отдельно от старта практики. */
+  function caseScreen() {
+    const S = onb(); if (!S.event && !S.own) return go("cards"); if (!S.teacher) return go("teacher");
+    const ev = S.event ? eventById(S.event) : null, own = !ev, pk = C.packs.find(x => x.id === packIdOf(S));
+    const tags = ev ? [ev.text, ...((pk && pk.teacherExamples) || []).filter(t => t !== ev.text).slice(0, 3)] : [];
+    if (S.case) seedDraft("onb-case-" + (ev ? ev.id : "own"), { text: S.case.text, when: S.case.when, date: S.case.date || undefined, repeat: S.case.repeat || undefined });
+    const steps = [
+      { k: "text", q: OB.case.title, lead: OB.case.lead, type: "text", ph: ev ? "Например: " + lc1(ev.text) : "", tags, req: "Одна короткая фраза: что произошло", skip: () => own },
+      { k: "when", q: OB.case.when, lead: own ? `«${S.own.text}»` : "", type: "choice", opts: X.lastTime },
+      { k: "date", q: "Когда именно?", lead: a => a.when === "week" ? "Любой день этой недели. Если не помнишь — пропусти." : "Если помнишь дату — укажи, если нет — пропусти.", type: "date", optional: true, def: a => a.when === "week" ? today() : "", min: a => a.when === "week" ? R.addDays(today(), -6) : "1990-01-01", max: () => today(), skip: a => a.when !== "week" && a.when !== "earlier" },
+      { k: "repeat", q: OB.case.repeat, type: "choice", opts: X.repeat },
+    ];
+    flow({ id: "onb-case-" + (ev ? ev.id : "own"), scope: "onb", steps, title: "Последний случай", cancelLabel: "К учителю", onCancel: () => go("teacher"),
+      onDone: async ans => {
+        S.case = { text: own ? S.own.text : ans.text, when: ans.when, date: ans.date || null, repeat: ans.repeat || null, origin: own || ans.text !== ev.text ? "user_written" : "user_selected" };
+        S.step = "sting"; await persistOnb(); go("sting");
+      } });
+  }
+  /* Что задело: варианты от события и свой ответ. Один вариант не устанавливает причину. «Не задело» возвращает к подборке. */
   function sting() {
     const S = onb(); const ev = S.event ? eventById(S.event) : null;
-    if (!ev && !S.own) return go("cards");
-    const evText = ev ? ev.text : S.own.text;
+    if (!ev && !S.own) return go("cards"); if (!S.case) return go("case");
+    const evText = S.case.text || (ev ? ev.text : S.own.text);
     const meanings = ev ? ev.meanings : X.ownMeanings;
-    const steps = [
-      { k: "m", q: OSg.title, lead: `«${evText}»`, type: "choice", opts: [...meanings.map(m => [m.id, m.text]), ...X.meaningExtra], own: true, ownPh: "Своими словами" },
-      { k: "repeat", q: OSg.repeat, type: "choice", opts: X.repeat, skip: a => a.m === "__none" },
-      /* Реакция — только когда для события известен её тип; для своего текста не спрашиваем. */
-      { k: "reaction", q: OSg.reaction, lead: OSg.reactionLead, type: "choice", opts: (ev && ev.reactions) || [], own: true, optional: true, skip: a => a.m === "__none" || !(ev && ev.reactions && ev.reactions.length) },
-    ];
-    flow({ id: ev ? "onb-sting-" + ev.id : "onb-sting-own", scope: "onb", steps, title: "Что задело", cancelLabel: "Назад", onCancel: () => go(ev ? "cards" : "own"),
+    if (S.sting) seedDraft(ev ? "onb-sting-" + ev.id : "onb-sting-own", { m: S.sting.meaningId === "own" ? "__own" : S.sting.meaningId === "other" ? "__other" : S.sting.meaningId, m_own: S.sting.meaningId === "own" ? S.sting.text : undefined });
+    const steps = [{ k: "m", q: OSg.title, lead: `«${evText}»`, type: "choice", opts: [...meanings.map(m => [m.id, m.text]), ...X.meaningExtra], own: true, ownPh: "Своими словами" }];
+    flow({ id: ev ? "onb-sting-" + ev.id : "onb-sting-own", scope: "onb", steps, title: "Что задело", cancelLabel: "К случаю", onCancel: () => go("case"),
       onDone: async ans => {
-        if (ans.m === "__none") { /* не задело: событие остаётся отмеченным, но не становится триггером; возвращаемся к подборке без потери ответов */
-          if (ev) { const pk = (S.picks || []).find(x => x.id === ev.id); if (pk) pk.notStung = true; S.event = null; S.offer = null; await persistOnb(); toast("Хорошо: было, но не задело. Посмотрим другие."); return go("cards"); }
-          S.own = null; await persistOnb(); return go("area");
+        if (ans.m === "__none") { /* не задело: событие остаётся отмеченным, но не становится триггером; ответы по колоде не теряются */
+          if (ev) { const pk = (S.picks || []).find(x => x.id === ev.id); if (pk) pk.notStung = true; S.event = null; S.case = null; S.sting = null; S.confirmed = false; await persistOnb(); toast("Хорошо: было, но не задело. Посмотрим другие."); return go("cards"); }
+          S.own = null; S.case = null; S.sting = null; await persistOnb(); return go("area");
         }
         const mm = meanings.find(m => m.id === ans.m);
-        S.sting = { meaningId: mm ? mm.id : (ans.m === "__own" ? "own" : "other"), text: mm ? mm.text : (ans.m === "__own" ? ans.m_own : ""), lessonId: mm ? (mm.lessonId || null) : null, observe: mm && mm.observe ? mm.observe : null, origin: mm ? "user_selected" : (ans.m === "__own" ? "user_written" : null), repeat: ans.repeat || null, reaction: val(ans, "reaction") || null };
-        S.step = "path"; await persistOnb(); go("path");
+        S.sting = { meaningId: mm ? mm.id : (ans.m === "__own" ? "own" : "other"), text: mm ? mm.text : (ans.m === "__own" ? ans.m_own : ""), lessonId: mm ? (mm.lessonId || null) : null, observe: mm && mm.observe ? mm.observe : null, origin: mm ? "user_selected" : (ans.m === "__own" ? "user_written" : null), repeat: S.case.repeat || null, reaction: null };
+        S.confirmed = false; S.step = "summary"; await persistOnb(); go("summary");
       } });
   }
-  /* Понятное открытие пути: описание темы числа отдельно от подтверждённого резюме. Число не предсказывало ответы. */
-  function pathScreen() {
-    const S = onb(); if (!S.sting) return go("sting");
-    const ev = S.event ? eventById(S.event) : null, evText = ev ? ev.text : (S.own ? S.own.text : "");
+  /* «Вот с чего начинаем»: только подтверждённые ответы человека. Тема числа — отдельно, как направление для размышления, не вывод. */
+  function summary() {
+    const S = onb(); if (!S.teacher) return go("teacher"); if (!S.case) return go("case"); if (!S.sting) return go("sting");
+    const ev = S.event ? eventById(S.event) : null;
+    const areaId = S.areaSwitched || S.area, areaTxt = areaId === "own" ? "своя ситуация" : lc1(areaLabel(areaId)) || "пока не определена";
+    const ctxTxt = S.area === "work" && !S.areaSwitched && S.ctx && S.ctx !== "any" ? ` · ${lc1(ctxLabel(S.ctx))}` : "";
+    const tl = S.teacher.ownName || S.teacher.label;
     const num = P.symbolic && P.symbolic.num ? (P.symbolic.chosen || P.symbolic.num) : null, t = num ? X.paths[num] : null;
     const hint = t && ev && (ev.pathHint || []).includes(Number(num));
-    const st = S.sting;
-    const summary = `<div class="card mark"><div class="k">${ic("eye")}${esc(OPth.start)}</div><p style="margin:2px 0 4px">${esc(OPth.noted)} ${esc(lc1(evText))}${st.text ? `; ${esc(OPth.sting)} ${esc(lc1(st.text))}` : `; ${esc(OPth.stingUnknown)}`}${st.repeat ? `; ${esc(OPth.repeat[st.repeat] || "")}` : ""}.</p>${st.reaction ? `<p class="small" style="margin:0">Обычно ты: ${esc(lc1(st.reaction))}.</p>` : ""}${t ? `<p class="small muted" style="margin:6px 0 0">${hint ? esc(t.offer) : esc(OPth.other)}</p>` : ""}</div>`;
-    app.innerHTML = `${t ? `<div class="astro" style="height:150px"><img src="${IMG("astrolabe")}" alt=""><div class="orb shown"><div class="core"><i class="fl"></i><img class="num" src="${IMG("num-" + num)}" alt="Число ${num}"></div></div></div>
-      <h1 style="margin-top:6px">${num} — ${esc(t.title)}</h1><p>${esc(t.description)}</p>
-      <details class="plain"><summary>${esc(OPth.more)}</summary><p class="small">${esc(t.name)} · ${esc(t.theme)}. ${esc(t.question)}</p><p class="tiny">${esc(OPth.note)}</p></details>` : `<h1>${esc(OPth.noDateTitle)}</h1><p class="muted small">${esc(OPth.other)}</p>`}
-      ${summary}
-      <div class="row"><button class="btn block" id="go">${esc(OPth.cta)}</button></div>
-      <div class="row tight"><a class="btn ghost" href="#sting">${esc(OPth.refine)}</a>${!t ? `<a class="btn ghost" href="#birth">${esc(OPth.addDate)}</a>` : ""}</div>`;
-    $("#go").onclick = async () => { S.step = "teacher"; dropDraft("onb-teacher", "onb"); await persistOnb(); go("teacher"); };
+    const rep = S.case.repeat ? (OPth.repeat[S.case.repeat] || "") : "", OSm = OB.summary;
+    app.innerHTML = `<h1>${esc(OSm.title)}</h1>
+      <div class="card mark"><div class="plines">
+        <div><span>${esc(OSm.area)}:</span> ${esc(areaTxt)}${esc(ctxTxt)}</div>
+        <div><span>${esc(OSm.teacher)}:</span> ${esc(tl)}</div>
+        <div><span>${esc(OSm.scenario)}:</span> ${esc(S.case.text)}${rep ? ` <span class="muted small">(${esc(rep)})</span>` : ""}</div>
+        <div><span>${esc(OSm.sting)}:</span> ${S.sting.text ? esc(lc1(S.sting.text)) : esc(OPth.stingUnknown)}</div>
+      </div></div>
+      <div class="row"><button class="btn block" id="ok">${esc(OSm.ok)}</button></div>
+      <div class="row tight"><button class="btn ghost" id="fix">${esc(OSm.fix)}</button></div><div id="fixbox"></div>
+      ${t ? `<div class="card tight"><div class="k">${ic("star")}Тема твоего пути · ${num}</div><p style="margin:2px 0 4px"><b>${esc(t.title)}</b></p><p class="small" style="margin:0 0 4px">${esc(t.description)}</p><p class="small muted" style="margin:0">${esc(hint ? t.offer : OPth.other)}</p>
+        <details class="plain"><summary>${esc(OPth.more)}</summary><p class="small">${esc(t.name)} · ${esc(t.theme)}. ${esc(t.question)}</p><p class="tiny">${esc(OPth.note)}</p></details></div>` : `<p class="tiny" style="margin-top:10px">${esc(OPth.other)} <a href="#birth">${esc(OPth.addDate)}</a></p>`}`;
+    $("#ok").onclick = async () => { S.confirmed = true; S.lesson = null; S.rejected = S.rejected || []; S.pickAlt = false; S.step = "lesson"; await persistOnb(); go("lesson"); };
+    $("#fix").onclick = () => { $("#fixbox").innerHTML = `<p class="small muted" style="margin:6px 0 4px">${esc(OSm.fixWhat)}</p><div class="chips"><a class="chip" href="#teacher">${esc(OSm.fixTeacher)}</a><a class="chip" href="#case">${esc(OSm.fixCase)}</a><a class="chip" href="#sting">${esc(OSm.fixSting)}</a></div>`; };
   }
   /* Режим наблюдения: сюжет без назначенного урока и без выдуманной даты старта. */
   async function observeMode(card) {
     const p = activePattern();
-    if (!p) { const np = { id: R.uuid(), title: card ? card.text : "Наблюдаю", packId: card ? card.packId : null, contexts: [], status: "observe", startDate: null, createdAt: nowTs(), hypothesisVersionId: null, experimentId: null, queue: [], legacy: false }; await savePattern(np); }
-    P.onb = null; P.seen.start = true; P.lastResult = { kind: "observe" }; await saveProfile(); go("today");
+    if (!p) { const np = { id: R.uuid(), title: card ? card.text : "Наблюдаю", packId: card ? card.packId : null, contexts: [], status: "observe", startDate: null, practiceStartDate: null, createdAt: nowTs(), hypothesisVersionId: null, experimentId: null, queue: [], legacy: false }; await savePattern(np); }
+    P.onb = null; P.seen.start = true; P.lastResult = { kind: "observe" }; await saveProfile(); go(P.seen.map ? "today" : "map");
   }
-  /* Учитель: с кем или с чем, когда в последний раз. Один учитель; без реального случая — наблюдение. */
-  function teacher() {
-    const S = onb(); if (!S.sting) return go(S.event || S.own ? "sting" : "cards");
-    const steps = [
-      { k: "who", q: OB.teacher.title, lead: OB.teacher.text, type: "choice", opts: X.teachers, own: true, ownPh: "Кто это, своими словами (имя не нужно)" },
-      { k: "when", q: OB.teacher.when, type: "choice", opts: X.lastTime },
-      { k: "date", q: "Когда именно?", lead: a => a.when === "week" ? "Любой день этой недели." : "Если помнишь дату — укажи, если нет — пропусти.", type: "date", optional: true, def: a => a.when === "week" ? today() : "", min: a => a.when === "week" ? R.addDays(today(), -6) : "1990-01-01", max: () => today(), skip: a => a.when !== "week" && a.when !== "earlier" },
-    ];
-    flow({ id: "onb-teacher", scope: "onb", steps, title: "Учитель", cancelLabel: "Назад", onCancel: () => go("path"),
-      onDone: async ans => {
-        const kind = ans.who === "__own" ? "other" : ans.who; const label = ans.who === "__own" ? ans.who_own : (X.teacherLabels[kind] || "");
-        S.teacher = { kind, label, ownName: ans.who === "__own" ? ans.who_own : "", when: ans.when, date: ans.date || null };
-        S.lesson = null; S.rejected = []; S.step = "lesson"; await persistOnb(); go("lesson");
-      } });
-  }
-  const packIdOf = S => (S.event && eventById(S.event) ? eventById(S.event).packId : (S.own ? S.own.packId : null)) || null;
   /* Урок по значению: глобальный id (направление может быть из другого пакета). Наблюдение по значению — предметный шаг без причины. */
   const lessonByMeaning = S => { const st = S.sting || {}; if (st.lessonId) return R.findLesson(C.packs, st.lessonId); if (st.observe) return Object.assign({}, X.lessonObserve, { id: "observe:" + (S.event || "own") + ":" + (st.meaningId || ""), title: st.observe.title, action: st.observe.action, signal: st.observe.signal, headline: "Первый шаг — " + st.observe.title }); return null; };
   function lessonsFor(S) {
@@ -494,14 +556,14 @@
     add(C.packs.find(x => x.id === packIdOf(S)));
     return out;
   }
-  /* Предварительный урок — по ситуации и подтверждённому значению, не по числу. Без объяснения — наблюдение. */
+  /* Предварительный урок — по ситуации и подтверждённому значению, не по числу. Причина не объявляется найденной: проверим в течение недели. */
   function lesson() {
-    const S = onb(); if (!S.sting || !S.teacher) return go(S.sting ? "teacher" : "cards");
+    const S = onb(); if (!S.sting || !S.teacher) return go(S.sting ? "teacher" : "cards"); if (!S.confirmed) return go("summary");
     const all = lessonsFor(S), rejected = S.rejected || [];
     const byMeaning = lessonByMeaning(S);
     const L = S.lesson || (byMeaning && !rejected.includes(byMeaning.id) ? byMeaning : null) || X.lessonObserve;
     const tl = S.teacher.ownName ? S.teacher.ownName : S.teacher.label;
-    const ev = S.event ? eventById(S.event) : null, evText = ev ? ev.text : (S.own ? S.own.text : "");
+    const ev = S.event ? eventById(S.event) : null, evText = (S.case && S.case.text) || (ev ? ev.text : (S.own ? S.own.text : ""));
     if (S.pickAlt) {
       const alts = all.filter(l => !rejected.includes(l.id) && l.id !== L.id);
       app.innerHTML = `<h1 class="q">${esc(all.length ? OB.lesson.alt : OB.own.theme)}</h1><p class="muted small">Учитель и ситуация сохранены. Урок предварительный — его можно уточнить позже.</p>
@@ -514,89 +576,150 @@
     }
     const observe = L.id === X.lessonObserve.id || String(L.id).startsWith("observe:");
     app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(evText)}${S.sting.text ? ` · ${esc(lc1(S.sting.text))}` : ""}</p>
+      <p class="muted small" style="margin:0 0 8px">${esc(OB.lesson.intro)}</p>
       <div class="card mark">
         <p style="margin:0 0 6px"><b>${esc(OB.lesson.teacherLead)} ${esc(tl)}.</b></p>
-        ${observe ? `<p style="margin:0 0 8px"><b>${esc(L.headline || X.lessonObserve.headline)}</b></p><p class="small" style="margin:0 0 8px">${esc(uc1(L.action))}. ${esc(X.lessonObserve.note)}</p>` : `<p style="margin:0 0 10px"><b>${esc(OB.lesson.lessonLead)} ${esc(L.title)}.</b></p>
+        ${observe ? `<p style="margin:0 0 8px"><b>${esc(L.headline || X.lessonObserve.headline)}</b></p><p class="small" style="margin:0 0 4px">${esc(uc1(L.action))}. ${esc(X.lessonObserve.note)}</p>` : `<p style="margin:0 0 10px"><b>${esc(OB.lesson.lessonLead)} ${esc(L.title)}.</b></p>
         ${L.inner ? `<p class="small" style="margin:0 0 4px"><b>${esc(OB.lesson.inner)}</b> ${esc(lc1(L.inner))}.</p>` : ""}
-        <p class="small" style="margin:0 0 8px"><b>${esc(OB.lesson.action)}</b> ${esc(lc1(L.action))}.</p>
-        <p class="small muted" style="margin:0">${esc(OB.lesson.text)}</p>`}
+        <p class="small" style="margin:0"><b>${esc(OB.lesson.action)}</b> ${esc(lc1(L.action))}.</p>`}
       </div>
       <div class="row"><button class="btn block" id="go">${esc(observe ? "Начать с наблюдения" : OB.lesson.start)}</button></div>
-      <div class="row tight"><button class="btn ghost" id="rej">${esc(observe ? "Выбрать направление" : OB.lesson.reject)}</button><a class="btn ghost" href="#teacher">Назад</a></div>`;
+      <div class="row tight"><button class="btn ghost" id="rej">${esc(observe ? "Выбрать направление" : OB.lesson.reject)}</button><a class="btn ghost" href="#summary">Назад</a></div>`;
     $("#rej").onclick = async () => { if (!observe && !rejected.includes(L.id)) rejected.push(L.id); S.rejected = rejected; S.lesson = null; S.pickAlt = true; await persistOnb(); lesson(); };
     $("#go").onclick = () => startLesson(S, L);
   }
-  /* Создание сюжета из входа. Происхождение каждой части резюме сохраняется; редакционная гипотеза не становится «подтверждённым» без явного ответа. */
+  /* Создание сюжета из входа. Происхождение каждой части резюме сохраняется; редакционная гипотеза не становится «подтверждённым» без явного ответа.
+     Даты честные: дата случая (dateKey эпизода) отдельно от старта практики (practiceStartDate): день 1 — день, когда человек начал практику, вечером — завтра. */
   async function startLesson(S, L) {
-    const ts = nowTs(), k = today(), T = S.teacher, ev = S.event ? eventById(S.event) : null;
+    const ts = nowTs(), k = today(), T = S.teacher, ev = S.event ? eventById(S.event) : null, cs = S.case || {};
     /* Пакет сюжета — по направлению (уроку), иначе по событию: практика следует за подтверждённым значением. */
     const packId = L.packId || packIdOf(S), pk = C.packs.find(x => x.id === packId);
-    const evText = ev ? ev.text : S.own.text;
-    const hasCase = T.when && T.when !== "none" && !(T.when === "earlier" && !T.date);
-    const caseDate = T.when === "today" ? k : (T.date && R.isKey(T.date) ? T.date : k);
-    const startDate = hasCase ? (R.diffDays(caseDate, k) <= 6 ? caseDate : k) : null;
+    const evText = ev ? ev.text : S.own.text, caseText = cs.text || evText;
+    const hasCase = !!cs.when && cs.when !== "none" && !(cs.when === "earlier" && !cs.date);
+    const caseDate = cs.when === "today" ? k : (cs.date && R.isKey(cs.date) ? cs.date : k);
+    const practiceStart = hasCase ? R.practiceStartFor({ todayKey: k, hour: hour(), times: P.times, actedToday: false }) : null;
     const tl = T.ownName || T.label, observe = L.id === X.lessonObserve.id || String(L.id).startsWith("observe:");
-    const scenario = { origin: ev ? "event" : "own", eventId: ev ? ev.id : null, eventText: evText, eventOrigin: ev ? "user_selected" : "user_written", meaningId: S.sting.meaningId, meaningText: S.sting.text || "", meaningOrigin: S.sting.origin, repeat: S.sting.repeat, reaction: S.sting.reaction || null, reactionOrigin: S.sting.reaction ? "user_selected" : null, area: S.area || null, version: C.contentVersion, recognition: evText, own: ev ? "" : evText, confirmed: ev ? "yes" : "own" };
-    const p = { id: R.uuid(), title: pk ? pk.title : shortTitle(evText), packId: packId || null, contexts: tl ? [tl] : [], status: hasCase ? "active" : "observe", startDate, createdAt: ts, hypothesisVersionId: null, experimentId: null, queue: [], legacy: false,
-      scenario, teacher: { kind: T.kind, label: tl, what: evText },
+    const scenario = { origin: ev ? "event" : "own", eventId: ev ? ev.id : null, eventText: evText, eventOrigin: ev ? "user_selected" : "user_written", caseText, caseOrigin: cs.origin || (ev ? "user_selected" : "user_written"), meaningId: S.sting.meaningId, meaningText: S.sting.text || "", meaningOrigin: S.sting.origin, repeat: cs.repeat || S.sting.repeat || null, reaction: null, reactionOrigin: null, area: S.areaSwitched || S.area || null, ctx: S.area === "work" ? S.ctx || null : null, version: C.contentVersion, recognition: caseText, own: ev ? "" : evText, confirmed: S.confirmed ? "yes" : "no" };
+    const p = { id: R.uuid(), title: pk ? pk.title : shortTitle(caseText), packId: packId || null, contexts: tl ? [tl] : [], status: hasCase ? "active" : "observe", startDate: practiceStart, practiceStartDate: practiceStart, practiceStartOrigin: "user", caseDate: hasCase ? caseDate : null, firstDay: { kind: phase(), date: k, at: ts, taken: false }, createdAt: ts, hypothesisVersionId: null, experimentId: null, queue: [], legacy: false,
+      scenario, teacher: { kind: T.kind, label: tl, what: caseText },
       lesson: { id: L.id, title: L.title, inner: L.inner || "", action: L.action, skillId: L.skillId, hypothesisId: L.hypothesisId || null, signal: L.signal, status: "preliminary", chosenAt: ts, rejected: S.rejected || [], origin: "editorial_hypothesis", basis: { eventId: ev ? ev.id : null, meaningId: S.sting.meaningId } },
-      firstPlan: { id: L.id, text: uc1(L.action), skill: L.skillId, signal: L.signal, action: L.action }, skillId: L.skillId, habitualResponse: S.sting.reaction || null };
+      firstPlan: { id: L.id, text: uc1(L.action), skill: L.skillId, signal: L.signal, action: L.action }, skillId: L.skillId, habitualResponse: null };
     if (L.inner) { p.permission = L.inner; p.permissionSource = { origin: "lesson", hypothesisVersionId: null }; }
     const x = { id: R.uuid(), patternId: p.id, hypothesisVersionId: null, version: 1, permission: L.inner || "", prediction: "", action: uc1(L.action), skillId: L.skillId, ifThen: { signal: L.signal, action: L.action }, criterion: "", status: "active", results: [], createdAt: ts, kind: "first-plan", lessonId: L.id };
     p.experimentId = x.id; await saveExp(x); await savePattern(p);
     if (hasCase) {
-      const e = { id: R.uuid(), patternId: p.id, linkStatus: "confirmed", occurredAt: ts, loggedAt: ts, dateKey: caseDate, tz: R.tz(), event: evText, person: tl, emotion: null, intensity: null, response: S.sting.reaction || null, verificationStatus: "onboarding", isRehearsal: false, legacy: false, meaning: S.sting.text || null };
+      const e = { id: R.uuid(), patternId: p.id, linkStatus: "confirmed", occurredAt: ts, loggedAt: ts, dateKey: caseDate, dateApprox: cs.date || cs.when === "today" ? null : cs.when, tz: R.tz(), event: caseText, person: tl, emotion: null, intensity: null, response: null, verificationStatus: "onboarding", isRehearsal: false, legacy: false, meaning: S.sting.text || null };
       await saveEpisode(e);
-      await saveResearch({ patternId: p.id, modules: { episode: { status: "done", dateKey: k, doneAt: ts, answers: { source: "onboarding", episodeId: e.id, response: S.sting.reaction || null } } } });
+      await saveResearch({ patternId: p.id, modules: { episode: { status: "done", dateKey: k, doneAt: ts, answers: { source: "onboarding", episodeId: e.id, response: null } } } });
     }
-    /* Остальные события «было» — на потом: сохранённые направления, не записи случаев. */
+    /* Остальные события «цепляет» — на потом: сохранённые направления, не записи случаев. */
     const others = R.deckYes(S).filter(c => c.id !== (ev && ev.id) && !c.notStung);
-    if (others.length) { const have = new Set((P.savedScenarios || []).map(x => x.id)); P.savedScenarios = [...(P.savedScenarios || []), ...others.filter(c => !have.has(c.id)).map(c => ({ id: c.id, kind: "event", packId: c.packId, text: c.text, recognition: c.text, version: C.contentVersion, savedAt: ts }))]; }
+    if (others.length) { const have = new Set((P.savedScenarios || []).map(x => x.id)); P.savedScenarios = [...(P.savedScenarios || []), ...others.filter(c => !have.has(c.id)).map(c => ({ id: c.id, kind: "event", packId: c.packId, text: c.text, recognition: c.text, version: C.contentVersion, savedAt: ts, area: S.area || null }))]; }
     P.onb = null; P.seen.start = true; P.lastResult = { kind: "lesson", title: observe ? (L.headline || X.lessonObserve.headline) : L.title, plan: uc1(L.action), observe: !hasCase };
-    dropDraft("onb-teacher", "onb"); await saveProfile(); go("today");
+    ["onb-teacher", "onb-own", "onb-case-" + (ev ? ev.id : "own"), ev ? "onb-sting-" + ev.id : "onb-sting-own"].forEach(id => dropDraft(id, "onb"));
+    await saveProfile(); go(P.seen.map ? "today" : "map");
+  }
+  /* Карта ближайшего дня: общая схема до обычной главной. Показывается один раз; повторно — в «Как пользоваться». */
+  function mapScreen() {
+    const M = OB.map, p = anyPattern(), icons = ["sunrise", "flame", "moon"];
+    app.innerHTML = `<h1>${esc(M.title)}</h1>
+      <div class="card">${M.lines.map((l, i) => `<div class="icline" style="margin:6px 0">${ic(icons[i] || "star")}<p style="margin:4px 0 0">${esc(l)}</p></div>`).join("")}</div>
+      <p class="small muted">${esc(M.note)}</p>
+      ${p && planText(p) ? `<div class="card mark tight"><p class="small" style="margin:0"><b>${esc(OB.firstDay.step)}</b> ${esc(lc1(planText(p)))}.</p></div>` : ""}
+      <div class="row"><button class="btn block" id="go">${esc(M.cta)}</button></div>`;
+    $("#go").onclick = async () => { P.seen.map = true; await saveProfile(true); go("today"); };
+  }
+  /* «Как пользоваться»: все подсказки обучения доступны повторно. Открытие снимает подписи-обучение с кнопок. */
+  function guide() {
+    const G = OB.guide, B = OB.buttons, T = OB.trail, pol = policy();
+    app.innerHTML = `<h1>${esc(G.title)}</h1>
+      <div class="card"><div class="k">${ic("sunrise")}${esc(G.day)}</div>${OB.map.lines.map(l => `<p class="small" style="margin:4px 0">${esc(l)}</p>`).join("")}<p class="tiny" style="margin:4px 0 0">${esc(OB.map.note)}</p></div>
+      <div class="card"><div class="k">${ic("flame")}${esc(G.buttons)}</div>
+        <p class="small" style="margin:4px 0"><b>${esc(B.event.label)}.</b> ${esc(B.event.caption)} ${esc(B.event.tip)}</p>
+        <p class="small" style="margin:4px 0"><b>${esc(B.action.label)}.</b> ${esc(B.action.caption)} ${esc(B.action.tip)}</p>
+        <p class="small" style="margin:4px 0"><b>${esc(B.sos.label)}.</b> ${esc(B.sos.caption)}</p></div>
+      <div class="card"><div class="k">${ic("mountain")}${esc(G.trail)}</div>${T.tips.map(([h, t]) => `<p class="small" style="margin:4px 0"><b>${esc(h)}.</b> ${esc(t)}</p>`).join("")}<p class="small" style="margin:4px 0"><b>${esc(G.flag)}.</b> ${esc(G.flagText)}</p>
+        <details class="plain"><summary>${esc(T.flagHow)}</summary><ul class="small"><li>Не раньше ${pol.minElapsedCalendarDays} дней практики.</li><li>Две недели подряд: минимум ${pol.minImpactRatingsPerWindow} вечерние оценки в каждой, все не выше ${pol.maxEachRecordedImpact}.</li><li>В каждой неделе реальный повод; за две недели минимум ${pol.minConfirmedActionsAcrossWindowsOnDistinctDays} подтверждённых применения в разные дни. Репетиции не считаются.</li><li>Три пункта подтверждаешь сам.</li></ul></details></div>
+      <div class="row"><a class="btn block" href="#today">${esc(G.back)}</a></div><div class="row tight"><a class="btn ghost sm" href="#about">${esc(G.approach)}</a></div>`;
+    if (!P.seen.buttons || P.guideOffer) { P.seen.buttons = true; P.guideOffer = false; saveProfile(true); }
   }
 
   /* =================== СЕГОДНЯ =================== */
+  /* Состояния: наблюдение; подготовка первого вечера (практика с завтра); первый день (запущен сегодня утром/днём); обычный день. */
   function todayScreen() {
-    const p = anyPattern(), k = today(), ph = phase(), c = checkin(k, p);
+    const p = anyPattern(), k = today(), ph = phase(), c = checkin(k, p), FD = OB.firstDay;
+    const ps = R.practiceStart(p), dps = ps ? R.diffDays(ps, k) : null;
+    const prep = !!(p && p.status === "active" && ps && dps < 0);
+    const fd = p && p.firstDay && p.firstDay.date === k && dps === 0 ? p.firstDay : null;
     const title = p ? (p.status === "observe" ? "Наблюдаю" : p.title) : "Начало";
     let sub = "";
-    if (p && p.startDate) { const d = R.daysSince(p.startDate, k) + 1, w = R.weekIndex(p.startDate, k) + 1; const h = hypOf(p); const elig = eligibility(p); sub = `день ${d} · неделя ${w} · ${R.workPhase({ hypothesis: h, experiment: expOf(p), confirmedActionDays: R.confirmedActionDays({ episodes: D.episodes, checkins: D.checkins, patternId: p.id, skillId: skillOfPattern(p) }).size, eligible: elig.eligible })}`; }
+    if (p && ps && dps >= 0) { const d = dps + 1, w = R.weekIndex(ps, k) + 1; const h = hypOf(p); const elig = eligibility(p); sub = `день ${d} · неделя ${w} · ${R.workPhase({ hypothesis: h, experiment: expOf(p), confirmedActionDays: R.confirmedActionDays({ episodes: D.episodes, checkins: D.checkins, patternId: p.id, skillId: skillOfPattern(p) }).size, eligible: elig.eligible })}`; }
+    else if (prep) sub = `начало · практика с ${R.human(ps)}`;
     else if (p) sub = "режим наблюдения";
     hero.innerHTML = `<div class="hero"><div class="hl">${ic(phaseIc(), "")}${R.fmtTime(nowTs())} · ${PHASE_TXT[ph]}</div><div class="hd">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ""}</div>`;
     let main = "", extra = "";
     const res = P.lastResult;
-    if (res) { if (res.kind === "first") extra += `<div class="card mark"><div class="k">${ic("star")}Сегодня исследуем</div><p style="margin:2px 0 4px"><b>${esc(res.title)}</b></p><p class="small" style="margin:0">Первый шаг: ${esc(lc1(res.plan))}. Причину пока не назначаем — будем уточнять по одному вопросу в день.</p></div>`; if (res.kind === "lesson") extra += `<div class="card tight"><p class="small" style="margin:0"><b>Урок начат.</b> Он предварительный — уточним по одному вопросу в день.</p></div>`; if (res.kind === "observe") extra += `<div class="card mark"><div class="k">${ic("eye")}Наблюдение</div><p class="small" style="margin:2px 0 0">${esc(C.entryCopy.emptyMatch)} Когда случится ближайший случай, нажми «${esc(OB.home.event)}».</p></div>`; delete P.lastResult; saveProfile(); }
-    /* Возвращение после пропуска: продолжаем с того места, ничего не заполняем задним числом. */
-    const lastAct = [...Object.values(D.checkins).filter(c => !c.legacy && (c.evening || c.morning)).map(c => c.dateKey), ...D.episodes.filter(e => !e.legacy && e.dateKey).map(e => e.dateKey)].sort().pop();
+    if (res) { if (res.kind === "first") extra += `<div class="card mark"><div class="k">${ic("star")}Сегодня исследуем</div><p style="margin:2px 0 4px"><b>${esc(res.title)}</b></p><p class="small" style="margin:0">Первый шаг: ${esc(lc1(res.plan))}. Причину пока не назначаем — будем уточнять по одному вопросу в день.</p></div>`; if (res.kind === "lesson" && !prep && !fd) extra += `<div class="card tight"><p class="small" style="margin:0"><b>Урок начат.</b> Он предварительный — в течение недели проверим, подходит ли он.</p></div>`; if (res.kind === "observe") extra += `<div class="card mark"><div class="k">${ic("eye")}Наблюдение</div><p class="small" style="margin:2px 0 0">${esc(C.entryCopy.emptyMatch)} Когда случится ближайший случай, нажми «${esc(OB.buttons.event.label)}».</p></div>`; delete P.lastResult; saveProfile(); }
+    /* Возвращение после пропуска: только по записям с начала практики; вспомненный случай пропуском не считается. */
+    const lastAct = ps && dps > 0 ? [...Object.values(D.checkins).filter(c => !c.legacy && (c.evening || c.morning)).map(c => c.dateKey), ...D.episodes.filter(e => !e.legacy && e.dateKey && e.verificationStatus !== "onboarding" && R.diffDays(ps, e.dateKey) >= 0).map(e => e.dateKey)].sort().pop() : null;
     if (p && lastAct && R.diffDays(lastAct, k) >= 2 && P.backSeen !== k) { extra = `<div class="card tight"><p class="small" style="margin:0">${esc(OB.home.back)} Пропущенные дни остаются пропущенными — это не обнуляет путь.</p></div>` + extra; P.backSeen = k; saveProfile(true); }
     if (D.meta.migratedFromV9 && !P.legacyDecision) extra += legacyCard();
+    if (P.guideOffer) extra += `<div class="card mark tight" id="guideOffer"><p class="small" style="margin:0 0 6px">${esc(OB.existing.text)}</p><div class="row tight"><a class="btn sm" href="#guide">${esc(OB.existing.cta)}</a><button class="btn ghost sm" id="offerLater">${esc(OB.existing.later)}</button></div></div>`;
+    /* Опыт сегодняшнего дня: записи «зацепило» и попытки; вспомненный во входе случай опытом практики не считается. */
+    const todays = p ? episodesOn(k, p).filter(e => e.verificationStatus !== "onboarding" || e.newResponse) : [], acted = todays.some(e => e.newResponse && !e.isRehearsal);
     if (p && p.status === "paused") {
       main = `<div class="card"><div class="k">${ic("hourglass")}Сюжет на паузе</div><p class="small" style="margin:2px 0 8px">«${esc(p.title)}». Записи и помощь доступны. Вернуться можно в любой момент.</p><div class="row tight"><a class="btn block secondary" href="#story">Открыть сюжет</a></div></div>`;
     } else if (!p || p.status === "observe") {
-      main = `<div class="card mark"><div class="k">${ic("eye")}Следующий шаг</div><p style="margin:2px 0 8px">${p ? (p.lesson ? "Пока наблюдаем. Когда случится реальный случай с учителем — запиши его: с этого дня начнётся неделя." : "Запиши ближайший реальный случай — с него начнётся неделя.") : "Начни с одного случая или посмотри карточки."}</p><div class="row tight">${p ? `<a class="btn block" href="#new">Записать случай</a>` : `<a class="btn block" href="#start">Начать</a>`}</div></div>`;
+      main = `<div class="card mark"><div class="k">${ic("eye")}Следующий шаг</div><p style="margin:2px 0 8px">${p ? (p.lesson ? "Пока наблюдаем. Когда случится реальный случай с учителем — запиши его: с этого дня начнётся практика." : "Запиши ближайший реальный случай — с него начнётся практика.") : "Начни с одного случая или посмотри карточки."}</p><div class="row tight">${p ? `<a class="btn block" href="#new">Записать случай</a>` : `<a class="btn block" href="#start">Начать</a>`}</div></div>`;
+    } else if (prep) {
+      /* Первый вечер: ситуация и шаг выбраны, пробовать ещё нечего. Ничего не выполнено, вечерней оценки нет. */
+      const taken = !!(p.firstDay && p.firstDay.taken);
+      main = `<div class="card mark"><div class="k">${ic("sunrise")}${esc(FD.eveningTitle)}</div><p style="margin:2px 0 8px">${esc(FD.eveningText)}</p>
+        <p style="margin:0 0 6px"><b>${esc(FD.step)}</b> ${esc(lc1(planText(p)))}.</p>
+        <p class="small" style="margin:0 0 10px"><b>${esc(FD.tomorrow)}</b> ${esc(humanWd(ps))} — ${esc(FD.tomorrowText)}</p>
+        ${taken ? `<p class="small" style="margin:0"><b>${esc(FD.taken)}</b></p>` : `<button class="btn block" id="takeTomorrow">${esc(FD.take)}</button>`}
+        <p class="tiny" style="margin:8px 0 0">${esc(FD.reminder)} <a href="#settings">Настройки</a>.</p></div>
+        <div class="card tight"><p class="small" style="margin:0">${esc(FD.already)} <a href="#action">${esc(OB.buttons.action.label)}</a> — тогда этот день станет первым.</p></div>`;
     } else {
-      const elig = eligibility(p), due = R.reviewDue(p.startDate, k, D.reviews.filter(r => r.patternId === p.id));
+      const elig = eligibility(p), due = R.reviewDue(ps, k, D.reviews.filter(r => r.patternId === p.id));
       const cy = checkinOf(yesterday(), p);
-      const yOpen = R.eveningCloseable(yesterday(), k) && cy && !cy.evening && (p.startDate && R.diffDays(p.startDate, yesterday()) >= 0);
-      const yAny = p.startDate && R.diffDays(p.startDate, yesterday()) >= 0 && !(cy && cy.evening);
+      const yOpen = R.eveningCloseable(yesterday(), k) && cy && !cy.evening && R.diffDays(ps, yesterday()) >= 0;
+      const yAny = R.diffDays(ps, yesterday()) >= 0 && !(cy && cy.evening);
+      const stepCard = (title, text, cta) => `<div class="card mark"><div class="k">${ic("sunrise")}${esc(title)}</div>${text ? `<p class="small" style="margin:2px 0 6px">${esc(text)}</p>` : ""}<p class="quote" style="margin:2px 0 6px">${esc(planText(p))}</p>${ifThen(p) ? `<p class="small" style="margin:0 0 8px">${esc(ifThen(p))}</p>` : ""}<a class="btn block" href="#morning">${esc(cta)}</a></div>`;
       if (elig.eligible && !hasFlag(p)) main = `<div class="card mark"><div class="k">${ic("flag")}Проверка навыка</div><p style="margin:2px 0 8px">Две недели подряд записи показывают устойчивый ответ. Проверим вместе, что это выбранный навык, а не терпение.</p><a class="btn block" href="#flag">Проверить</a></div>`;
       else if (due && (R.diffDays(due.end, k) > 0 || ph === "evening" || c.evening)) main = `<div class="card mark"><div class="k">${ic("hourglass")}Итог недели</div><p style="margin:2px 0 8px">Неделя ${due.idx + 1} закончилась ${esc(R.human(due.end))}. Посмотрим, что было, и решим, что дальше.</p><a class="btn block" href="#review">Подвести итог</a></div>`;
-      else if (ph === "night") main = yAny ? `<div class="card mark"><div class="k">${ic("moon")}Вчерашний вечер</div><p style="margin:2px 0 8px">Итог за ${esc(R.human(yesterday()))} ещё открыт. Полминуты.</p><a class="btn block" href="#evening/${yesterday()}">Закрыть вчерашний вечер</a></div>` : `<div class="card"><div class="k">${ic("moon")}Ночь</div><p style="margin:2px 0 0" class="small">Утром здесь появится твой шаг. Если заденет ночью — кнопки ниже работают всегда.</p></div>`;
-      else if (ph !== "evening" && !c.morning) main = `<div class="card mark"><div class="k">${ic("sunrise")}Шаг на день</div><p class="quote" style="margin:2px 0 6px">${esc(planText(p))}</p>${ifThen(p) ? `<p class="small" style="margin:0 0 8px">${esc(ifThen(p))}</p>` : ""}<a class="btn block" href="#morning">Взять с собой · полминуты</a></div>`;
+      else if (ph === "night") main = yAny ? `<div class="card mark"><div class="k">${ic("moon")}Вчерашний вечер</div><p style="margin:2px 0 8px">Итог за ${esc(R.human(yesterday()))} ещё открыт. Полминуты.</p><a class="btn block" href="#evening/${yesterday()}">Закрыть вчерашний вечер</a></div>` : `<div class="card"><div class="k">${ic("moon")}Ночь</div><p style="margin:2px 0 0" class="small">${dps === 0 ? "Сегодня первый день практики: утром здесь появится твой шаг." : "Утром здесь появится твой шаг."} Если заденет ночью — кнопки ниже работают всегда.</p></div>`;
+      else if (ph !== "evening" && !c.morning) main = fd ? (fd.kind === "day" ? stepCard(FD.dayTitle, FD.dayText, FD.takeToday) : stepCard(FD.morningTitle, FD.morningText, FD.takeToday)) : stepCard("Шаг на день", "", "Взять с собой · полминуты");
+      else if (ph === "evening" && !c.evening && fd && fd.kind !== "morning" && fd.kind !== "night" && !todays.length && !acted && !fd.closed) main = `<div class="card mark"><div class="k">${ic("moon")}${esc(FD.dayTitle)}</div><p style="margin:2px 0 8px">${esc(FD.noExperience)}</p><div class="row tight"><a class="btn block secondary" href="#evening">${esc(FD.noExperienceCta)}</a><button class="btn ghost" id="closeIntro">${esc(FD.close)}</button></div></div>`;
+      else if (ph === "evening" && !c.evening && fd && fd.closed) main = `<div class="card"><div class="k">${ic("moon")}${esc(FD.dayTitle)}</div><p class="small" style="margin:2px 0 0">${esc(FD.closed)} <a href="#evening">${esc(FD.noExperienceCta)}</a></p></div>`;
       else if (ph === "evening" && !c.evening) main = `<div class="card mark"><div class="k">${ic("moon")}Вечерний итог</div><p style="margin:2px 0 8px">Был ли повод, что получилось, как сейчас. Около минуты.</p><a class="btn block" href="#evening">Подвести итог дня</a></div>`;
       else if (c.evening) main = `<div class="card"><div class="k">${ic("moon")}День закрыт · ${R.fmtTime(c.evening.at)}</div><p class="small" style="margin:2px 0 0">${c.evening.hadOpportunity === "yes" ? "Был повод потренироваться." : c.evening.hadOpportunity === "no" ? "Повода не было — это тоже запись." : "Повод не уверен — так и записано."} Завтра утром — тот же шаг.</p></div>`;
-      else main = `<div class="card mark"><div class="k">${ic("star")}Твой шаг сегодня</div><p class="quote" style="margin:2px 0 6px">${esc(planText(p))}</p>${ifThen(p) ? `<p class="small" style="margin:0">${esc(ifThen(p))}</p>` : ""}<p class="tiny" style="margin:6px 0 0">Вечерний итог откроется после ${P.times.eveningStart}:00. ${yOpen ? `<a href="#evening/${yesterday()}">Закрыть вчерашний вечер</a>` : ""}</p></div>`;
+      else main = `<div class="card mark"><div class="k">${ic("star")}${fd ? esc(FD.dayTitle) : "Твой шаг сегодня"}</div>${fd ? `<p class="small" style="margin:2px 0 6px">${esc(FD.dayText)}</p>` : ""}<p class="quote" style="margin:2px 0 6px">${esc(planText(p))}</p>${ifThen(p) ? `<p class="small" style="margin:0">${esc(ifThen(p))}</p>` : ""}<p class="tiny" style="margin:6px 0 0">Вечерний итог откроется после ${P.times.eveningStart}:00. ${yOpen ? `<a href="#evening/${yesterday()}">Закрыть вчерашний вечер</a>` : ""}</p></div>`;
       if (due && !/Итог недели/.test(main)) extra += `<div class="card tight"><p class="small" style="margin:0">Сегодня седьмой день недели. Итог откроется вечером, после короткого итога дня.</p></div>`;
       if (yAny && ph !== "night" && !/вчерашний/.test(main)) extra += `<div class="card tight"><p class="small" style="margin:0">Вечер за ${esc(R.human(yesterday()))} не закрыт. <a href="#evening/${yesterday()}">Закрыть сейчас</a> — можно до конца сегодняшнего дня.</p></div>`;
       const q = D.episodes.filter(e => e.linkStatus === "unconfirmed" && !e.legacy);
       if (q.length) extra += `<div class="card tight"><p class="small" style="margin:0">${q.length} ${R.plural(q.length, "запись ждёт", "записи ждут", "записей ждут")} уточнения: тот же сюжет или другой? <a href="#story">В «Мой сюжет»</a></p></div>`;
     }
-    /* Смысл на сейчас: учитель, урок; шаг — если его не показывает основная карточка. */
-    const pathCard = p && p.lesson ? `<div class="card"><div class="k">${ic("eye")}${esc(OB.home.title)}</div><div class="plines"><div><span>${esc(OB.home.teacher)}:</span> ${esc(p.teacher ? p.teacher.label : (p.contexts || []).join(", ") || "—")}</div><div><span>${esc(OB.home.lesson)}:</span> ${esc(p.lesson.title)}</div>${/class="quote"/.test(main) ? "" : `<div><span>${esc(OB.home.step)}:</span> ${esc(lc1(planText(p)))}</div>`}</div></div>` : "";
-    app.innerHTML = `${trailHTML(p)}${pathCard}${main}
-      <div class="taps"><a class="tap" href="#event">${ic("flame", "")}<span>${esc(p && p.lesson ? OB.home.event : "Зацепило")}</span></a><a class="tap" href="#action">${ic("stone", "")}<span>${esc(p && p.lesson ? OB.home.action : "Сделал по-новому")}</span></a></div>
+    /* Смысл на сейчас: учитель, урок; шаг — если его не показывает основная карточка. Рядом — «Как пользоваться». */
+    const pathCard = p && p.lesson ? `<div class="card"><div class="k">${ic("eye")}${esc(OB.home.title)}<a href="#guide" class="klink">${esc(OB.buttons.guide)}</a></div><div class="plines"><div><span>${esc(OB.home.teacher)}:</span> ${esc(p.teacher ? p.teacher.label : (p.contexts || []).join(", ") || "—")}</div><div><span>${esc(OB.home.lesson)}:</span> ${esc(p.lesson.title)}</div>${/class="quote"|Твой шаг:/.test(main) ? "" : `<div><span>${esc(OB.home.step)}:</span> ${esc(lc1(planText(p)))}</div>`}</div></div>` : (p ? `<p class="tiny" style="margin:0 0 6px;text-align:right"><a href="#guide">${esc(OB.buttons.guide)}</a></p>` : "");
+    /* Кнопки дня: прямые названия; подписи-обучение до первого закрытого вечера или открытия «Как пользоваться». Нажатие само по себе успехом не считается. */
+    const B = OB.buttons, learn = p && !P.seen.buttons;
+    const tap = (href, icon, b) => `<a class="tap ${learn ? "learn" : ""}" href="${href}">${ic(icon, "")}<span>${esc(b.label)}</span>${learn ? `<em>${esc(b.caption)}</em>` : ""}</a>`;
+    /* Пока тропа не объяснена, главное действие выше: сначала фокус и ближайший шаг, затем иллюстрация с обучением. */
+    const trailBlock = trailHTML(p) + (p && !P.seen.trail ? trailTutorial() : "");
+    app.innerHTML = `${p && !P.seen.trail ? pathCard + main + trailBlock : trailBlock + pathCard + main}
+      <div class="taps">${tap("#event", "flame", B.event)}${tap("#action", "stone", B.action)}</div>
+      ${learn ? `<p class="tiny" style="margin:4px 0 0"><b>${esc(B.sos.label)}</b> (вверху): ${esc(B.sos.caption)}</p>` : ""}
       ${extra}`;
+    const tt = $("#takeTomorrow"); if (tt) tt.onclick = async () => { p.firstDay = Object.assign({}, p.firstDay, { taken: true, takenAt: nowTs() }); await savePattern(p); todayScreen(); };
+    const ci = $("#closeIntro"); if (ci) ci.onclick = async () => { p.firstDay = Object.assign({}, p.firstDay, { closed: true, closedAt: nowTs() }); await savePattern(p); todayScreen(); };
+    const ol = $("#offerLater"); if (ol) ol.onclick = async () => { P.guideOffer = false; await saveProfile(true); todayScreen(); };
+    const tn = $("#tipNext"); if (tn) tn.onclick = async () => { const i = P.trailTip || 0; if (i >= OB.trail.tips.length - 1) { P.seen.trail = true; delete P.trailTip; } else P.trailTip = i + 1; await saveProfile(true); todayScreen(); };
+  }
+  /* Обучение тропе: три подсказки по одной, «Дальше» и «Понятно». Этап сохраняется; повторно — в «Как пользоваться». */
+  function trailTutorial() {
+    const T = OB.trail, i = Math.min(P.trailTip || 0, T.tips.length - 1), tip = T.tips[i], last = i === T.tips.length - 1;
+    return `<div class="card mark tight" id="trailTut"><div class="k">${ic(["backpack", "mountain", "star"][i] || "star")}${esc(tip[0])}</div><p class="small" style="margin:2px 0 8px">${esc(tip[1])}</p><div class="row tight" style="align-items:center;justify-content:space-between"><span class="tiny">${i + 1} из ${T.tips.length}</span><button class="btn sm" id="tipNext">${esc(last ? T.done : T.next)}</button></div></div>`;
   }
   function legacyCard() {
     const lp = D.patterns.filter(p => p.legacy), lf = D.flags.filter(f => f.legacy);
@@ -646,7 +769,7 @@
       { k: "emotion", q: "Что чувствуешь?", lead: C.emotions.instruction, type: "choice", opts: EMOTIONS.filter(e => e !== "Другое" && e !== "Не знаю"), own: true, unknown: true },
       { k: "intensity", q: C.daily.eventIntensityScale.label, type: "scale", lo: "0, совсем нет", hi: "10, очень", def: 5 },
     ];
-    flow({ id: "event", scope: p ? p.id : null, steps, title: "Зацепило", onCancel: () => go("today"),
+    flow({ id: "event", scope: p ? p.id : null, steps, title: p && p.lesson ? OB.home.event : OB.buttons.event.label, onCancel: () => go("today"),
       onDone: async ans => {
         const ts = nowTs(); const rel = ans.relation || (p ? "unknown" : "none");
         const link = !p ? "none" : rel === "same" ? "confirmed" : rel === "other" ? "queued" : "unconfirmed";
@@ -708,13 +831,15 @@
       ...(todays.length ? [{ k: "link", q: "К какому случаю это относится?", type: "choice", opts: [...todays.map(e => [e.id, `${R.fmtTime(e.loggedAt)} · ${e.emotion || "случай"} · ${e.intensity}/10${e.event ? " · " + e.event.slice(0, 40) : ""}`]), ["new", "Отдельная запись"]] }] : []),
       { k: "rehearsal", q: "Это был реальный повод или репетиция?", lead: "Репетиция полезна, но реальным контактом не считается.", type: "choice", opts: [["real", "Реальный повод"], ["rehearsal", "Репетиция"]] },
     ];
-    flow({ id: "action", scope: p ? p.id : null, steps, title: "Сделал по-новому", onCancel: () => go("today"),
+    flow({ id: "action", scope: p ? p.id : null, steps, title: OB.buttons.action.label, onCancel: () => go("today"),
       onDone: async ans => {
         const ts = nowTs(); const nr = Object.assign({ type: ans.type, chosen: ans.type === "pause" ? ans.chosen : null, note: ans.note || "", at: ts }, evidenceTag(p));
         let e = ans.link && ans.link !== "new" ? D.episodes.find(x => x.id === ans.link) : null;
         if (!e) e = { id: R.uuid(), patternId: p ? p.id : null, linkStatus: p ? "confirmed" : "none", occurredAt: ts, loggedAt: ts, dateKey: k, tz: R.tz(), event: "", emotion: null, intensity: null, verificationStatus: "quick", legacy: false };
         e.newResponse = nr; e.isRehearsal = ans.rehearsal === "rehearsal";
         await saveEpisode(e);
+        /* Реальная попытка до назначенного старта (первый вечер): практика началась сегодня — день 1 честно сдвигается на сегодня. */
+        if (p && !e.isRehearsal && R.practiceStart(p) && R.diffDays(R.practiceStart(p), k) < 0) { p.practiceStartDate = k; p.startDate = k; p.firstDay = Object.assign({}, p.firstDay, { kind: "acted", actedAt: ts }); await savePattern(p); }
         const ok = R.isConfirmedAction(e, nr.skillId);
         app.innerHTML = `<h1>${ok ? "Отмечено" : "Записано"}</h1><p>${ok ? "Ты выбрал ответ. Оценка состояния не меняется сама — вечером спросим, как сейчас." : nr.chosen === "scared" ? "Честная запись. Страх сказать — не провал, а то, с чем работаем." : "Репетиция записана отдельно от реальных случаев."}</p>
           ${ok ? `<div class="trail" style="height:110px"><img src="${IMG("traveler")}" alt=""><i class="veil" style="opacity:.25"></i><div class="pop">освободил место</div></div>` : ""}
@@ -730,6 +855,8 @@
     if (!R.eveningCloseable(k, today())) { app.innerHTML = `<h1>Этот вечер уже закрыт для записи</h1><p class="muted">Вечер можно закрыть в тот же день или до конца следующего.</p><div class="row"><a class="btn block" href="#today">На главную</a></div>`; return; }
     const c = checkin(k, p), late = R.isLate(k, today());
     if (c.evening) { app.innerHTML = `<h1>Вечер ${esc(R.human(k))} закрыт</h1><div class="row"><a class="btn block" href="#today">На главную</a></div>`; return; }
+    /* До старта практики итог не нужен: ничего не пробовали. Попытка отмечается действием, и день становится первым. */
+    if (R.practiceStart(p) && R.diffDays(R.practiceStart(p), k) < 0) { app.innerHTML = `<h1>${esc(OB.firstDay.prepTitle)}</h1><p>${esc(OB.firstDay.prepText)}</p><div class="row"><a class="btn block" href="#today">На главную</a></div><div class="row tight"><a class="btn ghost" href="#action">${esc(OB.buttons.action.label)}</a></div>`; return; }
     const eps = episodesOn(k, p), acts = eps.filter(e => e.newResponse), real = acts.filter(e => !e.isRehearsal), reh = acts.filter(e => e.isRehearsal), x = expOf(p), rs = R.researchState(researchOf(p), today(), deepToday);
     const actLbl = real.length ? actionLabel(real[real.length - 1].newResponse) : "";
     const dayHint = acts.length ? `Сегодня записано: ${real.length ? `${real.length} ${R.plural(real.length, "реальный случай", "реальных случая", "реальных случаев")}` : "реальных случаев нет"}${reh.length ? `, ${reh.length} ${R.plural(reh.length, "репетиция", "репетиции", "репетиций")} (репетиция поводом не считается)` : ""}.` : "";
@@ -764,6 +891,7 @@
   }
   function eveningDone(p, c, rs) {
     const canModule = rs.next && !rs.lockedToday && !c.evening.quick;
+    if (!P.seen.buttons) { P.seen.buttons = true; saveProfile(true); }
     app.innerHTML = `<h1>День закрыт</h1><div class="trail" style="height:110px"><img src="${IMG("traveler")}" alt=""><i class="veil" style="opacity:.25"></i><div class="pop">+1 шаг</div></div>
       <p>${c.evening.hadOpportunity === "yes" ? (c.evening.actionStatus === "done" ? "Повод был, и ты выбрал свой ответ." : c.evening.actionStatus === "not" ? "Повод был, не получилось — это наблюдение, не провал." : "Повод был. Записано как есть.") : c.evening.hadOpportunity === "no" ? "Повода не было. Ноль триггеров мы не выдумываем — просто день без повода." : "Записано."}</p>
       ${canModule ? `<div class="card mark"><div class="k">${ic("mirror")}Один шаг исследования · 1–2 минуты</div><p style="margin:2px 0 8px">${esc((C.firstWeekModules.find(m => m.id === rs.next) || {}).title || "")}: ${esc((C.firstWeekModules.find(m => m.id === rs.next) || {}).lead || "")}</p><div class="row tight"><a class="btn block" href="#module/${rs.next}">Сделать</a><a class="btn ghost" href="#today">Не сегодня</a></div></div>` : `<div class="row"><a class="btn block" href="#today">На главную</a></div>`}`;
@@ -903,7 +1031,8 @@
         ${p.scenario ? field("Знакомый сценарий", (p.scenario.own || p.scenario.recognition) + (p.scenario.meaningText ? ` — задевает: ${lc1(p.scenario.meaningText)}` : "") + (p.scenario.repeat === "repeat" ? " (повторяется)" : p.scenario.repeat === "once" ? " (пока один случай)" : ""), "scenario", "что повторяется") : field("Сюжет", p.title, "title", "как назвать")}
         ${p.teacher ? field("Учитель", `${p.teacher.label}${p.teacher.what ? ` — ${lc1(p.teacher.what)}` : ""}`, "teacher", "кто или что возвращает в сюжет") : field("Кто или что", (p.contexts || []).join(", "), "contexts", "коллега, партнёр, ситуация")}
         ${p.lesson ? field("Урок", uc1(p.lesson.title) + (p.lesson.status === "preliminary" ? " (предварительный)" : ""), "lesson", "направление урока") : ""}
-        ${field("Последний случай", lastEvent(p), null, `запиши через «${OB.home.event}»`)}
+        ${R.practiceStart(p) ? `<div class="prow"><div class="k"><span>Практика</span></div>${R.diffDays(R.practiceStart(p), today()) < 0 ? `начнётся ${esc(R.human(R.practiceStart(p)))}` : `с ${esc(R.human(R.practiceStart(p)))} · день ${R.daysSince(R.practiceStart(p), today()) + 1}`}${p.caseDate && p.caseDate !== R.practiceStart(p) ? ` <span class="muted small">· случай был ${esc(R.human(p.caseDate))}</span>` : ""}</div>` : ""}
+        ${field("Последний случай", lastEvent(p), null, `запиши через «${OB.buttons.event.label}»`)}
         ${field("Обычно думаю", p.thought ? `«${p.thought}»${p.thoughtKind === "version" ? " — моя версия" : p.thoughtKind === "observation" ? " — наблюдение" : ""}` : "", "thought", "первая мысль в момент")}
         ${field("Обычно делаю", p.habitualResponse, "habitualResponse", "привычный ответ")}
         ${field("Мне было важно", p.need, "need", "потребность")}
@@ -923,14 +1052,14 @@
       ${p.startDate ? `<div class="card tight"><div class="k">${ic("flag")}Навык и флаг</div><p class="small" style="margin:2px 0 6px">${elig.eligible ? "Условия проверки выполнены." : esc(elig.reasons[0] || "")}${elig.reasons.length > 1 ? ` <span class="tiny">и ещё ${elig.reasons.length - 1}</span>` : ""}</p>${flags.length ? `<p class="small" style="margin:0">Освоено: ${flags.map(f => esc(skillLabel(f.skillId))).join(", ")}</p>` : ""}<div class="row tight"><a class="btn secondary sm" href="#flag">${elig.eligible && !hasFlag(p) ? "Проверить навык" : "Как считается флаг"}</a></div></div>` : ""}
       ${queueCard()}
       ${savedHtml}
-      <div class="card tight"><div class="k">${ic("star")}Символическая тема</div>${P.symbolic && P.symbolic.num ? `<p class="small" style="margin:2px 0 4px"><b>${esc(X.paths[P.symbolic.chosen || P.symbolic.num].name)}</b> · ${esc(X.paths[P.symbolic.chosen || P.symbolic.num].prompt)}</p>` : `<p class="small" style="margin:2px 0 4px">По желанию: число по дате рождения как тема для размышления. На выводы и упражнения не влияет.</p>`}<div class="row tight"><a class="btn ghost sm" href="#symbol">${P.symbolic && P.symbolic.num ? "Открыть астролябию" : "Добавить"}</a></div></div>
+      <div class="card tight"><div class="k">${ic("star")}Символическая тема</div>${P.symbolic && P.symbolic.num ? `<p class="small" style="margin:2px 0 4px"><b>${esc(X.paths[P.symbolic.chosen || P.symbolic.num].name)}</b> · ${esc(X.paths[P.symbolic.chosen || P.symbolic.num].prompt)}</p>` : `<p class="small" style="margin:2px 0 4px">По желанию: число пути по дате рождения — тема для размышления.</p>`}<div class="row tight"><a class="btn ghost sm" href="#symbol">${P.symbolic && P.symbolic.num ? "Открыть астролябию" : "Добавить"}</a></div></div>
       <details class="plain"><summary>Версии гипотез и экспериментов</summary><ul class="list">${D.hypotheses.filter(v => v.patternId === p.id).map(v => `<li><div class="date">гипотеза v${v.version || 1} · ${esc(statusLabel(v.status))} · ${esc(R.human(R.dateKey(v.createdAt)))}</div>${esc(v.text)}</li>`).join("")}${D.experiments.filter(v => v.patternId === p.id).map(v => `<li><div class="date">шаг v${v.version} · ${v.status === "active" ? "действует" : "заменён"} · ${esc(R.human(R.dateKey(v.createdAt)))}</div>${esc(v.action)}${v.prediction ? ` — ожидание: ${esc(v.prediction)}` : ""}</li>`).join("") || "<li class='muted'>пока пусто</li>"}</ul></details>
       <div class="row tight">${p.status === "paused" ? `<button class="btn secondary" id="resume">Вернуться к сюжету</button>` : `<button class="btn ghost" id="pauseP">Пауза по сюжету</button>`}<button class="btn ghost" id="newP">Другой сюжет</button></div>`;
     $$("[data-edit]").forEach(b => b.onclick = () => editField(p, b.dataset.edit, b.dataset.ph));
     const kl = $("#keepLesson"); if (kl) kl.onclick = async () => { p.lesson.keptForExperimentId = x.id; p.lesson.status = "confirmed"; await savePattern(p); toast("Формулировка сохранена"); story(); };
     const rl = $("#refineLesson"); if (rl) rl.onclick = () => editField(p, "lesson");
     $$("[data-unsave]").forEach(b => b.onclick = async () => { P.savedScenarios.splice(Number(b.dataset.unsave), 1); await saveProfile(); story(); });
-    $$("[data-saved]").forEach(b => b.onclick = async () => { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Текущий сюжет уйдёт в историю. Нажми ещё раз"; return; } const sc = P.savedScenarios[Number(b.dataset.saved)]; P.savedScenarios.splice(Number(b.dataset.saved), 1); p.status = "done"; await savePattern(p); const isEv = sc.kind === "event" && X.events.some(e => e.id === sc.id); P.onb = isEv ? { step: "sting", event: sc.id, picks: [{ id: sc.id, packId: sc.packId, text: sc.text, r: "yes" }], area: null } : { step: "sting", own: { text: sc.recognition || sc.text, packId: sc.packId || null, version: C.contentVersion }, picks: [] }; dropDraft("onb-sting-" + (isEv ? sc.id : "own"), "onb"); await saveProfile(true); go("sting"); });
+    $$("[data-saved]").forEach(b => b.onclick = async () => { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Текущий сюжет уйдёт в историю. Нажми ещё раз"; return; } const sc = P.savedScenarios[Number(b.dataset.saved)]; P.savedScenarios.splice(Number(b.dataset.saved), 1); p.status = "done"; await savePattern(p); const isEv = sc.kind === "event" && X.events.some(e => e.id === sc.id); P.onb = isEv ? { step: "teacher", event: sc.id, picks: [{ id: sc.id, packId: sc.packId, text: sc.text, r: "yes" }], area: sc.area || null } : { step: "teacher", own: { text: sc.recognition || sc.text, packId: sc.packId || null, version: C.contentVersion }, picks: [] }; ["onb-teacher", "onb-case-" + (isEv ? sc.id : "own"), "onb-sting-" + (isEv ? sc.id : "own")].forEach(id => dropDraft(id, "onb")); await saveProfile(true); go("teacher"); });
     const kd = $("#keepDep"); if (kd) kd.onclick = async () => { const cur = p.hypothesisVersionId || null; if (dep.permission) { p.permissionSource = Object.assign({}, p.permissionSource, { keptFor: cur }); await savePattern(p); } if (dep.plan) { x.keptFor = cur; await saveExp(x); } toast("Оставлено осознанно"); story(); };
     const rd = $("#redoDep"); if (rd) rd.onclick = async () => { if (dep.permission) { p.permissionSource = null; await savePattern(p); } deepToday = true; go(dep.permission ? "module/rule" : "module/experiment"); };
     const rp = $("#resume"); if (rp) rp.onclick = async () => { p.status = "active"; await savePattern(p); story(); };
@@ -1024,7 +1153,7 @@
   function flagScreen() {
     const p = activePattern(); if (!p || !p.startDate) return go("today");
     const el = eligibility(p), pol = policy();
-    const rulesHtml = `<details class="plain"><summary>Как считается флаг</summary><ul class="small"><li>Не раньше ${pol.minElapsedCalendarDays} календарных дней после первого реального эпизода.</li><li>Две последние недели подряд: в каждой минимум ${pol.minImpactRatingsPerWindow} вечерние оценки трудности, и все не выше ${pol.maxEachRecordedImpact}. Пропуски остаются пропусками.</li><li>В каждой неделе минимум один реальный повод; за две недели минимум ${pol.minConfirmedActionsAcrossWindowsOnDistinctDays} подтверждённых применения в разные дни. Репетиции не считаются.</li><li>Ты сам подтверждаешь три пункта ниже.</li></ul><p class="tiny">Это ориентир пилота, не медицинский критерий. Флаг значит «я освоил этот ответ в наблюдавшихся ситуациях», а не «проблема исчезла навсегда».</p></details>`;
+    const rulesHtml = `<details class="plain"><summary>Как считается флаг</summary><ul class="small"><li>Не раньше ${pol.minElapsedCalendarDays} календарных дней с начала практики (не с даты вспомненного случая).</li><li>Две последние недели подряд: в каждой минимум ${pol.minImpactRatingsPerWindow} вечерние оценки трудности, и все не выше ${pol.maxEachRecordedImpact}. Пропуски остаются пропусками.</li><li>В каждой неделе минимум один реальный повод; за две недели минимум ${pol.minConfirmedActionsAcrossWindowsOnDistinctDays} подтверждённых применения в разные дни. Репетиции не считаются.</li><li>Ты сам подтверждаешь три пункта ниже.</li></ul><p class="tiny">Это ориентир пилота, не медицинский критерий. Флаг значит «я освоил этот ответ в наблюдавшихся ситуациях», а не «проблема исчезла навсегда».</p></details>`;
     if (!el.eligible || hasFlag(p)) {
       app.innerHTML = `<h1>${hasFlag(p) ? "Навык уже отмечен" : "Сейчас мало случаев для проверки"}</h1>${hasFlag(p) ? `<p>По этому сюжету флаг «${esc(skillLabel(skillOfPattern(p)))}» уже есть. Новые случаи его не стирают: можно освежить навык практикой.</p>` : `<ul class="small">${el.reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul><p class="small muted">Можно продолжать, наблюдать или взять паузу — без флага это тоже нормально.</p>`}${rulesHtml}<div class="row"><a class="btn block" href="#story">Назад</a></div>`; return;
     }
@@ -1045,7 +1174,7 @@
         <p class="fanfare">Флаг твой</p><div class="trail" style="height:130px"><img src="${IMG("traveler")}" alt=""><i class="glow"></i></div>
         <h2>Ты научился отвечать иначе</h2><p>В этом уроке ты практиковал: <b>${esc(skillLabel(sk))}</b>${p.lesson && p.lesson.skillId === sk ? ` — ${esc(p.lesson.title)}` : ""}.</p>
         <p class="small">${(() => { const w = el.windows; const eps = D.episodes.filter(e => e.patternId === p.id && !e.legacy && !e.isRehearsal).length; const opp = w.reduce((a, s) => a + s.opportunities, 0); const ratings = w.map(s => s.impactRatings.map(r => r.value).join("·")).join(" | "); return `За две недели: реальных поводов ${opp}, применений в разные дни ${el.actionDays.length}, оценки трудности ${esc(ratings)}. Всего записано случаев по сюжету: ${eps}.`; })()}</p>
-        <p class="small muted">Небо над тропой: ${cl.pct}% — ${cl.count} из ${cl.total} навыков. Неприятные чувства могут оставаться — это не отменяет навык. Тема жизни не закрыта навсегда: это освоенный ответ в наблюдавшихся ситуациях.</p>
+        <p class="small muted">Небо над тропой светлеет: освоено ${cl.count} из ${cl.total} навыков (${cl.pct}%). Неприятные чувства могут оставаться — это не отменяет навык. Тема жизни не закрыта навсегда: это освоенный ответ в наблюдавшихся ситуациях.</p>
         <div class="row"><a class="btn block" href="#today">Продолжить закрепление</a></div><div class="row tight"><button class="btn ghost" id="nextScenario">Выбрать следующий сюжет</button></div>`;
       $("#nextScenario").onclick = async () => { p.status = "done"; await savePattern(p); P.onb = { step: "area" }; await saveProfile(true); go("area"); };
     };
@@ -1158,7 +1287,7 @@
       $("#rm").onclick = async () => { P.symbolic = null; await saveProfile(); go("story"); };
       return;
     }
-    app.innerHTML = `<h1>Символическая тема</h1><p class="small muted">По желанию. Сумма цифр даты рождения даёт число 1–9 и тему для размышления. Это традиция, а не наука: на выводы, упражнения и результаты число не влияет.</p>
+    app.innerHTML = `<h1>Число пути</h1><p class="small muted">По желанию. Сумма цифр даты рождения даёт число 1–9 и тему твоего пути для размышления. Подробнее — в «О подходе».</p>
       <label for="b">Дата рождения</label><input type="date" id="b" min="1920-01-01" max="${today()}"><div class="row"><button class="btn block" id="go">Посчитать</button></div><div class="row tight"><a class="btn ghost" href="#story">Не нужно</a></div>`;
     $("#go").onclick = async () => {
       const v = $("#b").value; const r = R.calcNum(v); if (!r) return toast("Укажи дату");
@@ -1176,12 +1305,13 @@
   function about() {
     const A = X.about;
     app.innerHTML = `<h1>Как это работает</h1><p>${esc(C.entryCopy.promise)} Цикл: случай → моя реакция → возможное объяснение → маленький шаг → что вышло на самом деле → уточнение.</p>
+      <div class="card mark"><div class="k">${ic("star")}${esc(OB.approach.title)}</div><p class="small" style="margin:2px 0 4px">${esc(OB.approach.text)}</p>${P.consent ? `<p class="tiny" style="margin:0">Ты отметил(а), что прочитал(а) это: ${esc(R.human(R.dateKey(P.consent.at)))} (версия текста ${esc(P.consent.version)}).</p>` : ""}</div>
       <h2>Образы и пределы</h2><p>${esc(A.frame)}</p>
       <h2>Что под шагами</h2><p>${esc(A.method)}</p>
       <div class="card"><div class="k">${ic("mirror")}Источники</div><ul class="src">${C.sources.map(s => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a><br><span class="w">основа метода; адаптированные упражнения не проверены как этот продукт</span></li>`).join("")}<li><a href="https://pubmed.ncbi.nlm.nih.gov/9150580/" target="_blank" rel="noopener">Newman, Duff &amp; Baumeister, 1997</a><br><span class="w">проекция при подавлении мыслей; не основание трактовать любое раздражение как зеркало</span></li></ul></div>
       <div class="card"><div class="k">${ic("key")}Пределы выводов</div><ul class="small">${A.limits.map(l => `<li>${esc(l)}</li>`).join("")}</ul></div>
       <p class="small muted">${esc(A.extra)}</p>
-      <div class="row"><a class="btn block" href="${anyPattern() ? "#today" : "#start"}">Назад</a></div>`;
+      <div class="row"><a class="btn block" href="${anyPattern() ? "#today" : "#start"}">Назад</a></div>${anyPattern() ? `<div class="row tight"><a class="btn ghost sm" href="#guide">${esc(OB.buttons.guide)}</a></div>` : ""}`;
   }
 
   /* =================== НАСТРОЙКИ =================== */
@@ -1199,7 +1329,7 @@
         <div class="row tight"><button class="btn secondary sm" id="exp">Экспорт JSON</button><button class="btn secondary sm" id="imp">Импорт JSON</button></div><div id="dataout"></div>
         ${(P.recovered || []).length ? `<details class="plain"><summary>Незаконченные записи прошлой сборки · ${P.recovered.length}</summary><p class="tiny">Эти ответы были набраны до обновления, и к какому сюжету они относятся, определить нельзя. Текст сохранён, его можно взять в новую запись.</p><ul class="list">${P.recovered.map((r, i) => `<li class="small"><div class="date">${esc(({ new: "Случай", event: "Зацепило", action: "Сделал по-новому" })[r.id] || r.id)}${r.at ? ` · ${esc(R.human(R.dateKey(r.at)))}` : ""}</div>${esc(Object.values(r.ans || {}).filter(v => typeof v === "string" && v.trim()).join(" · "))} <button class="btn ghost sm" data-rec="${i}">убрать</button></li>`).join("")}</ul></details>` : ""}
         <div class="row tight"><button class="btn ghost sm" id="reset">Стереть всё</button></div></div>
-      <div class="card tight"><div class="row tight"><a class="btn ghost sm" href="#about">О методе и источниках</a><a class="btn ghost sm" href="#symbol">Символическая тема</a><a class="btn ghost sm" href="#entry">Другой сюжет</a></div></div>
+      <div class="card tight"><div class="row tight"><a class="btn ghost sm" href="#guide">${esc(OB.buttons.guide)}</a><a class="btn ghost sm" href="#about">${esc(OB.approach.title)} и источники</a><a class="btn ghost sm" href="#symbol">Число пути</a><a class="btn ghost sm" href="#entry">Другой сюжет</a></div></div>
       <details class="plain"><summary>Для разработчика</summary><div class="card tight"><div class="switch"><span>Режим разработки</span><input type="checkbox" id="dev" ${P.devMode ? "checked" : ""}></div>
         ${P.devMode ? `<p class="small muted">Тестовые часы: ${esc(R.human(today()))}, ${R.fmtTime(nowTs())}, сдвиг +${P.offsetH || 0} ч.</p><div class="row tight"><button class="btn secondary sm" data-o="6">+6 ч</button><button class="btn secondary sm" data-o="24">+1 день</button><button class="btn secondary sm" data-o="168">+7 дней</button><button class="btn secondary sm" data-o="0">Сброс</button></div>` : ""}
         <p class="tiny">Версия ${esc(window.KARMA_VERSION || "v2")} · контент ${esc(C.contentVersion)}</p></div></details>`;
@@ -1260,13 +1390,21 @@
     /* Схема 2 → 3: записи дня по ключу «дата|сюжет» (уже приведены хранилищем); действия получают навык из плана, действовавшего в момент записи (помечены backfilled, в флаг не входят);
        черновики прежней сборки переносятся в новую схему, неоднозначные сохраняются как восстановимые записи (Настройки → Данные). Схема 4: у старых разрешений появляется происхождение migrated. */
     const sv = D.meta.schemaVersion || 0;
-    if (sv < 4) {
+    if (sv < R.SCHEMA_VERSION) {
       if (sv < 3) {
         D.checkins = R.normalizeCheckins(D.checkins); R.backfillEvidence(D);
         const m = R.migrateDrafts(P.drafts, { patterns: D.patterns, episodes: D.episodes }, DRAFT_V);
         P.drafts = m.drafts; if (m.recovered.length) P.recovered = [...(P.recovered || []), ...m.recovered];
       }
-      R.markMigratedPermissions(D.patterns);
+      if (sv < 4) R.markMigratedPermissions(D.patterns);
+      /* Схема 5: старт практики = прежний startDate (история и флаги не переписываются); обучение считается пройденным,
+         а объяснение практики предлагается отдельной карточкой. Незаконченный вход прежней версии начинается с выбора сферы. */
+      if (sv < 5) {
+        R.migrateV5(D.patterns);
+        const hasData = D.patterns.length > 0 || !!D.meta.migratedFromV9 || Object.keys(D.checkins).length > 0;
+        if (hasData) { P.seen.map = true; P.seen.trail = true; P.seen.buttons = true; P.guideOffer = true; }
+        if (P.onb && P.onb.step && !["start", "birth", "symbol"].includes(P.onb.step)) P.onb = { step: "area" };
+      }
       D.meta.schemaVersion = R.SCHEMA_VERSION; D.meta.upgradedAt = Date.now();
       try { await ST.replaceAll(Object.assign(D, { profile: P })); } catch (e) { saveError(e); }
     }

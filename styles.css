@@ -238,3 +238,12 @@ details.plain > summary { cursor: pointer; color: var(--ink-2); font-size: 14px;
 
 @media (max-width: 380px) { #app { padding: 14px 11px 16px; } h1 { font-size: 25px; } .chip { font-size: 14px; } .btn { padding: 10px 14px; } }
 @media (prefers-reduced-motion: reduce) { .confetti { display: none; } .orb.calc, .orb.reveal .fl, .orb.reveal .num, .trail .pop { animation: none; } .trail .pop { opacity: 1; } .breath { transition: none; } .swcard { transition: none; } .swcard.demo, .swcard.demo .swlab { animation: none; } * { transition: none !important; } }
+
+/* v5: согласие «О подходе», подписи-обучение кнопок, ссылка в заголовке карточки, подписи тропы */
+.consent { display: flex; gap: 10px; align-items: flex-start; margin: 8px 0 2px; font-size: 14px; line-height: 1.35; cursor: pointer; }
+.consent input { width: 22px; height: 22px; min-height: 0; flex: none; accent-color: #B9822A; margin: 1px 0 0; }
+.tap.learn { min-height: 98px; padding-bottom: 8px; } .tap em { font-style: normal; font-size: 11px; line-height: 1.3; color: var(--ink-2); margin-top: 3px; font-weight: 400; }
+.card .k .klink { margin-left: auto; font-size: 11px; text-transform: none; letter-spacing: 0; text-decoration: underline; color: inherit; }
+.trail .tb.c2 { top: auto; bottom: 48px; left: 8px; }
+.trail .tcap { position: absolute; right: 8px; bottom: 50px; max-width: 52%; text-align: right; font-size: 11px; line-height: 1.2; color: #fff; opacity: .92; text-shadow: 0 1px 4px rgba(0,0,0,.7); }
+@media (max-width: 345px) { .trail .tb { font-size: 11px; } .trail .tcap { font-size: 10px; } }
