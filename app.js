@@ -656,7 +656,8 @@
     const contra = h && (h.contradictingEpisodeIds || []).length ? `<div class="nudge">Есть ${h.contradictingEpisodeIds.length} ${R.plural(h.contradictingEpisodeIds.length, "случай", "случая", "случаев")}, где объяснение не подошло. Это не отменяет работу — можно <a href="#module/need">уточнить версию</a> или понаблюдать дальше.</div>` : "";
     /* Объяснение сменилось или отвергнуто: подобранные под него разрешение и шаг ждут решения, а не действуют молча. */
     const dep = R.dependencyReview({ pattern: p, experiment: x });
-    const depHtml = dep.any ? `<div class="card mark"><div class="k">${ic("mirror")}Объяснение изменилось</div><p class="small" style="margin:2px 0 8px">${[dep.permission ? `разрешение «${esc(p.permission)}»` : "", dep.plan ? `шаг «${esc(x.action)}»` : ""].filter(Boolean).join(" и ")} ${dep.permission && dep.plan ? "были подобраны" : dep.permission ? "было подобрано" : "был подобран"} под прежнее объяснение. Оставить или выбрать другое?</p><div class="row tight"><button class="btn secondary sm" id="keepDep">Оставить</button><button class="btn sm" id="redoDep">Выбрать другое</button></div></div>` : "";
+    const migrated = dep.permission && dep.permissionOrigin === "migrated";
+    const depHtml = dep.any ? `<div class="card mark"><div class="k">${ic("mirror")}Объяснение изменилось</div><p class="small" style="margin:2px 0 8px">${[dep.permission ? `разрешение «${esc(p.permission)}»` : "", dep.plan ? `шаг «${esc(x.action)}»` : ""].filter(Boolean).join(" и ")} ${migrated ? (dep.plan ? "появились при прежнем объяснении (происхождение разрешения не записано)" : "появилось при прежнем объяснении, его происхождение не записано") : `${dep.permission && dep.plan ? "были подобраны" : dep.permission ? "было подобрано" : "был подобран"} под прежнее объяснение`}. Оставить или выбрать другое?</p><div class="row tight"><button class="btn secondary sm" id="keepDep">Оставить</button><button class="btn sm" id="redoDep">Выбрать другое</button></div></div>` : "";
     const note = (P.lastResult2 ? `<div class="card mark tight"><p class="small" style="margin:0">${esc(P.lastResult2)}</p></div>` : "") + depHtml + contra; if (P.lastResult2) { delete P.lastResult2; saveProfile(); }
     const field = (k, v, edit, ph) => `<div class="prow"><div class="k"><span>${k}</span>${edit ? `<button data-edit="${edit}" data-ph="${esc(ph || "")}">изменить</button>` : ""}</div>${v ? esc(v) : `<span class="muted">${esc(ph || "пока пусто")}</span>`}</div>`;
     const flags = flagsReal().filter(f => f.patternId === p.id);
@@ -906,6 +907,7 @@
       <div class="card"><div class="k">${ic("moon")}Время дня</div><div class="grid2"><label>Утро с<input type="time" id="tm" value="${R.pad(P.times.morningStart)}:00"></label><label>Вечер с<input type="time" id="te" value="${R.pad(P.times.eveningStart)}:00"></label></div><p class="tiny">Окна меняют только подсказку на главной. Записи и помощь доступны всегда.</p></div>
       <div class="card"><div class="k">${ic("key")}Данные</div><p class="small muted" style="margin:2px 0 6px">Хранилище: ${ST.mode === "idb" ? "на устройстве (IndexedDB)" : ST.mode === "ls" ? "на устройстве (запасной режим)" : "недоступно"}. Шифрования нет.</p>
         <div class="row tight"><button class="btn secondary sm" id="exp">Экспорт JSON</button><button class="btn secondary sm" id="imp">Импорт JSON</button></div><div id="dataout"></div>
+        ${(P.recovered || []).length ? `<details class="plain"><summary>Незаконченные записи прошлой сборки · ${P.recovered.length}</summary><p class="tiny">Эти ответы были набраны до обновления, и к какому сюжету они относятся, определить нельзя. Текст сохранён, его можно взять в новую запись.</p><ul class="list">${P.recovered.map((r, i) => `<li class="small"><div class="date">${esc(({ new: "Случай", event: "Зацепило", action: "Сделал по-новому" })[r.id] || r.id)}${r.at ? ` · ${esc(R.human(R.dateKey(r.at)))}` : ""}</div>${esc(Object.values(r.ans || {}).filter(v => typeof v === "string" && v.trim()).join(" · "))} <button class="btn ghost sm" data-rec="${i}">убрать</button></li>`).join("")}</ul></details>` : ""}
         <div class="row tight"><button class="btn ghost sm" id="reset">Стереть всё</button></div></div>
       <div class="card tight"><div class="row tight"><a class="btn ghost sm" href="#about">О методе и источниках</a><a class="btn ghost sm" href="#symbol">Символическая тема</a><a class="btn ghost sm" href="#entry">Другой сюжет</a></div></div>
       <details class="plain"><summary>Для разработчика</summary><div class="card tight"><div class="switch"><span>Режим разработки</span><input type="checkbox" id="dev" ${P.devMode ? "checked" : ""}></div>
@@ -919,6 +921,7 @@
     $("#tm").onchange = async e => { P.times.morningStart = Number(e.target.value.split(":")[0]); await saveProfile(); };
     $("#te").onchange = async e => { P.times.eveningStart = Number(e.target.value.split(":")[0]); await saveProfile(); };
     $("#exp").onclick = () => download(`put-karmy-${today()}.json`, ST.exportJSON(nowTs()), "application/json", $("#dataout"));
+    $$("[data-rec]").forEach(b => b.onclick = async () => { P.recovered.splice(Number(b.dataset.rec), 1); await saveProfile(); settings(); });
     $("#imp").onclick = () => importUI($("#dataout"));
     $("#reset").onclick = async e => { const b = e.currentTarget; if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Точно? Нажми ещё раз — всё удалится без возврата"; return; } const keep = { theme: P.theme, installId: P.installId }; await ST.clearAll(); D = ST.data; P = defaultProfile(keep); D.meta = { schemaVersion: R.SCHEMA_VERSION, createdAt: nowTs() }; await saveProfile(); await saveMeta(); go("start"); };
     $("#dev").onchange = async e => { P.devMode = e.target.checked; if (!P.devMode) P.offsetH = 0; await saveProfile(); settings(); };
@@ -931,12 +934,15 @@
   }
   function importUI(out) {
     out.innerHTML = `<p class="small">Выбери файл экспорта или вставь его текст. Перед объединением покажем, что внутри.</p><input type="file" id="f" accept=".json,application/json"><textarea id="t" placeholder="или вставь JSON сюда" style="min-height:60px;margin-top:6px"></textarea><div class="row tight"><button class="btn secondary sm" id="prev">Проверить</button></div><div id="pv"></div>`;
-    const handle = txt => { let obj; try { obj = JSON.parse(txt); } catch (e) { return $("#pv").innerHTML = `<div class="warn">Не удалось прочитать JSON.</div>`; }
-      const v = R.validateImport(obj); if (!v.ok) return $("#pv").innerHTML = `<div class="warn">${v.errors.map(esc).join("<br>")}</div>`;
+    /* Любая ошибка разбора или структуры показывается причиной; до записи базы дело не доходит. */
+    const handle = txt => { try {
+      let obj; try { obj = JSON.parse(txt); } catch (e) { return $("#pv").innerHTML = `<div class="warn">Не удалось прочитать JSON: ${esc(e.message)}</div>`; }
+      const v = R.validateImport(obj); if (!v.ok) return $("#pv").innerHTML = `<div class="warn">Файл не подходит:<br>${v.errors.map(esc).join("<br>")}</div>`;
       let inc = obj; if (v.legacy) { const m = R.migrateV9(obj, nowTs()); inc = { patterns: m.patterns, episodes: m.episodes, hypotheses: [], experiments: [], reviews: m.reviews, flags: m.flags, checkins: m.checkins, research: {} }; }
       const pv = R.importPreview(inc);
-      $("#pv").innerHTML = `<div class="card tight"><p class="small" style="margin:0 0 6px">${v.legacy ? "Старый формат: будет импортирован как записи прошлой версии. " : ""}Сюжетов: ${pv.patterns}, случаев: ${pv.episodes}, гипотез: ${pv.hypotheses}, шагов: ${pv.experiments}, итогов: ${pv.reviews}, флагов: ${pv.flags}, дней: ${pv.checkins}. Совпадающие записи не дублируются.</p><div class="row tight"><button class="btn sm" id="merge">Объединить с моими данными</button></div></div>`;
-      $("#merge").onclick = async () => { const { data, stats } = R.mergeImport(D, inc); data.profile = D.profile; data.meta = D.meta || {}; try { await ST.replaceAll(data); D = ST.data; toast(`Добавлено ${stats.added}, обновлено ${stats.updated}`); go("history"); } catch (e) { saveError(e); } }; };
+      $("#pv").innerHTML = `<div class="card tight"><p class="small" style="margin:0 0 6px">${v.legacy ? "Старый формат: будет импортирован как записи прошлой версии. " : v.schemaVersion < R.SCHEMA_VERSION ? `Файл схемы ${v.schemaVersion}: будет приведён к текущей. ` : ""}Сюжетов: ${pv.patterns}, случаев: ${pv.episodes}, гипотез: ${pv.hypotheses}, шагов: ${pv.experiments}, итогов: ${pv.reviews}, флагов: ${pv.flags}, дней: ${pv.checkins}. Совпадающие записи не дублируются.</p><div class="row tight"><button class="btn sm" id="merge">Объединить с моими данными</button></div></div>`;
+      $("#merge").onclick = async () => { try { const { data, stats } = R.mergeImport(D, inc, v.legacy ? R.SCHEMA_VERSION : v.schemaVersion); data.profile = D.profile; data.meta = D.meta || {}; await ST.replaceAll(data); D = ST.data; toast(`Добавлено ${stats.added}, обновлено ${stats.updated}`); go("history"); } catch (e) { saveError(e); } };
+    } catch (e) { $("#pv").innerHTML = `<div class="warn">Файл не удалось обработать: ${esc(e && e.message ? e.message : e)}</div>`; } };
     $("#f").onchange = e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => handle(r.result); r.readAsText(f); };
     $("#prev").onclick = () => handle($("#t").value);
   }
@@ -961,11 +967,17 @@
       P.seen.start = true;
       try { await ST.replaceAll(Object.assign(D, { profile: P })); } catch (e) { saveError(e); }
     }
-    /* Схема 2 → 3: записи дня по ключу «дата|сюжет» (уже приведены хранилищем), действия получают навык из плана, действовавшего в момент записи; старые черновики без области сбрасываются. */
-    if ((D.meta.schemaVersion || 0) < 3) {
-      D.checkins = R.normalizeCheckins(D.checkins); R.backfillEvidence(D);
-      Object.keys(P.drafts).forEach(k => { if (!k.includes("|") && !["cards", "cardPick", "fromEpisode"].includes(k)) delete P.drafts[k]; });
-      D.meta.schemaVersion = 3; D.meta.upgradedAt = Date.now();
+    /* Схема 2 → 3: записи дня по ключу «дата|сюжет» (уже приведены хранилищем); действия получают навык из плана, действовавшего в момент записи (помечены backfilled, в флаг не входят);
+       черновики прежней сборки переносятся в новую схему, неоднозначные сохраняются как восстановимые записи (Настройки → Данные). Схема 4: у старых разрешений появляется происхождение migrated. */
+    const sv = D.meta.schemaVersion || 0;
+    if (sv < 4) {
+      if (sv < 3) {
+        D.checkins = R.normalizeCheckins(D.checkins); R.backfillEvidence(D);
+        const m = R.migrateDrafts(P.drafts, { patterns: D.patterns, episodes: D.episodes }, DRAFT_V);
+        P.drafts = m.drafts; if (m.recovered.length) P.recovered = [...(P.recovered || []), ...m.recovered];
+      }
+      R.markMigratedPermissions(D.patterns);
+      D.meta.schemaVersion = R.SCHEMA_VERSION; D.meta.upgradedAt = Date.now();
       try { await ST.replaceAll(Object.assign(D, { profile: P })); } catch (e) { saveError(e); }
     }
     if (!D.profile) await saveProfile();

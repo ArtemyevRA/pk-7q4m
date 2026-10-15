@@ -111,11 +111,13 @@
      Запись без навыка (неизвестная принадлежность) доказательством для навыка не является. Версия плана не важна: навык тот же — практика та же. */
   R.isConfirmedAction = function (ep, skillId) {
     const nr = ep && ep.newResponse; if (!nr || ep.isRehearsal || ep.legacy) return false;
-    if (skillId && nr.skillId !== skillId) return false;
+    if (skillId && (nr.skillId !== skillId || nr.backfilled)) return false;
     if (nr.type === "pause") return nr.chosen === "chosen";
     return true;
   };
-  R.eveningConfirms = (c, skillId) => !!(c && c.evening && c.evening.actionStatus === "done" && (!skillId || c.evening.skillId === skillId));
+  /* Навык, восстановленный задним числом (backfilled), для флага не достаточен: прошлая версия позволяла менять навык плана на месте,
+     поэтому исходный навык такой записи достоверно не известен. Запись остаётся в истории. */
+  R.eveningConfirms = (c, skillId) => !!(c && c.evening && c.evening.actionStatus === "done" && (!skillId || (c.evening.skillId === skillId && !c.evening.backfilled)));
   R.confirmedActionDays = function ({ episodes = [], checkins = {}, patternId, skillId }) {
     const days = new Set();
     episodes.forEach(e => { if (patternId && e.patternId === patternId && R.isConfirmedAction(e, skillId)) days.add(e.dateKey); });
@@ -217,10 +219,40 @@
   R.dependencyReview = function ({ pattern, experiment }) {
     const cur = (pattern && pattern.hypothesisVersionId) || null;
     const ps = pattern && pattern.permissionSource;
-    const permission = !!(pattern && pattern.permission && ps && ps.hypothesisVersionId && ps.hypothesisVersionId !== cur && ps.keptFor !== cur);
+    /* Разрешение ждёт решения, если записано под другую версию объяснения (включая «до объяснения» для записей неизвестного происхождения).
+       Своя формулировка, написанная до выбора объяснения, от него не зависит. */
+    const psHyp = ps ? (ps.hypothesisVersionId || null) : null;
+    const permission = !!(pattern && pattern.permission && ps && psHyp !== cur && ps.keptFor !== cur && !(ps.origin === "user" && !psHyp));
     const x = experiment;
     const plan = !!(x && x.kind === "experiment" && x.hypothesisVersionId && x.hypothesisVersionId !== cur && x.keptFor !== cur);
-    return { permission, plan, any: permission || plan };
+    return { permission, plan, any: permission || plan, permissionOrigin: ps ? ps.origin : null };
+  };
+  /* Записи прежней сборки: у разрешения нет происхождения. Помечаем как migrated и привязываем к объяснению на момент обновления,
+     чтобы при первой смене объяснения оно попало в проверку. Текст не меняется. */
+  R.markMigratedPermissions = function (patterns) {
+    let n = 0;
+    (patterns || []).forEach(p => { if (p && p.permission && !p.permissionSource && !p.legacy) { p.permissionSource = { origin: "migrated", hypothesisVersionId: p.hypothesisVersionId || null }; n++; } });
+    return n;
+  };
+  /* Черновики прежней сборки (ключи без области) переносятся в новую схему, если принадлежность однозначна:
+     один активный сюжет — его область; «new» без сюжета — first; detail — сюжет эпизода. Остальные с текстом сохраняются как восстановимые записи. */
+  R.migrateDrafts = function (drafts, { patterns = [], episodes = [] } = {}, version) {
+    const out = {}, recovered = []; const V = version || 2;
+    const live = patterns.filter(p => !p.legacy && (p.status === "active" || p.status === "observe"));
+    const pid = live.length === 1 ? live[0].id : null;
+    Object.entries(drafts || {}).forEach(([k, d]) => {
+      if (k.includes("|") || ["cards", "cardPick", "fromEpisode"].includes(k)) { out[k] = d; return; }
+      if (!d || typeof d !== "object") return;
+      let scope = null;
+      if (k === "new") scope = pid || "first";
+      else if (k === "event" || k === "action") scope = pid || "-";
+      else if (/^detail-/.test(k)) { const e = episodes.find(x => x.id === k.slice(7)); scope = e ? (e.patternId || "-") : null; }
+      else if (/^(evening-|mod-|review-)/.test(k)) scope = pid;
+      const hasText = Object.values(d.ans || {}).some(v => typeof v === "string" && v.trim());
+      if (scope) out[`${k}|${scope}|${V}`] = d;
+      else if (hasText) recovered.push({ id: k, at: d.at || null, ans: d.ans });
+    });
+    return { drafts: out, recovered };
   };
 
   /* Короткий вечер: один ответ фиксирует и повод, и действие. Репетиции поводом не являются. */
@@ -292,40 +324,53 @@
   };
 
   /* ---------- экспорт / импорт ---------- */
-  /* Схема 3: записи дня по ключу «дата|сюжет», действия помнят навык. Файлы схемы 2 читаются и приводятся к схеме 3. */
-  R.SCHEMA_VERSION = 3;
+  /* Схема 3: записи дня по ключу «дата|сюжет», действия помнят навык. Схема 4: у разрешений есть происхождение.
+     Файлы схем 2–4 читаются и приводятся к текущей. Валидатор никогда не бросает исключение: всегда {ok, errors}. */
+  R.SCHEMA_VERSION = 4;
   R.MIN_IMPORT_SCHEMA = 2;
   R.COLLECTIONS = ["patterns", "episodes", "hypotheses", "experiments", "reviews", "flags"];
   R.validateImport = function (obj) {
     const errors = [];
-    if (!obj || typeof obj !== "object") return { ok: false, errors: ["Это не JSON-объект"] };
-    const v = Number(obj.schemaVersion);
-    if (!v) errors.push("Нет schemaVersion");
-    if (v && v > R.SCHEMA_VERSION) errors.push(`Версия файла ${v} новее поддерживаемой ${R.SCHEMA_VERSION}`);
-    if (v && v < R.MIN_IMPORT_SCHEMA && !(obj.sprint !== undefined || obj.archive !== undefined || obj.num !== undefined)) errors.push("Старый формат без известной структуры");
-    if (v >= R.MIN_IMPORT_SCHEMA && v <= R.SCHEMA_VERSION) {
-      R.COLLECTIONS.forEach(c => { if (obj[c] != null && !Array.isArray(obj[c])) errors.push(`${c} должен быть списком`); (obj[c] || []).forEach(x => { if (!x || !x.id) errors.push(`${c}: запись без id`); }); });
-      if (obj.checkins != null && (typeof obj.checkins !== "object" || Array.isArray(obj.checkins))) errors.push("checkins должен быть объектом");
-      else Object.entries(obj.checkins || {}).forEach(([k, c]) => { const dk = (c && c.dateKey) || k; if (!R.isKey(dk)) errors.push(`checkins: неверная дата ${k}`); });
-    }
-    return { ok: errors.length === 0, errors, schemaVersion: v, legacy: v < R.MIN_IMPORT_SCHEMA };
+    try {
+      if (!obj || typeof obj !== "object" || Array.isArray(obj)) return { ok: false, errors: ["Это не JSON-объект"], schemaVersion: 0, legacy: false };
+      const v = Number(obj.schemaVersion);
+      if (!v) errors.push("Нет schemaVersion");
+      if (v && v > R.SCHEMA_VERSION) errors.push(`Версия файла ${v} новее поддерживаемой ${R.SCHEMA_VERSION}`);
+      if (v && v < R.MIN_IMPORT_SCHEMA && !(obj.sprint !== undefined || obj.archive !== undefined || obj.num !== undefined)) errors.push("Старый формат без известной структуры");
+      if (v >= R.MIN_IMPORT_SCHEMA && v <= R.SCHEMA_VERSION) {
+        R.COLLECTIONS.forEach(c => {
+          const list = obj[c]; if (list == null) return;
+          if (!Array.isArray(list)) { errors.push(`${c} должен быть списком`); return; }
+          let bad = 0; list.forEach(x => { if (!x || typeof x !== "object" || !x.id) bad++; }); if (bad) errors.push(`${c}: ${bad} ${R.plural(bad, "запись", "записи", "записей")} без id`);
+        });
+        const ck = obj.checkins;
+        if (ck != null && (typeof ck !== "object" || Array.isArray(ck))) errors.push("checkins должен быть объектом");
+        else Object.entries(ck || {}).forEach(([k, c]) => { const dk = (c && typeof c === "object" && c.dateKey) || k; if (!R.isKey(dk)) errors.push(`checkins: неверная дата ${k}`); });
+        if (obj.research != null && (typeof obj.research !== "object" || Array.isArray(obj.research))) errors.push("research должен быть объектом");
+      }
+      return { ok: errors.length === 0, errors, schemaVersion: v, legacy: v > 0 && v < R.MIN_IMPORT_SCHEMA };
+    } catch (e) { errors.push(`Файл не удалось разобрать: ${e && e.message ? e.message : e}`); return { ok: false, errors, schemaVersion: 0, legacy: false }; }
   };
   R.importPreview = function (obj) {
     const p = {}; R.COLLECTIONS.forEach(c => p[c] = (obj[c] || []).length); p.checkins = Object.keys(obj.checkins || {}).length; p.research = Object.keys(obj.research || {}).length; return p;
   };
   /* Объединение по UUID: входящая запись с тем же id заменяет текущую только если новее (updatedAt/createdAt); иначе остаётся текущая. Дубликаты не создаются. */
-  R.mergeImport = function (current, incoming) {
+  R.mergeImport = function (current, incoming, incomingVersion) {
     const out = JSON.parse(JSON.stringify(current)); const stats = { added: 0, updated: 0, skipped: 0 };
     const newer = (a, b) => (b.updatedAt || b.createdAt || b.loggedAt || 0) > (a.updatedAt || a.createdAt || a.loggedAt || 0);
     R.COLLECTIONS.forEach(c => {
       out[c] = out[c] || []; const idx = new Map(out[c].map((x, i) => [x.id, i]));
-      (incoming[c] || []).forEach(x => { if (!x || !x.id) return; if (idx.has(x.id)) { const cur = out[c][idx.get(x.id)]; if (newer(cur, x)) { out[c][idx.get(x.id)] = x; stats.updated++; } else stats.skipped++; } else { out[c].push(x); idx.set(x.id, out[c].length - 1); stats.added++; } });
+      (Array.isArray(incoming[c]) ? incoming[c] : []).forEach(x => { if (!x || !x.id) return; if (idx.has(x.id)) { const cur = out[c][idx.get(x.id)]; if (newer(cur, x)) { out[c][idx.get(x.id)] = x; stats.updated++; } else stats.skipped++; } else { out[c].push(x); idx.set(x.id, out[c].length - 1); stats.added++; } });
     });
     out.checkins = R.normalizeCheckins(out.checkins || {});
     Object.entries(R.normalizeCheckins(incoming.checkins || {})).forEach(([k, c]) => { if (!out.checkins[k]) { out.checkins[k] = c; stats.added++; } else { const cur = out.checkins[k]; const m = Object.assign({}, cur); if (c.morning && (!cur.morning || (c.morning.at || 0) > (cur.morning.at || 0))) m.morning = c.morning; if (c.evening && (!cur.evening || (c.evening.at || 0) > (cur.evening.at || 0))) m.evening = c.evening; if (c.help) m.help = [...(cur.help || []), ...c.help.filter(h => !(cur.help || []).some(x => x.at === h.at))]; out.checkins[k] = m; stats.updated++; } });
     out.research = out.research || {};
     Object.entries(incoming.research || {}).forEach(([pid, r]) => { if (!out.research[pid]) { out.research[pid] = r; stats.added++; } else { const cur = out.research[pid]; cur.modules = cur.modules || {}; Object.entries(r.modules || {}).forEach(([mid, m]) => { if (!cur.modules[mid] || (m.doneAt || 0) > (cur.modules[mid].doneAt || 0)) cur.modules[mid] = m; }); } });
     if (incoming.profile && !out.profile) out.profile = incoming.profile;
+    /* Файлы прежних схем: действиям восстанавливается навык (помечается backfilled), разрешениям — происхождение migrated. */
+    const iv = Number(incomingVersion) || R.SCHEMA_VERSION;
+    if (iv < 3) R.backfillEvidence(out);
+    if (iv < 4) R.markMigratedPermissions(out.patterns);
     return { data: out, stats };
   };
 
