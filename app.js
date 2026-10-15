@@ -31,9 +31,11 @@
   async function flushAll() { try { await ST.replaceAll(D); banner(""); savedFlash(); } catch (e) { saveError(e); } }
 
   /* ---------- сохранение сущностей ---------- */
-  async function put(store, obj) { try { await ST.put(store, obj); savedFlash(); if ($("#retrySave")) banner(""); return true; } catch (e) { saveError(e); return false; } }
+  let failCount = 0; /* счётчик неудачных записей: поток вопросов не удаляет черновик, если во время завершения была ошибка */
+  /* Сообщение об ошибке снимается только после успешного повтора («Повторить»), а не любой следующей удачной записью. */
+  async function put(store, obj, silent) { try { await ST.put(store, obj); if (!silent) savedFlash(); return true; } catch (e) { failCount++; saveError(e); return false; } }
   const upsert = (arr, obj) => { const i = arr.findIndex(x => x.id === obj.id); if (i >= 0) arr[i] = obj; else arr.push(obj); };
-  async function saveProfile() { D.profile = P; return put("kv", { key: "profile", value: P }); }
+  async function saveProfile(silent) { D.profile = P; return put("kv", { key: "profile", value: P }, silent); }
   async function saveMeta() { return put("kv", { key: "meta", value: D.meta }); }
   async function savePattern(p) { p.updatedAt = nowTs(); upsert(D.patterns, p); return put("patterns", p); }
   async function saveEpisode(e) { e.updatedAt = nowTs(); upsert(D.episodes, e); return put("episodes", e); }
@@ -41,9 +43,11 @@
   async function saveExp(x) { x.updatedAt = nowTs(); upsert(D.experiments, x); return put("experiments", x); }
   async function saveReview(r) { upsert(D.reviews, r); return put("reviews", r); }
   async function saveFlag(f) { upsert(D.flags, f); return put("flags", f); }
-  async function saveCheckin(c) { D.checkins[c.dateKey] = c; return put("checkins", c); }
+  async function saveCheckin(c) { if (!c.id) c.id = R.checkinId(c.dateKey, c.patternId); D.checkins[c.id] = c; return put("checkins", c); }
   async function saveResearch(r) { D.research[r.patternId] = r; return put("research", r); }
-  const checkin = k => D.checkins[k] || { dateKey: k, tz: R.tz() };
+  /* Запись дня принадлежит сюжету: ключ «дата|сюжет». Без сюжета (помощь) — «дата|-». */
+  const checkin = (k, p) => { const pid = p ? p.id : null; return D.checkins[R.checkinId(k, pid)] || { id: R.checkinId(k, pid), dateKey: k, patternId: pid, tz: R.tz() }; };
+  const checkinOf = (k, p) => D.checkins[R.checkinId(k, p ? p.id : null)] || null;
 
   /* ---------- доступ к данным ---------- */
   const activePattern = () => D.patterns.find(p => p.status === "active") || D.patterns.find(p => p.status === "observe") || null;
@@ -56,8 +60,13 @@
   const packOf = p => p && p.packId ? C.packs.find(x => x.id === p.packId) : null;
   const flagsReal = () => D.flags.filter(f => !f.legacy);
   const policy = () => Object.assign({}, R.DEFAULT_POLICY, C.progressPolicy || {});
-  function eligibility(p) { return R.flagEligibility({ pattern: p, checkins: D.checkins, episodes: D.episodes, todayKey: today(), policy: policy(), experiment: expOf(p) }); }
   function skillOfPattern(p) { const x = expOf(p); return (x && x.skillId) || (p && p.skillId) || null; }
+  function eligibility(p) { return R.flagEligibility({ pattern: p, checkins: D.checkins, episodes: D.episodes, todayKey: today(), policy: policy(), experiment: expOf(p), skillId: skillOfPattern(p) }); }
+  /* Метка доказательства: навык и версия плана в момент записи. Смена навыка потом не переименовывает историю. */
+  function evidenceTag(p) { const x = expOf(p); return { skillId: (x && x.skillId) || (p && p.skillId) || null, experimentId: x ? x.id : null, planVersion: x ? x.version : null }; }
+  /* Разрешение из пакета не затирает формулировку пользователя; источник запоминается для пересмотра при смене объяснения. */
+  function setPermissionFromPack(p, text, hypId) { const ps = p.permissionSource; if (!text) return; if (!p.permission || !ps || ps.origin !== "user") { p.permission = text; p.permissionSource = { origin: "pack", hypothesisVersionId: hypId || null }; } }
+  function setPermissionByUser(p, text) { p.permission = text; p.permissionSource = { origin: "user", hypothesisVersionId: p.hypothesisVersionId || null }; }
   function hasFlag(p) { return flagsReal().some(f => f.patternId === p.id && f.skillId === skillOfPattern(p)); }
   function planText(p) { const x = expOf(p); return x ? (x.action || "") : (p && p.firstPlan ? p.firstPlan.text : ""); }
   function ifThen(p) { const x = expOf(p); const it = (x && x.ifThen) || (p && p.firstPlan ? { signal: p.firstPlan.signal, action: p.firstPlan.action } : null); return it ? `Если ${lc1(it.signal)}, то ${lc1(it.action)}.` : ""; }
@@ -72,7 +81,7 @@
 
   /* ---------- тропа ---------- */
   function trailHTML(p) {
-    const steps = R.practiceDays(D.checkins).filter(k => !D.checkins[k].legacy).length;
+    const steps = R.practiceDays(D.checkins).length;
     const cl = R.clarity(D.flags, TOTAL_SKILLS), rating = R.lastRating({ checkins: D.checkins, episodes: D.episodes });
     const elig = p && p.startDate ? eligibility(p) : null;
     const wk = p && p.startDate ? Math.min(1, (R.daysSince(p.startDate, today()) + 1) / 21) : 0;
@@ -86,15 +95,54 @@
       <div id="trailpop"></div></div>`;
   }
 
-  /* ---------- универсальный поток вопросов с черновиками ---------- */
-  function flow({ id, steps, title, onDone, onCancel, cancelLabel }) {
+  /* ---------- универсальный поток вопросов с черновиками ----------
+     Ключ черновика: сценарий | сюжет | версия схемы. Текст, шкалы и «своё» сохраняются по вводу (с задержкой) и сразу при переходах.
+     Черновик удаляется только после успешного завершения; при ошибке хранилища остаётся для повторной записи.
+     Устаревший черновик (старше 36 часов) не теряется молча: предлагается продолжить или начать заново. */
+  const DRAFT_V = 2, DRAFT_STALE_MS = 36 * 3600e3;
+  const draftKey = (id, scope) => `${id}|${scope || "-"}|${DRAFT_V}`;
+  const hasDraft = (id, scope) => !!(P.drafts && P.drafts[draftKey(id, scope)]);
+  const dropDraft = (id, scope) => { if (P.drafts) delete P.drafts[draftKey(id, scope)]; };
+  let flowFlush = null;
+  document.addEventListener("visibilitychange", () => { if (document.hidden && flowFlush) flowFlush(); });
+  window.addEventListener("pagehide", () => { if (flowFlush) flowFlush(); });
+  function flow({ id, scope, steps, title, onDone, onCancel, cancelLabel }) {
     P.drafts = P.drafts || {};
-    let dr = P.drafts[id] || { i: 0, ans: {} }; if (dr.at && nowTs() - dr.at > 36 * 3600e3) dr = { i: 0, ans: {} }; let i = dr.i || 0; const ans = dr.ans || {};
+    const key = draftKey(id, scope), saved = P.drafts[key];
+    if (saved && saved.at && nowTs() - saved.at > DRAFT_STALE_MS && Object.keys(saved.ans || {}).length) {
+      app.innerHTML = `<h1 class="q">Есть незаконченная запись</h1><p class="muted">${esc(title || "Запись")} · начата ${esc(R.human(R.dateKey(saved.at)))}. Продолжить с того места или начать заново?</p>
+        <div class="row"><button class="btn block" id="cont">Продолжить</button></div><div class="row tight"><button class="btn ghost" id="restart">Начать заново</button>${onCancel ? `<button class="btn ghost" id="cancel">${esc(cancelLabel || "Позже")}</button>` : ""}</div>`;
+      $("#cont").onclick = () => { saved.at = nowTs(); saveProfile(true); flowRun({ id, key, steps, title, onDone, onCancel, cancelLabel }, saved); };
+      $("#restart").onclick = () => { delete P.drafts[key]; saveProfile(true); flowRun({ id, key, steps, title, onDone, onCancel, cancelLabel }, null); };
+      const cn = $("#cancel"); if (cn) cn.onclick = () => onCancel();
+      return;
+    }
+    flowRun({ id, key, steps, title, onDone, onCancel, cancelLabel }, saved);
+  }
+  function flowRun({ id, key, steps, title, onDone, onCancel, cancelLabel }, dr) {
+    let i = (dr && dr.i) || 0; const ans = (dr && dr.ans) || {};
     const visible = () => steps.filter(s => !(s.skip && s.skip(ans)));
-    const saveDraft = () => { P.drafts[id] = { i, ans, at: nowTs() }; saveProfile(); };
+    let timer = null, curStep = null;
+    const alive = () => app.dataset.flow === key;
+    const persist = () => { P.drafts[key] = { i, ans, at: nowTs() }; return saveProfile(true); };
+    /* Снимает текущие значения полей без проверки, чтобы ничего не потерять при уходе. Только пока на экране этот поток. */
+    const collect = s => {
+      if (!s || !alive()) return;
+      if (s.type === "text") { const a = $("#a"); if (a) { const v = a.value.trim(); if (v) ans[s.k] = v; else if (ans[s.k] != null) delete ans[s.k]; } }
+      if ((s.type === "choice" || s.type === "multi") && s.own) { const own = $("#own"); if (own) { const v = own.value.trim(); if (v) ans[s.k + "_own"] = v; } }
+    };
+    const saveDraft = () => { clearTimeout(timer); collect(curStep); return persist(); };
+    const later = () => { clearTimeout(timer); timer = setTimeout(() => { if (!alive()) return; collect(curStep); persist(); }, 400); };
+    flowFlush = () => { clearTimeout(timer); if (!alive() || !curStep) return; collect(curStep); P.drafts[key] = { i, ans, at: nowTs() }; saveProfile(true); };
+    const finish = async () => {
+      clearTimeout(timer); flowFlush = null;
+      const f0 = failCount; let threw = false;
+      try { await onDone(ans); } catch (e) { threw = true; saveError(e); }
+      if (!threw && failCount === f0) { delete P.drafts[key]; saveProfile(true); } else { P.drafts[key] = { i, ans, at: nowTs() }; saveProfile(true); }
+    };
     const render = () => {
       const vis = visible(); if (i >= vis.length) i = vis.length - 1; if (i < 0) i = 0;
-      const s = vis[i]; const q = typeof s.q === "function" ? s.q(ans) : s.q, lead = typeof s.lead === "function" ? s.lead(ans) : s.lead;
+      const s = vis[i]; curStep = s; const q = typeof s.q === "function" ? s.q(ans) : s.q, lead = typeof s.lead === "function" ? s.lead(ans) : s.lead;
       const opts = (typeof s.opts === "function" ? s.opts(ans) : s.opts || []).map(o => Array.isArray(o) ? o : [o, o]);
       let body = "";
       const cur = ans[s.k];
@@ -109,36 +157,38 @@
         body = `<div class="range-val" id="scv">${cur == null && s.optional ? "—" : v}</div><input type="range" id="sc" min="0" max="10" step="1" value="${v}" aria-label="${esc(q)}"><div class="range-hint"><span>${esc(s.lo || "0")}</span><span>${esc(s.hi || "10")}</span></div>`;
       } else if (s.type === "info") body = s.html ? (typeof s.html === "function" ? s.html(ans) : s.html) : "";
       const last = i === vis.length - 1;
+      app.dataset.flow = key;
       app.innerHTML = `${title ? `<p class="tiny" style="margin:0 0 4px">${esc(title)}</p>` : ""}<div class="progress"><i style="width:${((i + (s.type === "info" ? 1 : 0)) / vis.length * 100).toFixed(0)}%"></i></div>
         ${lead ? `<p class="muted small" style="margin-bottom:6px">${esc(lead)}</p>` : ""}<h1 class="q">${esc(q)}</h1>${body}
         ${s.hint ? `<p class="hint">${esc(typeof s.hint === "function" ? s.hint(ans) : s.hint)}</p>` : ""}<div id="flag"></div>
         <div class="row"><button class="btn block" id="next">${s.nextLabel || (last ? "Готово" : "Дальше")}</button></div>
         <div class="row tight">${i > 0 ? `<button class="btn ghost" id="back">Назад</button>` : ""}${s.optional && s.type !== "info" ? `<button class="btn ghost" id="skipq">Пропустить</button>` : ""}${onCancel ? `<button class="btn ghost" id="cancel">${esc(cancelLabel || "Позже")}</button>` : ""}</div>`;
       const own = $("#own"), a = $("#a");
-      if (a) a.focus();
+      if (a) { a.focus(); a.oninput = later; }
+      if (own) own.oninput = later;
       $$("#ch .chip").forEach(b => b.onclick = () => {
         const v = b.dataset.v;
         if (s.type === "choice") {
           ans[s.k] = v; $$("#ch .chip").forEach(x => x.classList.toggle("on", x === b));
           if (own) { own.style.display = v === "__own" ? "block" : "none"; if (v === "__own") own.focus(); }
           if (s.note) $("#flag").innerHTML = s.note(ans) || "";
-          if (v !== "__own" && !s.noAuto) { saveDraft(); setTimeout(() => advance(), 120); }
-        } else { const arr = ans[s.k] = ans[s.k] || []; const ix = arr.indexOf(v); if (ix >= 0) arr.splice(ix, 1); else arr.push(v); b.classList.toggle("on"); if (own) own.style.display = arr.includes("__own") ? "block" : "none"; }
+          if (v !== "__own" && !s.noAuto) { saveDraft(); setTimeout(() => advance(), 120); } else later();
+        } else { const arr = ans[s.k] = ans[s.k] || []; const ix = arr.indexOf(v); if (ix >= 0) arr.splice(ix, 1); else arr.push(v); b.classList.toggle("on"); if (own) own.style.display = arr.includes("__own") ? "block" : "none"; later(); }
       });
-      $$("#tg .chip").forEach(b => b.onclick = () => { if (a) { a.value = a.value.trim() ? a.value.trim() + ". " + b.dataset.v : b.dataset.v; a.focus(); } });
-      const sc = $("#sc"); if (sc) sc.oninput = () => { $("#scv").textContent = sc.value; ans[s.k] = Number(sc.value); };
+      $$("#tg .chip").forEach(b => b.onclick = () => { if (a) { a.value = a.value.trim() ? a.value.trim() + ". " + b.dataset.v : b.dataset.v; a.focus(); later(); } });
+      const sc = $("#sc"); if (sc) sc.oninput = () => { $("#scv").textContent = sc.value; ans[s.k] = Number(sc.value); later(); };
       const advance = () => {
         if (s.type === "choice") { if (!ans[s.k] && !s.optional) return toast("Выбери вариант"); if (ans[s.k] === "__own") { const v = own.value.trim(); if (!v) return toast("Напиши своё"); ans[s.k + "_own"] = v; } }
         if (s.type === "multi") { const arr = ans[s.k] || []; if (arr.includes("__own")) { const v = own.value.trim(); if (!v) return toast("Напиши своё"); ans[s.k + "_own"] = v; } if (!arr.length && !s.optional) return toast("Отметь хотя бы одно"); }
         if (s.type === "text") { const v = a.value.trim(); if (!v && !s.optional) return toast(s.req || "Напиши хотя бы пару слов"); ans[s.k] = v; }
         if (s.type === "scale") { if (ans[s.k] == null) ans[s.k] = Number($("#sc").value); }
         if (s.validate) { const m = s.validate(ans); if (m) { $("#flag").innerHTML = `<div class="nudge">${esc(m)}</div>`; return; } }
-        if (i >= visible().length - 1) { delete P.drafts[id]; saveProfile(); onDone(ans); } else { i++; saveDraft(); render(); window.scrollTo(0, 0); }
+        if (i >= visible().length - 1) { clearTimeout(timer); finish(); } else { i++; saveDraft(); render(); window.scrollTo(0, 0); }
       };
       $("#next").onclick = advance;
-      const sk = $("#skipq"); if (sk) sk.onclick = () => { delete ans[s.k]; if (i >= visible().length - 1) { delete P.drafts[id]; saveProfile(); onDone(ans); } else { i++; saveDraft(); render(); } };
-      const bk = $("#back"); if (bk) bk.onclick = () => { i--; saveDraft(); render(); };
-      const cn = $("#cancel"); if (cn) cn.onclick = () => { saveDraft(); onCancel(); };
+      const sk = $("#skipq"); if (sk) sk.onclick = () => { delete ans[s.k]; if (i >= visible().length - 1) { clearTimeout(timer); finish(); } else { i++; saveDraft(); render(); } };
+      const bk = $("#back"); if (bk) bk.onclick = () => { collect(s); i--; saveDraft(); render(); };
+      const cn = $("#cancel"); if (cn) cn.onclick = () => { saveDraft(); flowFlush = null; onCancel(); };
     };
     render();
   }
@@ -149,6 +199,7 @@
   const go = h => { if (location.hash === "#" + h) route(); else location.hash = h; };
   function route() {
     if (!D) return;
+    if (flowFlush) { flowFlush(); flowFlush = null; } app.dataset.flow = "";
     applyTheme();
     let [h, arg] = (location.hash || "#today").slice(1).split("/");
     const p = anyPattern();
@@ -204,7 +255,7 @@
       { k: "response", q: "Что ты обычно делаешь в такой момент?", type: "choice", opts: X.habitualResponses.filter(x => x !== "Другое" && x !== "Не знаю"), own: true, unknown: true },
       ...(existing ? [] : [{ k: "plan", q: "Первый шаг на сегодня", lead: "Без причины и диагноза. Просто то, что ты попробуешь, когда заденет снова.", type: "choice", opts: X.firstPlans.map(f => [f.id, f.text]), noAuto: true }]),
     ];
-    flow({ id: "new", steps, title: existing ? "Новый случай" : "Первый случай", onCancel: () => go(existing ? "today" : "entry"), cancelLabel: "Позже",
+    flow({ id: "new", scope: existing ? existing.id : "first", steps, title: existing ? "Новый случай" : "Первый случай", onCancel: () => go(existing ? "today" : "entry"), cancelLabel: "Позже",
       onDone: async ans => {
         const ts = nowTs(), k = today();
         let p = existing;
@@ -273,7 +324,7 @@
       $$(".chip").forEach(b => b.onclick = async () => {
         const v = b.dataset.v;
         if (v === "unknown") return observeMode(card);
-        P.drafts.cardPick = { text: card.text, packId: card.packId, when: v }; delete P.drafts.cards; delete P.drafts.new; await saveProfile(); go("new");
+        P.drafts.cardPick = { text: card.text, packId: card.packId, when: v }; delete P.drafts.cards; dropDraft("new", "first"); const ap = activePattern(); if (ap) dropDraft("new", ap.id); await saveProfile(); go("new");
       });
     };
     const observeMode = async (card) => {
@@ -286,10 +337,10 @@
 
   /* =================== СЕГОДНЯ =================== */
   function todayScreen() {
-    const p = anyPattern(), k = today(), ph = phase(), c = checkin(k);
+    const p = anyPattern(), k = today(), ph = phase(), c = checkin(k, p);
     const title = p ? (p.status === "observe" ? "Наблюдаю" : p.title) : "Начало";
     let sub = "";
-    if (p && p.startDate) { const d = R.daysSince(p.startDate, k) + 1, w = R.weekIndex(p.startDate, k) + 1; const h = hypOf(p); const elig = eligibility(p); sub = `день ${d} · неделя ${w} · ${R.workPhase({ hypothesis: h, experiment: expOf(p), confirmedActionDays: R.confirmedActionDays(D.episodes, D.checkins, p.id).size, eligible: elig.eligible })}`; }
+    if (p && p.startDate) { const d = R.daysSince(p.startDate, k) + 1, w = R.weekIndex(p.startDate, k) + 1; const h = hypOf(p); const elig = eligibility(p); sub = `день ${d} · неделя ${w} · ${R.workPhase({ hypothesis: h, experiment: expOf(p), confirmedActionDays: R.confirmedActionDays({ episodes: D.episodes, checkins: D.checkins, patternId: p.id, skillId: skillOfPattern(p) }).size, eligible: elig.eligible })}`; }
     else if (p) sub = "режим наблюдения";
     hero.innerHTML = `<div class="hero"><div class="hl">${ic(phaseIc(), "")}${R.fmtTime(nowTs())} · ${PHASE_TXT[ph]}</div><div class="hd">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ""}</div>`;
     let main = "", extra = "";
@@ -302,8 +353,9 @@
       main = `<div class="card mark"><div class="k">${ic("eye")}Следующий шаг</div><p style="margin:2px 0 8px">${p ? "Запиши ближайший реальный случай — с него начнётся неделя." : "Начни с одного случая или посмотри карточки."}</p><div class="row tight">${p ? `<a class="btn block" href="#new">Записать случай</a>` : `<a class="btn block" href="#entry">Начать</a>`}</div></div>`;
     } else {
       const elig = eligibility(p), due = R.reviewDue(p.startDate, k, D.reviews.filter(r => r.patternId === p.id));
-      const yOpen = R.eveningCloseable(yesterday(), k) && D.checkins[yesterday()] && !D.checkins[yesterday()].evening && (p.startDate && R.diffDays(p.startDate, yesterday()) >= 0);
-      const yAny = p.startDate && R.diffDays(p.startDate, yesterday()) >= 0 && !(D.checkins[yesterday()] && D.checkins[yesterday()].evening);
+      const cy = checkinOf(yesterday(), p);
+      const yOpen = R.eveningCloseable(yesterday(), k) && cy && !cy.evening && (p.startDate && R.diffDays(p.startDate, yesterday()) >= 0);
+      const yAny = p.startDate && R.diffDays(p.startDate, yesterday()) >= 0 && !(cy && cy.evening);
       if (elig.eligible && !hasFlag(p)) main = `<div class="card mark"><div class="k">${ic("flag")}Проверка навыка</div><p style="margin:2px 0 8px">Две недели подряд записи показывают устойчивый ответ. Проверим вместе, что это выбранный навык, а не терпение.</p><a class="btn block" href="#flag">Проверить</a></div>`;
       else if (due && (R.diffDays(due.end, k) > 0 || ph === "evening" || c.evening)) main = `<div class="card mark"><div class="k">${ic("hourglass")}Итог недели</div><p style="margin:2px 0 8px">Неделя ${due.idx + 1} закончилась ${esc(R.human(due.end))}. Посмотрим, что было, и решим, что дальше.</p><a class="btn block" href="#review">Подвести итог</a></div>`;
       else if (ph === "night") main = yAny ? `<div class="card mark"><div class="k">${ic("moon")}Вчерашний вечер</div><p style="margin:2px 0 8px">Итог за ${esc(R.human(yesterday()))} ещё открыт. Полминуты.</p><a class="btn block" href="#evening/${yesterday()}">Закрыть вчерашний вечер</a></div>` : `<div class="card"><div class="k">${ic("moon")}Ночь</div><p style="margin:2px 0 0" class="small">Утром здесь появится твой шаг. Если заденет ночью — кнопки ниже работают всегда.</p></div>`;
@@ -333,7 +385,7 @@
   /* =================== УТРО =================== */
   function morning() {
     const p = activePattern(); if (!p || p.status !== "active") return go("today");
-    const k = today(), c = checkin(k), x = expOf(p);
+    const k = today(), c = checkin(k, p), x = expOf(p);
     if (c.morning) { app.innerHTML = `<h1>Шаг уже с тобой</h1><p class="quote">${esc(planText(p))}</p><div class="row"><a class="btn block" href="#today">На главную</a></div>`; return; }
     app.innerHTML = `<p class="tiny" style="margin:0 0 4px">Утро · ${esc(R.human(k))}</p><h1 class="q">Сегодня даю себе право…</h1>
       <div class="card mark"><p class="quote" style="margin:0 0 6px">${esc(permissionText(p) || "замечать момент и выбирать ответ")}</p>${ifThen(p) ? `<p style="margin:0"><b>${esc(ifThen(p))}</b></p>` : `<p style="margin:0"><b>${esc(planText(p))}</b></p>`}</div>
@@ -368,7 +420,7 @@
       { k: "emotion", q: "Что чувствуешь?", lead: C.emotions.instruction, type: "choice", opts: EMOTIONS.filter(e => e !== "Другое" && e !== "Не знаю"), own: true, unknown: true },
       { k: "intensity", q: C.daily.eventIntensityScale.label, type: "scale", lo: "0, совсем нет", hi: "10, очень", def: 5 },
     ];
-    flow({ id: "event", steps, title: "Зацепило", onCancel: () => go("today"),
+    flow({ id: "event", scope: p ? p.id : null, steps, title: "Зацепило", onCancel: () => go("today"),
       onDone: async ans => {
         const ts = nowTs(); const rel = ans.relation || (p ? "unknown" : "none");
         const link = !p ? "none" : rel === "same" ? "confirmed" : rel === "other" ? "queued" : "unconfirmed";
@@ -404,7 +456,7 @@
       { k: "sensation", q: "Какое это ощущение?", type: "choice", opts: C.bodyObservation.sensations.filter(x => x !== "Другое" && x !== "Не знаю"), own: true, unknown: true, optional: true, skip: a => !(a.body || []).length || (a.body || []).some(x => /ничего|не хочу/i.test(x)) },
       { k: "response", q: "Что ты сделал?", type: "choice", opts: X.habitualResponses.filter(x => x !== "Другое" && x !== "Не знаю"), own: true, unknown: true, optional: true },
     ];
-    flow({ id: "detail-" + id, steps, title: "Детали случая", onCancel: () => go("today"),
+    flow({ id: "detail-" + id, scope: e.patternId, steps, title: "Детали случая", onCancel: () => go("today"),
       onDone: async ans => {
         if (ans.event) e.event = ans.event; if (val(ans, "thought")) e.thought = val(ans, "thought"); if ((ans.body || []).length) e.body = { locations: vals(ans, "body"), sensation: val(ans, "sensation") || null }; if (val(ans, "response")) e.response = val(ans, "response");
         e.verificationStatus = "detailed"; await saveEpisode(e); toast("Детали добавлены"); go("today");
@@ -430,14 +482,14 @@
       ...(todays.length ? [{ k: "link", q: "К какому случаю это относится?", type: "choice", opts: [...todays.map(e => [e.id, `${R.fmtTime(e.loggedAt)} · ${e.emotion || "случай"} · ${e.intensity}/10${e.event ? " · " + e.event.slice(0, 40) : ""}`]), ["new", "Отдельная запись"]] }] : []),
       { k: "rehearsal", q: "Это был реальный повод или репетиция?", lead: "Репетиция полезна, но реальным контактом не считается.", type: "choice", opts: [["real", "Реальный повод"], ["rehearsal", "Репетиция"]] },
     ];
-    flow({ id: "action", steps, title: "Сделал по-новому", onCancel: () => go("today"),
+    flow({ id: "action", scope: p ? p.id : null, steps, title: "Сделал по-новому", onCancel: () => go("today"),
       onDone: async ans => {
-        const ts = nowTs(); const nr = { type: ans.type, chosen: ans.type === "pause" ? ans.chosen : null, note: ans.note || "", at: ts };
+        const ts = nowTs(); const nr = Object.assign({ type: ans.type, chosen: ans.type === "pause" ? ans.chosen : null, note: ans.note || "", at: ts }, evidenceTag(p));
         let e = ans.link && ans.link !== "new" ? D.episodes.find(x => x.id === ans.link) : null;
         if (!e) e = { id: R.uuid(), patternId: p ? p.id : null, linkStatus: p ? "confirmed" : "none", occurredAt: ts, loggedAt: ts, dateKey: k, tz: R.tz(), event: "", emotion: null, intensity: null, verificationStatus: "quick", legacy: false };
         e.newResponse = nr; e.isRehearsal = ans.rehearsal === "rehearsal";
         await saveEpisode(e);
-        const ok = R.isConfirmedAction(e);
+        const ok = R.isConfirmedAction(e, nr.skillId);
         app.innerHTML = `<h1>${ok ? "Отмечено" : "Записано"}</h1><p>${ok ? "Ты выбрал ответ. Оценка состояния не меняется сама — вечером спросим, как сейчас." : nr.chosen === "scared" ? "Честная запись. Страх сказать — не провал, а то, с чем работаем." : "Репетиция записана отдельно от реальных случаев."}</p>
           ${ok ? `<div class="trail" style="height:110px"><img src="${IMG("traveler")}" alt=""><i class="veil" style="opacity:.25"></i><div class="pop">освободил место</div></div>` : ""}
           <div class="row"><a class="btn block" href="#today">На главную</a></div>`;
@@ -447,33 +499,42 @@
   /* =================== ВЕЧЕР =================== */
   function evening(arg) {
     const p = activePattern(); if (!p || p.status !== "active") return go("today");
-    const k = arg && R.isKey(arg) ? arg : (phase() === "night" && R.eveningCloseable(yesterday(), today()) && !(D.checkins[yesterday()] && D.checkins[yesterday()].evening) ? yesterday() : today());
+    const cy = checkinOf(yesterday(), p);
+    const k = arg && R.isKey(arg) ? arg : (phase() === "night" && R.eveningCloseable(yesterday(), today()) && !(cy && cy.evening) ? yesterday() : today());
     if (!R.eveningCloseable(k, today())) { app.innerHTML = `<h1>Этот вечер уже закрыт для записи</h1><p class="muted">Вечер можно закрыть в тот же день или до конца следующего.</p><div class="row"><a class="btn block" href="#today">На главную</a></div>`; return; }
-    const c = checkin(k), late = R.isLate(k, today());
+    const c = checkin(k, p), late = R.isLate(k, today());
     if (c.evening) { app.innerHTML = `<h1>Вечер ${esc(R.human(k))} закрыт</h1><div class="row"><a class="btn block" href="#today">На главную</a></div>`; return; }
-    const eps = episodesOn(k, p), acts = eps.filter(e => e.newResponse), x = expOf(p), rs = R.researchState(researchOf(p), today(), deepToday);
-    const actLbl = acts.length ? actionLabel(acts[acts.length - 1].newResponse) : "";
-    let quick = false;
-    const steps = [
-      { k: "opp", q: "Был сегодня повод потренироваться?", lead: late ? `Вечер за ${R.human(k)} — запись помечена как поздняя.` : (eps.length ? `Записано случаев: ${eps.length}.` : ""), type: "choice", opts: [["yes", C.daily.opportunity[0]], ["no", C.daily.opportunity[1]], ["unsure", C.daily.opportunity[2]]] },
-      { k: "act", q: "Выбранное действие получилось?", lead: acts.length ? `Уже записано: ${actLbl}. Подтверди одним касанием.` : `Твой шаг: «${planText(p)}».`, type: "choice", opts: [["done", C.daily.actionResult[0]], ["partial", C.daily.actionResult[1]], ["not", C.daily.actionResult[2]], ["other", C.daily.actionResult[3]]], skip: a => a.opp !== "yes" },
+    const eps = episodesOn(k, p), acts = eps.filter(e => e.newResponse), real = acts.filter(e => !e.isRehearsal), reh = acts.filter(e => e.isRehearsal), x = expOf(p), rs = R.researchState(researchOf(p), today(), deepToday);
+    const actLbl = real.length ? actionLabel(real[real.length - 1].newResponse) : "";
+    const dayHint = acts.length ? `Сегодня записано: ${real.length ? `${real.length} ${R.plural(real.length, "реальный случай", "реальных случая", "реальных случаев")}` : "реальных случаев нет"}${reh.length ? `, ${reh.length} ${R.plural(reh.length, "репетиция", "репетиции", "репетиций")} (репетиция поводом не считается)` : ""}.` : "";
+    const titleTxt = `${late ? "Поздний вечер" : "Вечер"} · ${R.human(k)}`;
+    const stepsFull = [
+      { k: "opp", q: "Был сегодня повод потренироваться?", lead: late ? `Вечер за ${R.human(k)} — запись помечена как поздняя.` : (dayHint || (eps.length ? `Записано случаев: ${eps.length}.` : "")), type: "choice", opts: [["yes", C.daily.opportunity[0]], ["no", C.daily.opportunity[1]], ["unsure", C.daily.opportunity[2]]] },
+      { k: "act", q: "Выбранное действие получилось?", lead: real.length ? `Уже записано: ${actLbl}. Подтверди одним касанием.` : `Твой шаг: «${planText(p)}».`, type: "choice", opts: [["done", C.daily.actionResult[0]], ["partial", C.daily.actionResult[1]], ["not", C.daily.actionResult[2]], ["other", C.daily.actionResult[3]]], skip: a => a.opp !== "yes" },
       { k: "outcome", q: "Что случилось на самом деле?", lead: a => `Ты ожидал: «${x.prediction}».`, type: "choice", opts: [["confirmed", "Ожидание подтвердилось"], ["partial", "Отчасти"], ["not", "Не подтвердилось"], ["insufficient", "Данных мало"]], skip: a => a.opp !== "yes" || !(x && x.prediction) || a.act === "not" },
       { k: "fit", q: "Объяснение подходило к сегодняшнему случаю?", lead: a => { const h = hypOf(p); return h ? `«${h.text}»` : ""; }, type: "choice", opts: [["yes", "Да, узнаю"], ["no", "Нет, здесь было другое"], ["unknown", "Не знаю"]], optional: true, skip: a => a.opp !== "yes" || !hypOf(p) || hypOf(p).branch === "unknown" },
       { k: "impact", q: C.daily.eveningImpactScale.label, lead: "Это отдельная шкала: не сила эмоции, а насколько она мешает сейчас.", type: "scale", lo: "0, легко", hi: "10, очень трудно", def: 3 },
       { k: "change", q: "Что заметил за день?", type: "choice", opts: [["better", C.daily.changeObservation[0]], ["same", C.daily.changeObservation[1]], ["worse", C.daily.changeObservation[2]], ["unknown", C.daily.changeObservation[3]]], optional: true },
     ];
-    const run = () => flow({ id: "evening-" + k, steps: quick ? steps.filter(s => s.k === "impact" || s.k === "act") : steps, title: `${late ? "Поздний вечер" : "Вечер"} · ${R.human(k)}`, onCancel: () => go("today"),
+    /* Короткий вечер: два вопроса. Первый фиксирует и повод, и действие; повод из дневных записей не выводится. */
+    const stepsQuick = [
+      { k: "oa", q: "Был повод и что получилось?", lead: dayHint || `Твой шаг: «${planText(p)}».`, type: "choice", opts: R.QUICK_EVENING.map(([v, l]) => [v, l]) },
+      { k: "impact", q: C.daily.eveningImpactScale.label, lead: "Не сила эмоции, а насколько она мешает сейчас.", type: "scale", lo: "0, легко", hi: "10, очень трудно", def: 3 },
+    ];
+    const run = quick => flow({ id: (quick ? "evening-quick-" : "evening-") + k, scope: p.id, steps: quick ? stepsQuick : stepsFull, title: titleTxt, onCancel: () => go("today"),
       onDone: async ans => {
-        c.patternId = p.id; c.evening = { at: nowTs(), late, quick, hadOpportunity: ans.opp || (quick ? (acts.length ? "yes" : null) : null), actionStatus: ans.act || null, currentImpact: ans.impact, change: ans.change || null, tz: R.tz(), enteredDate: today() };
-        if (ans.act === "done" && acts.length && !acts.some(e => R.isConfirmedAction(e))) { /* подтверждение ответа вечером */ }
+        const q = quick ? R.quickEvening(ans.oa) : { hadOpportunity: ans.opp || null, actionStatus: ans.act || null };
+        c.patternId = p.id; c.evening = Object.assign({ at: nowTs(), late, quick, hadOpportunity: q.hadOpportunity, actionStatus: q.actionStatus, currentImpact: ans.impact, change: ans.change || null, tz: R.tz(), enteredDate: today() }, evidenceTag(p));
         if (ans.fit && ans.fit !== "unknown") { const h = hypOf(p); const ep = eps[eps.length - 1]; if (h) { const key = ans.fit === "yes" ? "supportingEpisodeIds" : "contradictingEpisodeIds"; h[key] = [...new Set([...(h[key] || []), ep ? ep.id : "day-" + k])]; await saveHyp(h); } }
-        if (ans.outcome && x) { x.results = x.results || []; const ep = acts[acts.length - 1] || eps[eps.length - 1]; x.results.push({ episodeId: ep ? ep.id : null, dateKey: k, outcome: ans.outcome, at: nowTs() }); await saveExp(x); }
+        if (ans.outcome && x) { x.results = x.results || []; const ep = real[real.length - 1] || eps[eps.length - 1]; x.results.push({ episodeId: ep ? ep.id : null, dateKey: k, outcome: ans.outcome, at: nowTs() }); await saveExp(x); }
         await saveCheckin(c);
         eveningDone(p, c, rs);
       } });
-    app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${late ? "Поздний вечер" : "Вечер"} · ${esc(R.human(k))}</p><h1>Короткий итог дня</h1><p class="muted">Около минуты. Нет повода — тоже честный ответ.</p>
-      <div class="row"><button class="btn block" id="full">Начать</button></div><div class="row tight"><button class="btn ghost" id="quick">Короткий вечер · 20 секунд</button><a class="btn ghost" href="#today">Позже</a></div>`;
-    $("#full").onclick = run; $("#quick").onclick = () => { quick = true; run(); };
+    if (hasDraft("evening-" + k, p.id)) return run(false);
+    if (hasDraft("evening-quick-" + k, p.id)) return run(true);
+    app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(titleTxt)}</p><h1>Короткий итог дня</h1><p class="muted">Около минуты. Нет повода — тоже честный ответ.</p>
+      <div class="row"><button class="btn block" id="full">Начать</button></div><div class="row tight"><button class="btn ghost" id="quick">Короткий вечер · два вопроса</button><a class="btn ghost" href="#today">Позже</a></div>`;
+    $("#full").onclick = () => run(false); $("#quick").onclick = () => run(true);
   }
   function eveningDone(p, c, rs) {
     const canModule = rs.next && !rs.lockedToday && !c.evening.quick;
@@ -488,7 +549,7 @@
     const rs = R.researchState(researchOf(p), today(), deepToday), M = C.firstWeekModules.find(m => m.id === id);
     if (!M || id === "review") return go("review");
     const mods = researchOf(p).modules;
-    if (mods[id] && mods[id].status === "done" && !(P.drafts && P.drafts["mod-" + id])) { if (!confirmRedo) return go("story"); }
+    if (mods[id] && mods[id].status === "done" && !hasDraft("mod-" + id, p.id)) { if (!confirmRedo) return go("story"); }
     if (rs.lockedToday && rs.next === id) {
       app.innerHTML = `<h1 class="q">Сегодня шаг исследования уже был</h1><p class="muted">По умолчанию — один новый шаг в день: так понимание ложится спокойнее. Следующий откроется завтра.</p>
         <div class="row"><button class="btn block secondary" id="deep">Разобрать сейчас — углублённо</button></div><div class="row tight"><a class="btn ghost" href="#story">Вернуться</a></div>`;
@@ -498,13 +559,13 @@
     const done = async (answers, apply) => { await apply(); const r = researchOf(p); r.modules[id] = { status: "done", dateKey: today(), doneAt: nowTs(), answers }; await saveResearch(r); P.lastModule = id; await saveProfile(); go("story"); };
     const title = `Исследование · ${M.title}`;
     if (id === "meaning") {
-      flow({ id: "mod-meaning", title, onCancel: () => go("story"), steps: [
+      flow({ id: "mod-meaning", scope: p.id, title, onCancel: () => go("story"), steps: [
         { k: "thought", q: "В тот момент мне показалось…", lead: `Случай: «${lastEvent(p)}»`, type: "choice", opts: X.firstThoughts, own: true, unknown: true },
         { k: "kind", q: "Это наблюдение или моя версия?", lead: a => `«${val(a, "thought") === "unknown" ? "…" : val(a, "thought")}»`, type: "choice", opts: X.observationOrVersion, skip: a => a.thought === "unknown" },
       ], onDone: ans => done(ans, async () => { p.thought = val(ans, "thought") === "unknown" ? "" : val(ans, "thought"); p.thoughtKind = ans.kind || null; await savePattern(p); P.lastResult2 = M.resultCopy; }) });
     } else if (id === "need") {
       const packs = C.packs;
-      flow({ id: "mod-need", title, onCancel: () => go("story"), steps: [
+      flow({ id: "mod-need", scope: p.id, title, onCancel: () => go("story"), steps: [
         { k: "need", q: M.lead, lead: "Чего мне не хватило?", type: "choice", opts: X.needs.filter(x => x !== "Другое" && x !== "Не знаю"), own: true, unknown: true },
         { k: "pack", q: "На что это больше похоже?", lead: "Чтобы подобрать возможные объяснения.", type: "choice", opts: packs.map(pk => [pk.id, pk.title]), skip: () => !!p.packId },
         { k: "cands", q: "Какие объяснения похожи на правду?", lead: "Можно отметить до двух. Это версии, не диагноз.", type: "multi", opts: a => (packs.find(pk => pk.id === (p.packId || a.pack)) || packs[0]).hypotheses.filter(h => h.branch !== "unknown").map(h => [h.id, h.text]), validate: a => (a.cands || []).length > 2 ? "Оставь не больше двух — остальные проверим позже." : "", optional: true },
@@ -512,9 +573,9 @@
       ], onDone: ans => done(ans, async () => {
         p.need = val(ans, "need") === "unknown" ? "" : val(ans, "need"); if (!p.packId && ans.pack) p.packId = ans.pack;
         const pk = packOf(p) || packs[0]; const ts = nowTs();
-        const old = hypOf(p); if (old && old.status === "selected") { old.status = "revised"; await saveHyp(old); }
-        for (const cid of (ans.cands || [])) { const src = pk.hypotheses.find(h => h.id === cid); const hv = { id: R.uuid(), patternId: p.id, branch: src.branch, text: src.text, packHypothesisId: src.id, status: ans.sel === cid ? "selected" : "candidate", supportingEpisodeIds: ans.sel === cid ? episodesOf(p).filter(e => e.linkStatus === "confirmed").slice(-1).map(e => e.id) : [], contradictingEpisodeIds: [], createdAt: ts, version: D.hypotheses.filter(h => h.patternId === p.id).length + 1 }; await saveHyp(hv); if (ans.sel === cid) { p.hypothesisVersionId = hv.id; p.permission = p.permission || src.innerPermission; } }
-        if (!(ans.cands || []).length || ans.sel === "__none") { const src = pk.hypotheses.find(h => h.branch === "unknown"); const hv = { id: R.uuid(), patternId: p.id, branch: "unknown", text: src.text, packHypothesisId: src.id, status: "selected", supportingEpisodeIds: [], contradictingEpisodeIds: [], createdAt: ts, version: D.hypotheses.filter(h => h.patternId === p.id).length + 1 }; await saveHyp(hv); p.hypothesisVersionId = hv.id; }
+        const old = hypOf(p); if (old && (old.status === "selected" || old.status === "supported_by_user")) { old.status = "revised"; await saveHyp(old); }
+        for (const cid of (ans.cands || [])) { const src = pk.hypotheses.find(h => h.id === cid); const hv = { id: R.uuid(), patternId: p.id, branch: src.branch, text: src.text, packHypothesisId: src.id, status: ans.sel === cid ? "selected" : "candidate", supportingEpisodeIds: ans.sel === cid ? episodesOf(p).filter(e => e.linkStatus === "confirmed").slice(-1).map(e => e.id) : [], contradictingEpisodeIds: [], createdAt: ts, version: D.hypotheses.filter(h => h.patternId === p.id).length + 1 }; await saveHyp(hv); if (ans.sel === cid) { p.hypothesisVersionId = hv.id; setPermissionFromPack(p, src.innerPermission, hv.id); } }
+        if (!(ans.cands || []).length || ans.sel === "__none") { const src = pk.hypotheses.find(h => h.branch === "unknown"); const hv = { id: R.uuid(), patternId: p.id, branch: "unknown", text: src.text, packHypothesisId: src.id, status: "selected", supportingEpisodeIds: [], contradictingEpisodeIds: [], createdAt: ts, version: D.hypotheses.filter(h => h.patternId === p.id).length + 1 }; await saveHyp(hv); p.hypothesisVersionId = hv.id; setPermissionFromPack(p, src.innerPermission, hv.id); }
         await savePattern(p); P.lastResult2 = M.resultCopy;
       }) });
     } else if (id === "rule") {
@@ -536,21 +597,28 @@
         { k: "own2", q: "Есть конкретный случай?", type: "text", ph: "когда, с кем", optional: true, skip: a => a.alt !== "own_behavior" || a.own === "no" || a.own === "unknown" },
         { k: "obs", q: "Что можно просто заметить в следующем случае?", type: "text", ph: "например: что я чувствую в первую секунду", optional: true, skip: a => a.alt !== "unknown" },
       ];
-      flow({ id: "mod-rule", title, onCancel: () => go("story"), steps, onDone: ans => done(ans, async () => {
+      flow({ id: "mod-rule", scope: p.id, title, onCancel: () => go("story"), steps, onDone: ans => done(ans, async () => {
         const PERM = { boundary: "Я могу назвать нарушение и ограничить свой вклад", expectation: "Я могу проверить смысл, прежде чем делать вывод о себе", resource: "Я могу соотносить обязательства со своими силами", own_behavior: "Я могу менять свою часть, не оправдывая чужую", unknown: "Мне можно пока не знать" };
-        if (ans.alt === "rule") { p.rule = { ifAllow: ans.allow, fear: val(ans, "fear") }; p.permission = ans.perm; }
+        if (ans.alt === "rule") p.rule = { ifAllow: ans.allow, fear: val(ans, "fear") };
         if (ans.alt === "boundary") p.boundary = { unacceptable: ans.bnd, myStep: ans.bnd2 };
         if (ans.alt === "expectation") p.check = { facts: ans.fact, alt: ans.alt2 || "" };
         if (ans.alt === "resource") p.resource = { lack: val(ans, "res"), step: ans.res2 };
         if (ans.alt === "own_behavior") p.ownBehavior = { answer: ans.own, example: ans.own2 || "" };
-        if (ans.alt !== "rule") p.permission = p.permission || PERM[ans.alt];
-        if (h && ans.alt !== br && ans.alt !== "unknown" && ans.alt !== "own_behavior") { h.status = "revised"; await saveHyp(h); const pk = packOf(p); const src2 = pk ? pk.hypotheses.find(x => x.branch === ans.alt) : null; const TXT = { boundary: "Другой нарушает договорённость", resource: "Я беру на себя больше, чем сейчас могу", expectation: "Мой вывод о ситуации стоит проверить", rule: h.text }; const hv = { id: R.uuid(), patternId: p.id, branch: ans.alt, text: src2 ? src2.text : TXT[ans.alt], packHypothesisId: src2 ? src2.id : null, status: "selected", supportingEpisodeIds: h.supportingEpisodeIds || [], contradictingEpisodeIds: [], createdAt: nowTs(), version: (h.version || 1) + 1, note: "уточнено на шаге «Что я себе разрешаю»" }; await saveHyp(hv); p.hypothesisVersionId = hv.id; }
+        /* Любая смена направления — новая версия объяснения; прежняя помечается пересмотренной. «Пока не знаю» тоже версия: неопределённость видна. */
+        if (!h || ans.alt !== br) {
+          if (h && h.status !== "rejected") { h.status = "revised"; await saveHyp(h); }
+          const pk = packOf(p); const src2 = pk ? pk.hypotheses.find(x => x.branch === ans.alt) : null;
+          const TXT = { boundary: "Другой нарушает договорённость", resource: "Я беру на себя больше, чем сейчас могу", expectation: "Мой вывод о ситуации стоит проверить", rule: h ? h.text : "Моё внутреннее правило мешает выбрать ответ", own_behavior: "Похоже, я тоже иногда так поступаю", unknown: "Пока ни одно объяснение не подходит" };
+          const hv = { id: R.uuid(), patternId: p.id, branch: ans.alt, text: src2 ? src2.text : TXT[ans.alt], packHypothesisId: src2 ? src2.id : null, status: "selected", supportingEpisodeIds: h ? (h.supportingEpisodeIds || []) : [], contradictingEpisodeIds: [], createdAt: nowTs(), version: D.hypotheses.filter(v => v.patternId === p.id).length + 1, note: "уточнено на шаге «Что я себе разрешаю»" };
+          await saveHyp(hv); p.hypothesisVersionId = hv.id;
+        }
+        if (ans.alt === "rule") setPermissionByUser(p, ans.perm); else setPermissionFromPack(p, PERM[ans.alt], p.hypothesisVersionId);
         await savePattern(p); P.lastResult2 = M.resultCopy;
       }) });
     } else if (id === "experiment") {
       const h = hypOf(p), src = h && packOf(p) ? packOf(p).hypotheses.find(x => x.id === h.packHypothesisId) : null, ex = src ? C.exercises.find(e => e.id === src.exerciseId) : null;
       const defSkill = src ? X.exerciseSkill[src.exerciseId] : (p.skillId || "pause");
-      flow({ id: "mod-experiment", title, onCancel: () => go("story"), steps: [
+      flow({ id: "mod-experiment", scope: p.id, title, onCancel: () => go("story"), steps: [
         { k: "action", q: "Маленький выполнимый шаг", lead: ex ? `${ex.title}: ${ex.steps[0]}` : "Что ты попробуешь, когда будет повод?", type: "text", ph: "одно действие", tags: [src ? src.outerActionExample : planText(p), "Сказать: «Сегодня не могу»", "Спросить, что именно нужно", "Взять паузу и ответить позже"].filter(Boolean) },
         { k: "prediction", q: "Что я предсказываю?", lead: "Что случится, если сделаю иначе.", type: "choice", opts: ["Человек обидится", "Будет неловко, но ничего страшного", "Откажут или надавят", "Станет спокойнее", "Ничего не изменится"], own: true, unknown: true },
         { k: "criterion", q: "По чему пойму результат?", type: "choice", opts: ["По ответу человека", "По своему состоянию после", "По тому, сделал ли я это", "По тому, что случилось дальше"], own: true },
@@ -563,7 +631,7 @@
       }) });
     } else if (id === "transfer") {
       const unc = D.episodes.filter(e => e.linkStatus === "unconfirmed" && !e.legacy);
-      flow({ id: "mod-transfer", title, onCancel: () => go("story"), steps: [
+      flow({ id: "mod-transfer", scope: p.id, title, onCancel: () => go("story"), steps: [
         { k: "had", q: "Был новый реальный случай на этой неделе?", type: "choice", opts: [["yes", "Да, был"], ["no", "Не было"]] },
         { k: "same", q: "Там та же мысль или правило — или просто похожее чувство?", lead: `Обычно ты думаешь «${p.thought || "…"}» и делаешь «${lc1(p.habitualResponse) || "…"}».`, type: "choice", opts: [["yes", "Та же мысль или правило"], ["no", "Просто похожее чувство"], ["unknown", "Не знаю"]], skip: a => a.had !== "yes" },
         ...(unc.length ? [{ k: "links", q: "Эти записи — тот же сюжет?", lead: "Отметь те, что про то же самое. Остальные уйдут в очередь.", type: "multi", opts: unc.map(e => [e.id, `${R.human(e.dateKey)} · ${e.emotion || "случай"} · ${e.intensity}/10${e.event ? " · " + e.event.slice(0, 40) : ""}`]), optional: true }] : []),
@@ -586,7 +654,10 @@
     const h = hypOf(p), x = expOf(p), rs = R.researchState(researchOf(p), today(), deepToday), rec = R.hypothesisRecognition(h, D.episodes), elig = p.startDate ? eligibility(p) : null;
     const M = C.firstWeekModules;
     const contra = h && (h.contradictingEpisodeIds || []).length ? `<div class="nudge">Есть ${h.contradictingEpisodeIds.length} ${R.plural(h.contradictingEpisodeIds.length, "случай", "случая", "случаев")}, где объяснение не подошло. Это не отменяет работу — можно <a href="#module/need">уточнить версию</a> или понаблюдать дальше.</div>` : "";
-    const note = (P.lastResult2 ? `<div class="card mark tight"><p class="small" style="margin:0">${esc(P.lastResult2)}</p></div>` : "") + contra; if (P.lastResult2) { delete P.lastResult2; saveProfile(); }
+    /* Объяснение сменилось или отвергнуто: подобранные под него разрешение и шаг ждут решения, а не действуют молча. */
+    const dep = R.dependencyReview({ pattern: p, experiment: x });
+    const depHtml = dep.any ? `<div class="card mark"><div class="k">${ic("mirror")}Объяснение изменилось</div><p class="small" style="margin:2px 0 8px">${[dep.permission ? `разрешение «${esc(p.permission)}»` : "", dep.plan ? `шаг «${esc(x.action)}»` : ""].filter(Boolean).join(" и ")} ${dep.permission && dep.plan ? "были подобраны" : dep.permission ? "было подобрано" : "был подобран"} под прежнее объяснение. Оставить или выбрать другое?</p><div class="row tight"><button class="btn secondary sm" id="keepDep">Оставить</button><button class="btn sm" id="redoDep">Выбрать другое</button></div></div>` : "";
+    const note = (P.lastResult2 ? `<div class="card mark tight"><p class="small" style="margin:0">${esc(P.lastResult2)}</p></div>` : "") + depHtml + contra; if (P.lastResult2) { delete P.lastResult2; saveProfile(); }
     const field = (k, v, edit, ph) => `<div class="prow"><div class="k"><span>${k}</span>${edit ? `<button data-edit="${edit}" data-ph="${esc(ph || "")}">изменить</button>` : ""}</div>${v ? esc(v) : `<span class="muted">${esc(ph || "пока пусто")}</span>`}</div>`;
     const flags = flagsReal().filter(f => f.patternId === p.id);
     const sup = h ? (h.supportingEpisodeIds || []).length : 0;
@@ -618,6 +689,8 @@
       <details class="plain"><summary>Версии гипотез и экспериментов</summary><ul class="list">${D.hypotheses.filter(v => v.patternId === p.id).map(v => `<li><div class="date">гипотеза v${v.version || 1} · ${esc(statusLabel(v.status))} · ${esc(R.human(R.dateKey(v.createdAt)))}</div>${esc(v.text)}</li>`).join("")}${D.experiments.filter(v => v.patternId === p.id).map(v => `<li><div class="date">шаг v${v.version} · ${v.status === "active" ? "действует" : "заменён"} · ${esc(R.human(R.dateKey(v.createdAt)))}</div>${esc(v.action)}${v.prediction ? ` — ожидание: ${esc(v.prediction)}` : ""}</li>`).join("") || "<li class='muted'>пока пусто</li>"}</ul></details>
       <div class="row tight">${p.status === "paused" ? `<button class="btn secondary" id="resume">Вернуться к сюжету</button>` : `<button class="btn ghost" id="pauseP">Пауза по сюжету</button>`}<button class="btn ghost" id="newP">Другой сюжет</button></div>`;
     $$("[data-edit]").forEach(b => b.onclick = () => editField(p, b.dataset.edit, b.dataset.ph));
+    const kd = $("#keepDep"); if (kd) kd.onclick = async () => { const cur = p.hypothesisVersionId || null; if (dep.permission) { p.permissionSource = Object.assign({}, p.permissionSource, { keptFor: cur }); await savePattern(p); } if (dep.plan) { x.keptFor = cur; await saveExp(x); } toast("Оставлено осознанно"); story(); };
+    const rd = $("#redoDep"); if (rd) rd.onclick = async () => { if (dep.permission) { p.permissionSource = null; await savePattern(p); } deepToday = true; go(dep.permission ? "module/rule" : "module/experiment"); };
     const rp = $("#resume"); if (rp) rp.onclick = async () => { p.status = "active"; await savePattern(p); story(); };
     const pp = $("#pauseP"); if (pp) pp.onclick = async () => { if (!pp.dataset.sure) { pp.dataset.sure = 1; pp.textContent = "Точно поставить на паузу? Нажми ещё раз"; return; } p.status = "paused"; await savePattern(p); go("today"); };
     $("#newP").onclick = async () => { const b = $("#newP"); if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Текущий уйдёт в историю. Нажми ещё раз"; return; } p.status = "done"; await savePattern(p); go("entry"); };
@@ -634,13 +707,14 @@
   document.addEventListener("click", async e => { const b = e.target.closest("[data-lk]"); if (!b) return; const ep = D.episodes.find(x => x.id === b.dataset.lk); const p = activePattern(); if (!ep) return; if (b.dataset.v === "yes") { ep.linkStatus = "confirmed"; ep.patternId = p ? p.id : null; } else { ep.linkStatus = "queued"; ep.patternId = null; } await saveEpisode(ep); story(); });
   function editField(p, k, ph) {
     if (k === "hyp") { const h = hypOf(p); if (!h) return; app.innerHTML = `<h1 class="q">Отвергнуть это объяснение?</h1><p class="muted">«${esc(h.text)}»</p><p class="small">Отказ от неверной версии — тоже результат. Путь продолжается: выберешь другое объяснение или просто понаблюдаешь.</p><div class="row"><button class="btn block" id="rej">Да, не подходит</button></div><div class="row tight"><button class="btn ghost" id="bk">Назад</button></div>`; $("#rej").onclick = async () => { h.status = "rejected"; await saveHyp(h); p.hypothesisVersionId = null; await savePattern(p); const r = researchOf(p); if (r.modules.need) { delete r.modules.need; await saveResearch(r); } toast("Объяснение отвергнуто"); go("module/need"); }; $("#bk").onclick = story; return; }
-    if (k === "skill") { app.innerHTML = `<h1 class="q">Какой навык тренируем?</h1><div class="chips col">${SKILLS.map(s => `<button class="chip ${skillOfPattern(p) === s.id ? "on" : ""}" data-v="${s.id}">${s.label}</button>`).join("")}</div><div class="row tight"><button class="btn ghost" id="bk">Назад</button></div>`; $$(".chip").forEach(b => b.onclick = async () => { p.skillId = b.dataset.v; const x = expOf(p); if (x) { x.skillId = b.dataset.v; await saveExp(x); } await savePattern(p); story(); }); $("#bk").onclick = story; return; }
+    /* Смена навыка — новая версия плана. Прежние записи остаются с прежним навыком: история задним числом не переименовывается. */
+    if (k === "skill") { app.innerHTML = `<h1 class="q">Какой навык тренируем?</h1><p class="small muted">Прошлые применения останутся за прежним навыком. Для флага по новому навыку нужны свои подтверждения.</p><div class="chips col">${SKILLS.map(s => `<button class="chip ${skillOfPattern(p) === s.id ? "on" : ""}" data-v="${s.id}">${s.label}</button>`).join("")}</div><div class="row tight"><button class="btn ghost" id="bk">Назад</button></div>`; $$(".chip").forEach(b => b.onclick = async () => { const v = b.dataset.v; if (v === skillOfPattern(p)) return story(); if (expOf(p)) await newExperimentVersion(p, { skillId: v, reason: "skill-changed" }); else { p.skillId = v; await savePattern(p); } story(); }); $("#bk").onclick = story; return; }
     const cur = k === "contexts" ? (p.contexts || []).join(", ") : (p[k] || "");
     app.innerHTML = `<h1 class="q">${esc({ title: "Как назвать сюжет?", contexts: "Кто или что", thought: "Что я обычно думаю в этот момент?", habitualResponse: "Что я обычно делаю?", need: "Что мне было важно?", permission: "Что я себе разрешаю?", bodySignal: "Как тело даёт знать?" }[k] || "Изменить")}</h1>
       ${k === "thought" ? `<div class="chips" id="tg">${X.firstThoughts.map(t => `<button class="chip" data-v="${esc(t)}">${esc(t)}</button>`).join("")}</div>` : ""}${k === "bodySignal" ? `<div class="chips" id="tg">${C.bodyObservation.locations.slice(0, 7).map(t => `<button class="chip" data-v="${esc(t)}">${esc(t)}</button>`).join("")}</div><p class="tiny">${esc(C.bodyObservation.message)}</p>` : ""}
       <textarea id="a" placeholder="${esc(ph || "")}">${esc(cur)}</textarea><div class="row"><button class="btn block" id="ok">Сохранить</button></div><div class="row tight"><button class="btn ghost" id="bk">Назад</button></div>`;
     $$("#tg .chip").forEach(b => b.onclick = () => { $("#a").value = b.dataset.v; });
-    $("#ok").onclick = async () => { const v = $("#a").value.trim(); if (k === "contexts") p.contexts = v ? v.split(/\s*,\s*/) : []; else p[k] = v; if (k === "permission") { const x = expOf(p); if (x) { x.permission = v; await saveExp(x); } } await savePattern(p); story(); };
+    $("#ok").onclick = async () => { const v = $("#a").value.trim(); if (k === "contexts") p.contexts = v ? v.split(/\s*,\s*/) : []; else if (k === "permission") { setPermissionByUser(p, v); const x = expOf(p); if (x) { x.permission = v; await saveExp(x); } } else p[k] = v; await savePattern(p); story(); };
     $("#bk").onclick = story;
   }
 
@@ -649,7 +723,7 @@
     const p = activePattern(); if (!p || !p.startDate) return go("today");
     const due = R.reviewDue(p.startDate, today(), D.reviews.filter(r => r.patternId === p.id));
     if (!due) { const last = D.reviews.filter(r => r.patternId === p.id).slice(-1)[0]; app.innerHTML = `<h1>Итог недели</h1><p class="muted">${last ? `Последний итог: ${esc(R.human(last.windowStart))} — ${esc(R.human(last.windowEnd))}, решение: ${esc((X.reviewDecisions.find(d => d.id === last.decision) || {}).label || last.decision)}.` : "Первый итог откроется на 7-й день недели."}</p><div class="row"><a class="btn block" href="#today">На главную</a></div>`; return; }
-    const x = expOf(p), h = hypOf(p), s = R.windowSummary({ checkins: D.checkins, episodes: D.episodes, window: due, patternId: p.id, experiment: x });
+    const x = expOf(p), h = hypOf(p), s = R.windowSummary({ checkins: D.checkins, episodes: D.episodes, window: due, patternId: p.id, skillId: skillOfPattern(p), experiment: x });
     const little = s.eveningCount < 3 || (s.opportunities + s.realEpisodes) === 0;
     const prevR = D.reviews.filter(r => r.patternId === p.id && !r.legacy).slice(-1)[0], prevBad = !!(prevR && prevR.decision !== "continue" && prevR.decision !== "observe");
     const resStr = s.results.length ? s.results.map(r => outcomeLabel(r.outcome)).join(", ") : "результатов не записано";
@@ -664,7 +738,7 @@
       { k: "why", q: "Что мешало?", type: "choice", opts: X.notHelpedReasons.filter(r => r !== "Не знаю"), own: true, unknown: true, skip: a => a.decision === "continue" },
       { k: "note", q: "Что помогло, а что не подтвердилось?", type: "text", ph: "коротко, своими словами", optional: true },
     ];
-    flow({ id: "review-" + due.start, steps, title: `Итог · ${R.human(due.start)} — ${R.human(due.end)}`, onCancel: () => go("today"),
+    flow({ id: "review-" + due.start, scope: p.id, steps, title: `Итог · ${R.human(due.start)} — ${R.human(due.end)}`, onCancel: () => go("today"),
       onDone: async ans => {
         if (h && ans.verdict) { const map = { supported: "supported_by_user", partial: "selected", rejected: "rejected", unknown: "selected" }; if (R.canTransition(h.status, map[ans.verdict]) || h.status === map[ans.verdict]) h.status = map[ans.verdict]; await saveHyp(h); }
         const r = { id: R.uuid(), patternId: p.id, windowStart: due.start, windowEnd: due.end, snapshot: s, hypothesisVersionId: h ? h.id : null, experimentId: x ? x.id : null, verdict: ans.verdict || null, decision: ans.decision, why: val(ans, "why") || null, conclusion: ans.note || "", createdAt: nowTs() };
@@ -695,7 +769,7 @@
     $$("#cf .chip").forEach(b => b.onclick = () => { const i = b.dataset.i; if (checks.has(i)) checks.delete(i); else checks.add(i); b.classList.toggle("on"); upd(); });
     $$("#sk .chip").forEach(b => b.onclick = () => { sk = b.dataset.v; $$("#sk .chip").forEach(x => x.classList.toggle("on", x === b)); upd(); });
     $("#ok").onclick = async () => {
-      const f = { id: R.uuid(), skillId: sk, patternId: p.id, awardedAt: nowTs(), windowStart: el.windows[0].window.start, windowEnd: el.windows[1].window.end, evidenceIds: el.actionDays, legacy: false };
+      const f = { id: R.uuid(), skillId: sk, patternId: p.id, awardedAt: nowTs(), windowStart: el.windows[0].window.start, windowEnd: el.windows[1].window.end, evidenceDays: el.actionDays, evidenceIds: D.episodes.filter(e => e.patternId === p.id && R.isConfirmedAction(e, sk)).map(e => e.id), legacy: false };
       await saveFlag(f); if (!p.skillId) { p.skillId = sk; await savePattern(p); }
       const cl = R.clarity(D.flags, TOTAL_SKILLS), cols = ["#FBE7A8", "#E2B65A", "#B9822A", "#C9BFFF", "#8C84C8", "#F2C4B0"];
       app.innerHTML = `${reduce() ? "" : `<div class="confetti" aria-hidden="true">${Array.from({ length: 50 }, (_, k) => `<i style="left:${(k * 37) % 100}%;background:${cols[k % 6]};animation-delay:${(k % 12) * 0.12}s"></i>`).join("")}</div>`}
@@ -710,8 +784,8 @@
     const eps = D.episodes.slice().sort((a, b) => b.loggedAt - a.loggedAt), ev = Object.values(D.checkins).filter(c => c.evening || c.morning).sort((a, b) => a.dateKey < b.dateKey ? 1 : -1), rv = D.reviews.slice().reverse(), fl = D.flags.slice().reverse();
     const n = { ep: eps.filter(e => !e.legacy).length, ev: ev.filter(c => c.evening && !c.legacy).length, rv: rv.filter(r => !r.legacy).length, fl: fl.filter(f => !f.legacy).length };
     const legacyN = eps.filter(e => e.legacy).length + ev.filter(c => c.legacy).length + rv.filter(r => r.legacy).length + fl.filter(f => f.legacy).length;
-    const last14 = Array.from({ length: 14 }, (_, i) => R.addDays(today(), i - 13));
-    const imp = last14.map(k => { const c = D.checkins[k]; return c && c.evening && c.evening.currentImpact != null ? c.evening.currentImpact : null; });
+    const last14 = Array.from({ length: 14 }, (_, i) => R.addDays(today(), i - 13)), ap = anyPattern();
+    const imp = last14.map(k => { const recs = R.checkinsOn(D.checkins, k).filter(c => c.evening && !c.legacy && c.evening.currentImpact != null); const c = recs.find(r => ap && r.patternId === ap.id) || recs[0]; return c ? c.evening.currentImpact : null; });
     const co = R.bodyCooccurrence(D.episodes.filter(e => !e.legacy));
     hero.innerHTML = `<div class="hero"><div class="hl">${ic("hourglass", "")}История</div><div class="hd">${n.ep} ${R.plural(n.ep, "случай", "случая", "случаев")}</div><div class="hs">${n.ev} ${R.plural(n.ev, "вечер", "вечера", "вечеров")} · ${n.rv} ${R.plural(n.rv, "итог", "итога", "итогов")} · ${n.fl} ${R.plural(n.fl, "флаг", "флага", "флагов")}</div></div>`;
     const lines = [];
@@ -741,7 +815,7 @@
   /* =================== СЕЙЧАС ТЯЖЕЛО =================== */
   function help() {
     const H = X.help; let stage = "safety", method = "grounding", raf = 0;
-    const log = (r) => { const c = checkin(today()); c.help = c.help || []; c.help.push({ at: nowTs(), method, result: r }); saveCheckin(c); };
+    const log = (r) => { const c = checkin(today(), null); c.help = c.help || []; c.help.push({ at: nowTs(), method, result: r }); saveCheckin(c); };
     const render = () => {
       cancelAnimationFrame(raf);
       if (stage === "safety") {
@@ -882,9 +956,16 @@
     if (!D.meta.migratedFromV9 && ST.hasLegacy()) {
       const m = R.migrateV9(ST.readLegacy(), Date.now());
       m.patterns.forEach(p => upsert(D.patterns, p)); m.episodes.forEach(e => upsert(D.episodes, e)); m.reviews.forEach(r => upsert(D.reviews, r)); m.flags.forEach(f => upsert(D.flags, f));
-      Object.values(m.checkins).forEach(c => { if (!D.checkins[c.dateKey]) D.checkins[c.dateKey] = c; });
+      Object.values(m.checkins).forEach(c => { if (!D.checkins[c.id]) D.checkins[c.id] = c; });
       Object.assign(D.meta, m.meta); if (!D.profile) { Object.assign(P, m.profile); if (m.profile.symbolic) P.symbolic = m.profile.symbolic; }
       P.seen.start = true;
+      try { await ST.replaceAll(Object.assign(D, { profile: P })); } catch (e) { saveError(e); }
+    }
+    /* Схема 2 → 3: записи дня по ключу «дата|сюжет» (уже приведены хранилищем), действия получают навык из плана, действовавшего в момент записи; старые черновики без области сбрасываются. */
+    if ((D.meta.schemaVersion || 0) < 3) {
+      D.checkins = R.normalizeCheckins(D.checkins); R.backfillEvidence(D);
+      Object.keys(P.drafts).forEach(k => { if (!k.includes("|") && !["cards", "cardPick", "fromEpisode"].includes(k)) delete P.drafts[k]; });
+      D.meta.schemaVersion = 3; D.meta.upgradedAt = Date.now();
       try { await ST.replaceAll(Object.assign(D, { profile: P })); } catch (e) { saveError(e); }
     }
     if (!D.profile) await saveProfile();

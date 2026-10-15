@@ -75,6 +75,24 @@
     return "наблюдаем";
   };
 
+  /* ---------- записи дня: ключ «дата|сюжет», чтобы вечер одного сюжета не приписывался другому ---------- */
+  R.checkinId = (dateKey, patternId) => `${dateKey}|${patternId || "-"}`;
+  /* Приводит карту записей (старый формат по дате или новый по id) к формату по id. Принадлежность не додумывается. */
+  R.normalizeCheckins = function (map) {
+    const out = {};
+    Object.entries(map || {}).forEach(([k, c]) => {
+      if (!c || typeof c !== "object") return;
+      const dateKey = c.dateKey || (R.isKey(k) ? k : null); if (!dateKey) return;
+      const patternId = c.patternId || null, id = c.id || R.checkinId(dateKey, patternId);
+      out[id] = Object.assign({}, c, { id, dateKey, patternId });
+    });
+    return out;
+  };
+  R.checkinsOn = (map, dateKey) => Object.values(map || {}).filter(c => c && c.dateKey === dateKey);
+  R.checkinFor = (map, dateKey, patternId) => (map || {})[R.checkinId(dateKey, patternId)] || null;
+  /* Вечер годится как доказательство по сюжету только при явной принадлежности и не из прошлой версии. */
+  R.eveningEvidence = (c, patternId) => !!(c && c.evening && !c.legacy && !c.evening.legacy && patternId && c.patternId === patternId);
+
   /* ---------- измеренное состояние: только явные оценки ---------- */
   R.lastRating = function ({ checkins = {}, episodes = [] }) {
     let best = null;
@@ -88,33 +106,47 @@
     return best;
   };
 
-  /* Подтверждённое применение выбранного ответа: не репетиция; пауза — только выбранная. */
-  R.isConfirmedAction = function (ep) {
+  /* Подтверждённое применение выбранного ответа: не репетиция; пауза — только выбранная.
+     Если указан навык, запись считается только при совпадении навыка, записанного в момент действия.
+     Запись без навыка (неизвестная принадлежность) доказательством для навыка не является. Версия плана не важна: навык тот же — практика та же. */
+  R.isConfirmedAction = function (ep, skillId) {
     const nr = ep && ep.newResponse; if (!nr || ep.isRehearsal || ep.legacy) return false;
+    if (skillId && nr.skillId !== skillId) return false;
     if (nr.type === "pause") return nr.chosen === "chosen";
     return true;
   };
-  R.confirmedActionDays = function (episodes, checkins, patternId) {
+  R.eveningConfirms = (c, skillId) => !!(c && c.evening && c.evening.actionStatus === "done" && (!skillId || c.evening.skillId === skillId));
+  R.confirmedActionDays = function ({ episodes = [], checkins = {}, patternId, skillId }) {
     const days = new Set();
-    (episodes || []).forEach(e => { if ((!patternId || e.patternId === patternId) && R.isConfirmedAction(e)) days.add(e.dateKey); });
-    Object.values(checkins || {}).forEach(c => { if (c.evening && c.evening.actionStatus === "done" && (!patternId || !c.patternId || c.patternId === patternId)) days.add(c.dateKey); });
+    episodes.forEach(e => { if (patternId && e.patternId === patternId && R.isConfirmedAction(e, skillId)) days.add(e.dateKey); });
+    Object.values(checkins).forEach(c => { if (R.eveningEvidence(c, patternId) && R.eveningConfirms(c, skillId)) days.add(c.dateKey); });
     return days;
   };
-  /* Шаги на тропе: один за завершённый вечер (любой честный ответ), максимум один в день. */
-  R.practiceDays = function (checkins) { return Object.values(checkins || {}).filter(c => c.evening).map(c => c.dateKey); };
+  /* Шаги на тропе: один за завершённый вечер (любой честный ответ), максимум один в день, без прошлой версии. */
+  R.practiceDays = function (checkins) { const s = new Set(); Object.values(checkins || {}).forEach(c => { if (c.evening && !c.legacy) s.add(c.dateKey); }); return [...s]; };
 
-  /* ---------- итог окна с фактическими знаменателями ---------- */
-  R.windowSummary = function ({ checkins = {}, episodes = [], window: w, patternId, experiment }) {
+  /* Восстановление принадлежности старых записей действий: навык берётся из плана, действовавшего в момент записи.
+     Если план определить нельзя, запись остаётся без навыка и в флаг не входит. */
+  R.backfillEvidence = function (data) {
+    const exps = data.experiments || []; let n = 0;
+    const at = (patternId, ts) => exps.filter(x => x.patternId === patternId && (x.createdAt || 0) <= (ts || 0)).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0] || null;
+    (data.episodes || []).forEach(e => { const nr = e.newResponse; if (!nr || nr.skillId || e.legacy || !e.patternId) return; const x = at(e.patternId, nr.at || e.loggedAt); if (x && x.skillId) { nr.skillId = x.skillId; nr.experimentId = x.id; nr.planVersion = x.version; nr.backfilled = true; n++; } });
+    Object.values(data.checkins || {}).forEach(c => { const ev = c.evening; if (!ev || ev.skillId || c.legacy || !c.patternId || !ev.actionStatus) return; const x = at(c.patternId, ev.at); if (x && x.skillId) { ev.skillId = x.skillId; ev.experimentId = x.id; ev.planVersion = x.version; ev.backfilled = true; n++; } });
+    return n;
+  };
+
+  /* ---------- итог окна с фактическими знаменателями: только записи этого сюжета и этого навыка ---------- */
+  R.windowSummary = function ({ checkins = {}, episodes = [], window: w, patternId, skillId, experiment }) {
     const days = []; for (let k = w.start; R.diffDays(k, w.end) >= 0; k = R.addDays(k, 1)) days.push(k);
-    const evenings = days.map(k => checkins[k]).filter(c => c && c.evening);
+    const evenings = Object.values(checkins).filter(c => R.eveningEvidence(c, patternId) && R.inWindow(c.dateKey, w)).sort((a, b) => a.dateKey < b.dateKey ? -1 : 1);
     const impactRatings = evenings.filter(c => c.evening.currentImpact != null).map(c => ({ dateKey: c.dateKey, value: Number(c.evening.currentImpact) }));
     const opportunities = evenings.filter(c => c.evening.hadOpportunity === "yes").length;
     const notSure = evenings.filter(c => c.evening.hadOpportunity === "unsure").length;
-    const eps = episodes.filter(e => e.dateKey && R.inWindow(e.dateKey, w) && !e.legacy && (!patternId || e.patternId === patternId));
+    const eps = episodes.filter(e => e.dateKey && R.inWindow(e.dateKey, w) && !e.legacy && patternId && e.patternId === patternId);
     const realEps = eps.filter(e => !e.isRehearsal);
     const actionDays = new Set();
-    eps.forEach(e => { if (R.isConfirmedAction(e)) actionDays.add(e.dateKey); });
-    evenings.forEach(c => { if (c.evening.actionStatus === "done") actionDays.add(c.dateKey); });
+    eps.forEach(e => { if (R.isConfirmedAction(e, skillId)) actionDays.add(e.dateKey); });
+    evenings.forEach(c => { if (R.eveningConfirms(c, skillId)) actionDays.add(c.dateKey); });
     const partial = evenings.filter(c => c.evening.actionStatus === "partial").length;
     const results = experiment ? (experiment.results || []).filter(r => { const e = episodes.find(x => x.id === r.episodeId); return e && e.dateKey && R.inWindow(e.dateKey, w); }) : [];
     const change = { better: 0, same: 0, worse: 0 };
@@ -125,14 +157,16 @@
 
   /* ---------- правило флага (продуктовая эвристика пилота) ---------- */
   R.DEFAULT_POLICY = { minElapsedCalendarDays: 21, stabilityWindowCount: 2, stabilityWindowDays: 7, minImpactRatingsPerWindow: 4, maxEachRecordedImpact: 2, minRealOpportunitiesPerWindow: 1, minConfirmedActionsAcrossWindowsOnDistinctDays: 3, countRehearsalsAsReal: false };
-  R.flagEligibility = function ({ pattern, checkins = {}, episodes = [], todayKey, policy, experiment }) {
+  R.flagEligibility = function ({ pattern, checkins = {}, episodes = [], todayKey, policy, experiment, skillId }) {
     const P = Object.assign({}, R.DEFAULT_POLICY, policy || {});
-    const out = { eligible: false, reasons: [], windows: [], daysElapsed: pattern && pattern.startDate ? R.daysSince(pattern.startDate, todayKey) : -1 };
+    const skill = skillId || (experiment && experiment.skillId) || (pattern && pattern.skillId) || null;
+    const out = { eligible: false, reasons: [], windows: [], skillId: skill, daysElapsed: pattern && pattern.startDate ? R.daysSince(pattern.startDate, todayKey) : -1 };
     if (!pattern || !pattern.startDate) { out.reasons.push("Нет первого реального эпизода."); return out; }
+    if (!skill) { out.reasons.push("Навык для флага не выбран."); return out; }
     if (out.daysElapsed < P.minElapsedCalendarDays) out.reasons.push(`Прошло ${out.daysElapsed} из ${P.minElapsedCalendarDays} календарных дней.`);
     const done = R.completedWindows(pattern.startDate, todayKey);
     if (done.length < P.stabilityWindowCount) { out.reasons.push(`Завершённых недель: ${done.length} из ${P.stabilityWindowCount}.`); return out; }
-    const last = done.slice(-P.stabilityWindowCount).map(w => R.windowSummary({ checkins, episodes, window: w, patternId: pattern.id, experiment }));
+    const last = done.slice(-P.stabilityWindowCount).map(w => R.windowSummary({ checkins, episodes, window: w, patternId: pattern.id, skillId: skill, experiment }));
     out.windows = last;
     let actionDays = new Set();
     last.forEach((s, i) => {
@@ -176,6 +210,22 @@
   };
   R.HYP_TRANSITIONS = { candidate: ["selected", "rejected"], selected: ["supported_by_user", "rejected", "revised"], supported_by_user: ["rejected", "revised"], rejected: ["selected"], revised: [] };
   R.canTransition = (from, to) => (R.HYP_TRANSITIONS[from] || []).includes(to);
+
+  /* Происхождение рекомендаций. Разрешение и план помнят, под какую версию объяснения были подобраны.
+     Если объяснение сменилось или отвергнуто, они ждут решения пользователя: оставить (keptFor = текущая версия) или выбрать другие.
+     Первый план (kind first-plan) от объяснения не зависит. */
+  R.dependencyReview = function ({ pattern, experiment }) {
+    const cur = (pattern && pattern.hypothesisVersionId) || null;
+    const ps = pattern && pattern.permissionSource;
+    const permission = !!(pattern && pattern.permission && ps && ps.hypothesisVersionId && ps.hypothesisVersionId !== cur && ps.keptFor !== cur);
+    const x = experiment;
+    const plan = !!(x && x.kind === "experiment" && x.hypothesisVersionId && x.hypothesisVersionId !== cur && x.keptFor !== cur);
+    return { permission, plan, any: permission || plan };
+  };
+
+  /* Короткий вечер: один ответ фиксирует и повод, и действие. Репетиции поводом не являются. */
+  R.QUICK_EVENING = [["done", "Был повод и получилось", "yes", "done"], ["partial", "Был повод, частично", "yes", "partial"], ["not", "Был повод, не получилось", "yes", "not"], ["none", "Повода не было", "no", null], ["unsure", "Не уверен", "unsure", null]];
+  R.quickEvening = v => { const r = R.QUICK_EVENING.find(x => x[0] === v); return r ? { hadOpportunity: r[2], actionStatus: r[3] } : { hadOpportunity: null, actionStatus: null }; };
 
   /* ---------- ICS: только включённые напоминания, стабильные UID ---------- */
   R.icsText = function ({ reminders, installId, url, nowTs, labels }) {
@@ -225,7 +275,8 @@
       const days = sp.days || {};
       Object.keys(days).forEach(n => {
         const r = days[n], k = sp.start ? R.addDays(sp.start, Number(n) - 1) : null; if (!k) return;
-        const c = out.checkins[k] || (out.checkins[k] = { dateKey: k, tz: "", legacy: true, patternId: p.id });
+        const cid = R.checkinId(k, p.id);
+        const c = out.checkins[cid] || (out.checkins[cid] = { id: cid, dateKey: k, tz: "", legacy: true, patternId: p.id });
         if (r.morning) c.morning = { at: r.morning.at || now, intensity: r.morning.score, legacy: true, late: !!r.morning.late };
         if (r.evening) c.evening = { at: r.evening.at || now, legacy: true, currentImpact: r.evening.weight != null ? r.evening.weight : null, hadOpportunity: null, actionStatus: null, note: Object.values(r.evening.answers || {}).filter(v => typeof v === "string" && v).join(" · ").slice(0, 500) };
         (r.moments || []).forEach(m => out.episodes.push({ id: R.uuid(), patternId: p.id, linkStatus: "confirmed", legacy: true, occurredAt: m.at || now, loggedAt: m.at || now, dateKey: k, tz: "", event: m.note || "", emotion: m.kind === "hit" ? "Злость" : null, intensity: null, newResponse: m.kind === "hold" ? { type: "other", chosen: "unknown", note: m.note || "", at: m.at || now, legacy: true } : null, verificationStatus: "legacy", isRehearsal: false }));
@@ -241,7 +292,9 @@
   };
 
   /* ---------- экспорт / импорт ---------- */
-  R.SCHEMA_VERSION = 2;
+  /* Схема 3: записи дня по ключу «дата|сюжет», действия помнят навык. Файлы схемы 2 читаются и приводятся к схеме 3. */
+  R.SCHEMA_VERSION = 3;
+  R.MIN_IMPORT_SCHEMA = 2;
   R.COLLECTIONS = ["patterns", "episodes", "hypotheses", "experiments", "reviews", "flags"];
   R.validateImport = function (obj) {
     const errors = [];
@@ -249,13 +302,13 @@
     const v = Number(obj.schemaVersion);
     if (!v) errors.push("Нет schemaVersion");
     if (v && v > R.SCHEMA_VERSION) errors.push(`Версия файла ${v} новее поддерживаемой ${R.SCHEMA_VERSION}`);
-    if (v && v < R.SCHEMA_VERSION && !(obj.sprint !== undefined || obj.archive !== undefined || obj.num !== undefined)) errors.push("Старый формат без известной структуры");
-    if (v === R.SCHEMA_VERSION) {
+    if (v && v < R.MIN_IMPORT_SCHEMA && !(obj.sprint !== undefined || obj.archive !== undefined || obj.num !== undefined)) errors.push("Старый формат без известной структуры");
+    if (v >= R.MIN_IMPORT_SCHEMA && v <= R.SCHEMA_VERSION) {
       R.COLLECTIONS.forEach(c => { if (obj[c] != null && !Array.isArray(obj[c])) errors.push(`${c} должен быть списком`); (obj[c] || []).forEach(x => { if (!x || !x.id) errors.push(`${c}: запись без id`); }); });
-      if (obj.checkins != null && typeof obj.checkins !== "object") errors.push("checkins должен быть объектом по датам");
-      Object.keys(obj.checkins || {}).forEach(k => { if (!R.isKey(k)) errors.push(`checkins: неверная дата ${k}`); });
+      if (obj.checkins != null && (typeof obj.checkins !== "object" || Array.isArray(obj.checkins))) errors.push("checkins должен быть объектом");
+      else Object.entries(obj.checkins || {}).forEach(([k, c]) => { const dk = (c && c.dateKey) || k; if (!R.isKey(dk)) errors.push(`checkins: неверная дата ${k}`); });
     }
-    return { ok: errors.length === 0, errors, schemaVersion: v, legacy: v < R.SCHEMA_VERSION };
+    return { ok: errors.length === 0, errors, schemaVersion: v, legacy: v < R.MIN_IMPORT_SCHEMA };
   };
   R.importPreview = function (obj) {
     const p = {}; R.COLLECTIONS.forEach(c => p[c] = (obj[c] || []).length); p.checkins = Object.keys(obj.checkins || {}).length; p.research = Object.keys(obj.research || {}).length; return p;
@@ -268,8 +321,8 @@
       out[c] = out[c] || []; const idx = new Map(out[c].map((x, i) => [x.id, i]));
       (incoming[c] || []).forEach(x => { if (!x || !x.id) return; if (idx.has(x.id)) { const cur = out[c][idx.get(x.id)]; if (newer(cur, x)) { out[c][idx.get(x.id)] = x; stats.updated++; } else stats.skipped++; } else { out[c].push(x); idx.set(x.id, out[c].length - 1); stats.added++; } });
     });
-    out.checkins = out.checkins || {};
-    Object.entries(incoming.checkins || {}).forEach(([k, c]) => { if (!R.isKey(k)) return; if (!out.checkins[k]) { out.checkins[k] = c; stats.added++; } else { const cur = out.checkins[k]; const m = Object.assign({}, cur); if (c.morning && (!cur.morning || (c.morning.at || 0) > (cur.morning.at || 0))) m.morning = c.morning; if (c.evening && (!cur.evening || (c.evening.at || 0) > (cur.evening.at || 0))) m.evening = c.evening; if (c.help) m.help = [...(cur.help || []), ...c.help.filter(h => !(cur.help || []).some(x => x.at === h.at))]; out.checkins[k] = m; stats.updated++; } });
+    out.checkins = R.normalizeCheckins(out.checkins || {});
+    Object.entries(R.normalizeCheckins(incoming.checkins || {})).forEach(([k, c]) => { if (!out.checkins[k]) { out.checkins[k] = c; stats.added++; } else { const cur = out.checkins[k]; const m = Object.assign({}, cur); if (c.morning && (!cur.morning || (c.morning.at || 0) > (cur.morning.at || 0))) m.morning = c.morning; if (c.evening && (!cur.evening || (c.evening.at || 0) > (cur.evening.at || 0))) m.evening = c.evening; if (c.help) m.help = [...(cur.help || []), ...c.help.filter(h => !(cur.help || []).some(x => x.at === h.at))]; out.checkins[k] = m; stats.updated++; } });
     out.research = out.research || {};
     Object.entries(incoming.research || {}).forEach(([pid, r]) => { if (!out.research[pid]) { out.research[pid] = r; stats.added++; } else { const cur = out.research[pid]; cur.modules = cur.modules || {}; Object.entries(r.modules || {}).forEach(([mid, m]) => { if (!cur.modules[mid] || (m.doneAt || 0) > (cur.modules[mid].doneAt || 0)) cur.modules[mid] = m; }); } });
     if (incoming.profile && !out.profile) out.profile = incoming.profile;

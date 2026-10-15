@@ -1,7 +1,7 @@
 /* Путь кармы v2 — редакционный контент. Правки текстов — здесь. */
 window.KARMA_CONTENT = {
  "schemaVersion": 1,
- "contentVersion": "2026-10-14-v2-draft",
+ "contentVersion": "2026-10-15-v2.1",
  "locale": "ru",
  "audience": "adults",
  "status": "original editorial seed content; review and pilot before public claims",
@@ -42,7 +42,7 @@ window.KARMA_CONTENT = {
  "packs": [
   {
    "id": "refusal",
-   "title": "Мне трудно отказать",
+   "title": "Просьбы и обязательства",
    "cards": [
     {
      "id": "refusal-1",
@@ -125,7 +125,7 @@ window.KARMA_CONTENT = {
   },
   {
    "id": "voice",
-   "title": "Меня не слышат",
+   "title": "Разговор и решения",
    "cards": [
     {
      "id": "voice-1",
@@ -208,7 +208,7 @@ window.KARMA_CONTENT = {
   },
   {
    "id": "criticism",
-   "title": "Критика задевает",
+   "title": "Замечания и оценка",
    "cards": [
     {
      "id": "criticism-1",
@@ -291,7 +291,7 @@ window.KARMA_CONTENT = {
   },
   {
    "id": "control",
-   "title": "Мне трудно отпустить контроль",
+   "title": "Контроль и самостоятельность",
    "cards": [
     {
      "id": "control-1",
@@ -374,7 +374,7 @@ window.KARMA_CONTENT = {
   },
   {
    "id": "rest",
-   "title": "Мне трудно разрешить себе отдых",
+   "title": "Работа и отдых",
    "cards": [
     {
      "id": "rest-1",
