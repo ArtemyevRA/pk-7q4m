@@ -255,6 +255,40 @@
     return { drafts: out, recovered };
   };
 
+  /* ---------- колода карточек ----------
+     Число пути задаёт только порядок первой подборки: pathCards карточек из сценариев пути и otherCards из других тем.
+     Без числа — карточки из разных тем. Это редакционная настройка, не диагностическая шкала. Дубликатов нет; exclude — уже показанные. */
+  R.buildDeck = function ({ packs = [], pathPacks = null, pathCards = 4, otherCards = 2, seed = 0, exclude = [] }) {
+    const ex = new Set(exclude), out = [], used = new Set();
+    const card = (pk, c) => ({ id: c.id, text: c.text, recognition: c.recognition || "", packId: pk.id, packTitle: pk.title });
+    const roundRobin = (list, n, start) => {
+      const res = []; if (!list.length || n <= 0) return res;
+      const queues = list.map(pk => pk.cards.filter(c => !ex.has(c.id) && !used.has(c.id)).map(c => card(pk, c)));
+      let i = start % list.length, guard = 0;
+      while (res.length < n && guard++ < 200) { const q = queues[i]; if (q && q.length) { const c = q.shift(); if (!used.has(c.id)) { used.add(c.id); res.push(c); } } if (queues.every(q => !q.length)) break; i = (i + 1) % list.length; }
+      return res;
+    };
+    const s = Math.abs(Number(seed) || 0);
+    if (pathPacks && pathPacks.length) {
+      const own = pathPacks.map(id => packs.find(p => p.id === id)).filter(Boolean), rest = packs.filter(p => !pathPacks.includes(p.id));
+      out.push(...roundRobin(own, pathCards, 0), ...roundRobin(rest, otherCards, s));
+    } else out.push(...roundRobin(packs, pathCards + otherCards, s));
+    return out;
+  };
+  /* Ответы по колоде: один ответ на карточку; отмена возвращает карточку и прежний ответ; дубликатов нет. */
+  R.deckAnswer = function (S, r) {
+    const deck = S.deck || [], idx = S.idx || 0; if (idx >= deck.length) return false;
+    const c = deck[idx]; S.picks = (S.picks || []).filter(p => p.id !== c.id);
+    S.picks.push({ id: c.id, packId: c.packId, text: c.text, recognition: c.recognition, r, at: Date.now() });
+    S.idx = idx + 1; S.undo = { id: c.id, r }; return true;
+  };
+  R.deckUndo = function (S) {
+    if (!S.undo || !(S.idx > 0)) return false;
+    const c = (S.deck || [])[S.idx - 1]; if (!c || c.id !== S.undo.id) { S.undo = null; return false; }
+    S.picks = (S.picks || []).filter(p => p.id !== c.id); S.idx = S.idx - 1; S.undo = null; return true;
+  };
+  R.deckYes = S => (S.picks || []).filter(p => p.r === "yes");
+
   /* Короткий вечер: один ответ фиксирует и повод, и действие. Репетиции поводом не являются. */
   R.QUICK_EVENING = [["done", "Был повод и получилось", "yes", "done"], ["partial", "Был повод, частично", "yes", "partial"], ["not", "Был повод, не получилось", "yes", "not"], ["none", "Повода не было", "no", null], ["unsure", "Не уверен", "unsure", null]];
   R.quickEvening = v => { const r = R.QUICK_EVENING.find(x => x[0] === v); return r ? { hadOpportunity: r[2], actionStatus: r[3] } : { hadOpportunity: null, actionStatus: null }; };
