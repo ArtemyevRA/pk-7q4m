@@ -1,5 +1,5 @@
 /* Путь кармы v2 — офлайн. Версия кэша меняется при каждой сборке (см. build.py). */
-const VERSION = "20261015-2d569f2d";
+const VERSION = "20261015-e46562c4";
 const CACHE = "put-karmy-" + VERSION;
 const CORE = ["./", "./index.html", "./styles.css", "./content.js", "./rules.js", "./store.js", "./app.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
   "./img/bg-morning.webp", "./img/bg-evening.webp", "./img/traveler.webp", "./img/astrolabe.webp",

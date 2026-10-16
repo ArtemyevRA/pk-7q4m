@@ -1,14 +1,15 @@
 /* Путь кармы v2 — хранилище. IndexedDB, запасной вариант localStorage. Все записи только на устройстве. */
 (function (root) {
-  const DB_NAME = "put-karmy-v2", DB_VER = 2, LS_KEY = "put-karmy-v2-fallback", LEGACY_KEY = "put-karmy-v9";
-  const STORES = ["patterns", "episodes", "hypotheses", "experiments", "reviews", "flags", "checkins", "research", "kv"];
+  const DB_NAME = "put-karmy-v2", DB_VER = 3, LS_KEY = "put-karmy-v2-fallback", LEGACY_KEY = "put-karmy-v9";
+  const STORES = ["patterns", "episodes", "hypotheses", "experiments", "reviews", "flags", "tools", "checkins", "research", "kv"];
+  /* Версия 3 базы: хранилище прохождений инструментов (tools). */
   /* Версия 2 базы: записи дня по ключу «дата|сюжет» (id), а не по дате. */
   const KEY = { checkins: "id", research: "patternId", kv: "key" };
   const R = root.KARMA_RULES;
 
   const Store = {
     mode: "idb", db: null, data: null, listeners: [], lastError: null,
-    empty() { return { patterns: [], episodes: [], hypotheses: [], experiments: [], reviews: [], flags: [], checkins: {}, research: {}, profile: null, meta: null }; },
+    empty() { return { patterns: [], episodes: [], hypotheses: [], experiments: [], reviews: [], flags: [], tools: [], checkins: {}, research: {}, profile: null, meta: null }; },
     onChange(fn) { this.listeners.push(fn); },
     emit(kind) { this.listeners.forEach(f => { try { f(kind, this.lastError); } catch (e) {} }); },
 
@@ -115,7 +116,7 @@
       });
     },
     exportJSON(nowTs) {
-      const d = this.data; return JSON.stringify({ schemaVersion: R.SCHEMA_VERSION, exportedAt: new Date(nowTs || Date.now()).toISOString(), app: "put-karmy", profile: d.profile, meta: d.meta, patterns: d.patterns, episodes: d.episodes, hypotheses: d.hypotheses, experiments: d.experiments, reviews: d.reviews, flags: d.flags, checkins: d.checkins, research: d.research }, null, 1);
+      const d = this.data; return JSON.stringify({ schemaVersion: R.SCHEMA_VERSION, exportedAt: new Date(nowTs || Date.now()).toISOString(), app: "put-karmy", profile: d.profile, meta: d.meta, patterns: d.patterns, episodes: d.episodes, hypotheses: d.hypotheses, experiments: d.experiments, reviews: d.reviews, flags: d.flags, tools: d.tools || [], checkins: d.checkins, research: d.research }, null, 1);
     },
     readLegacy() { try { const raw = root.localStorage.getItem(LEGACY_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; } },
     hasLegacy() { const l = this.readLegacy(); return !!(l && (l.num || l.sprint || (l.archive && l.archive.length))); },

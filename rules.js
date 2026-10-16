@@ -127,9 +127,13 @@
   R.isConfirmedAction = function (ep, skillId) {
     const nr = ep && ep.newResponse; if (!nr || ep.isRehearsal || ep.legacy) return false;
     if (skillId && (nr.skillId !== skillId || nr.backfilled)) return false;
+    /* v6: попытка подтверждает навык только когда выполнен именно шаг плана (status done) при реальном поводе.
+       Частично, другое действие и репетиция — отдельные записи, не подтверждение. */
+    if (nr.status) return nr.status === "done" && nr.opportunity !== "rehearsal" && nr.opportunity !== "none";
     if (nr.type === "pause") return nr.chosen === "chosen";
     return true;
   };
+  R.isAttempt = ep => !!(ep && ep.newResponse && !ep.legacy && (ep.newResponse.status ? ["done", "partial", "other"].includes(ep.newResponse.status) && ep.newResponse.opportunity !== "rehearsal" : !ep.isRehearsal));
   /* Навык, восстановленный задним числом (backfilled), для флага не достаточен: прошлая версия позволяла менять навык плана на месте,
      поэтому исходный навык такой записи достоверно не известен. Запись остаётся в истории. */
   R.eveningConfirms = (c, skillId) => !!(c && c.evening && c.evening.actionStatus === "done" && (!skillId || (c.evening.skillId === skillId && !c.evening.backfilled)));
@@ -164,12 +168,14 @@
     const actionDays = new Set();
     eps.forEach(e => { if (R.isConfirmedAction(e, skillId)) actionDays.add(e.dateKey); });
     evenings.forEach(c => { if (R.eveningConfirms(c, skillId)) actionDays.add(c.dateKey); });
-    const partial = evenings.filter(c => c.evening.actionStatus === "partial").length;
+    const partial = evenings.filter(c => c.evening.actionStatus === "partial" && !c.evening.fromEpisodeId).length + eps.filter(e => e.newResponse && e.newResponse.status === "partial" && !e.isRehearsal).length;
+    const attempts = { done: 0, partial: 0, other: 0, rehearsal: 0, viewed: 0 };
+    eps.forEach(e => { const nr = e.newResponse; if (!nr) return; const st = nr.status || (e.isRehearsal ? "rehearsal" : (R.isConfirmedAction(e) ? "done" : "other")); if (st in attempts) attempts[st]++; });
     const results = experiment ? (experiment.results || []).filter(r => { const e = episodes.find(x => x.id === r.episodeId); return e && e.dateKey && R.inWindow(e.dateKey, w); }) : [];
     const change = { better: 0, same: 0, worse: 0 };
     evenings.forEach(c => { if (c.evening.change in change) change[c.evening.change]++; });
     return { window: w, totalDays: days.length, eveningCount: evenings.length, impactRatings, maxImpact: impactRatings.length ? Math.max(...impactRatings.map(x => x.value)) : null,
-      opportunities, notSure, realEpisodes: realEps.length, rehearsals: eps.length - realEps.length, actionDays: [...actionDays], partial, results, change };
+      opportunities, notSure, realEpisodes: realEps.length, rehearsals: eps.length - realEps.length, actionDays: [...actionDays], partial, attempts, episodeDates: [...new Set(realEps.map(e => e.dateKey))].sort(), results, change };
   };
 
   /* ---------- правило флага (продуктовая эвристика пилота) ---------- */
@@ -242,7 +248,7 @@
     const psHyp = ps ? (ps.hypothesisVersionId || null) : null;
     const permission = !!(pattern && pattern.permission && ps && psHyp !== cur && ps.keptFor !== cur && !(ps.origin === "user" && !psHyp));
     const x = experiment;
-    const plan = !!(x && x.kind === "experiment" && x.hypothesisVersionId && x.hypothesisVersionId !== cur && x.keptFor !== cur);
+    const plan = !!(x && (x.kind === "experiment" || x.kind === "plan") && x.hypothesisVersionId && x.hypothesisVersionId !== cur && x.keptFor !== cur);
     return { permission, plan, any: permission || plan, permissionOrigin: ps ? ps.origin : null };
   };
   /* Записи прежней сборки: у разрешения нет происхождения. Помечаем как migrated и привязываем к объяснению на момент обновления,
@@ -413,9 +419,9 @@
   /* ---------- экспорт / импорт ---------- */
   /* Схема 3: записи дня по ключу «дата|сюжет», действия помнят навык. Схема 4: у разрешений есть происхождение.
      Файлы схем 2–4 читаются и приводятся к текущей. Валидатор никогда не бросает исключение: всегда {ok, errors}. */
-  R.SCHEMA_VERSION = 5;
+  R.SCHEMA_VERSION = 6;
   R.MIN_IMPORT_SCHEMA = 2;
-  R.COLLECTIONS = ["patterns", "episodes", "hypotheses", "experiments", "reviews", "flags"];
+  R.COLLECTIONS = ["patterns", "episodes", "hypotheses", "experiments", "reviews", "flags", "tools"];
   R.validateImport = function (obj) {
     const errors = [];
     try {
@@ -459,7 +465,110 @@
     if (iv < 3) R.backfillEvidence(out);
     if (iv < 4) R.markMigratedPermissions(out.patterns);
     if (iv < 5) R.migrateV5(out.patterns);
+    if (iv < 6) R.migrateV6(out);
     return { data: out, stats };
+  };
+
+  /* ---------- v6: личный план — шаблон каталога, заполненный ответами человека ---------- */
+  R.PLAN_SLOT_RE = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g;
+  R.templateSlots = tpl => { const out = []; String(tpl || "").replace(R.PLAN_SLOT_RE, (m, k) => { if (!out.includes(k)) out.push(k); return m; }); return out; };
+  R.fillTemplate = (tpl, slots) => String(tpl || "").replace(R.PLAN_SLOT_RE, (m, k) => { const v = slots && slots[k]; return v != null && String(v).trim() ? String(v).trim() : m; });
+  R.hasUnfilled = txt => /\{[a-zA-Z_][a-zA-Z0-9_]*\}/.test(String(txt || ""));
+  /* Проверка значения слота по типу: минуты — положительное целое; время/срок — непустая строка (дата или контекст); остальное — непустой текст. */
+  R.validateSlot = function (key, value) {
+    const v = String(value == null ? "" : value).trim();
+    if (!v) return "Заполни это поле";
+    if (/minutes/i.test(key)) { const n = Number(v); if (!Number.isInteger(n) || n <= 0) return "Нужно целое число минут больше нуля"; if (n > 240) return "Слишком долго для одного шага"; }
+    if (/time|deadline|checkTime|replyTime|reviewTime|newTime/i.test(key) && v.length < 2) return "Укажи время или момент";
+    return "";
+  };
+  /* Сборка личного плана из шаблона. Пример поля — не ответ: слоты заполняются только словами человека. */
+  R.planFromTemplate = function ({ template, kind = "card", patternId, lessonId, skillId, basisIds = [], desiredChange = "", slots = {}, version = 1, createdAt, mode, once }) {
+    const t = template || {};
+    return {
+      patternId, kind: "plan", version, status: "active", planStatus: "draft", createdAt: createdAt || Date.now(), results: [],
+      templateId: t.id || null, templateKind: kind, templateVersion: t.catalogVersion || "karma-practice-v6-2026-10-15",
+      lessonId: lessonId || null, skillId: skillId || t.skillId || null, userBasisIds: basisIds, desiredChange,
+      purpose: t.purpose || "", cueTemplate: t.cueTemplate || "", actionTemplate: t.actionTemplate || "", effort: t.effortLabel || "", afterQuestion: t.afterQuestion || "", completedWhen: t.completedWhen || "", smallerVersion: t.smallerVersion || "", limits: t.limits || "", fitQuestion: t.fitQuestion || "",
+      setup: (t.setup || []).map(s => ({ key: s.key, question: s.question, example: s.example || "" })), slots: Object.assign({}, slots),
+      mode: mode || (t.countsAsBehaviorChange === false ? "observation" : "behavior"), schedule: { kind: once ? "once" : "cue", repeat: !once }, simplified: false,
+      cue: "", action: "", ifThen: null, permission: t.permissionCandidate || "", permissionConfirmed: false, prediction: "", criterion: "",
+    };
+  };
+  /* Текущий вид плана: момент и действие с подставленными ответами; упрощённая версия — та же цель, меньший шаг. */
+  R.planView = function (x) {
+    if (!x) return null;
+    const cue = x.cueUser || R.fillTemplate(x.cueTemplate, x.slots);
+    const action = x.actionUser || (x.simplified && x.smallerVersion ? x.smallerVersion : R.fillTemplate(x.actionTemplate, x.slots));
+    return { cue, action, purpose: x.purpose || "", effort: x.effort || "", after: x.afterQuestion || "", limits: x.limits || "", simplified: !!x.simplified, mode: x.mode || "behavior" };
+  };
+  /* Готовность: шаблон с незаполненными слотами или без момента/действия не становится активной рекомендацией. */
+  R.planReady = function (x) {
+    if (!x) return { ready: false, missing: ["plan"], errors: {} };
+    if (x.kind !== "plan") return { ready: !!(x.action && x.ifThen && x.ifThen.signal), missing: x.action ? ["cue"] : ["action"], legacy: true, errors: {} };
+    const errors = {}, missing = [];
+    const cueKeys = x.cueUser ? [] : R.templateSlots(x.cueTemplate), actKeys = x.actionUser ? [] : R.templateSlots(x.simplified && x.smallerVersion ? x.smallerVersion : x.actionTemplate);
+    (x.setup || []).forEach(sl => { if (!(cueKeys.includes(sl.key) || actKeys.includes(sl.key))) return; const err = R.validateSlot(sl.key, (x.slots || {})[sl.key]); if (err) errors[sl.key] = err; });
+    const v = R.planView(x);
+    if (!v.cue || R.hasUnfilled(v.cue)) missing.push("cue");
+    if (!v.action || R.hasUnfilled(v.action)) missing.push("action");
+    if (!v.purpose) missing.push("purpose");
+    const ready = !missing.length && !Object.keys(errors).length;
+    return { ready, missing, errors, accepted: x.planStatus === "accepted", legacy: false };
+  };
+  /* Описание попытки словами, по факту: что именно сделал, без вывода о внутренних переменах. */
+  R.attemptStatusLabel = st => ({ done: "сделал", partial: "частично", other: "другое действие", rehearsal: "репетиция", none: "повода не было" })[st] || st || "";
+  /* Старт практики и тропа: доля — завершённые вечера в текущей семидневке, не календарь. */
+  R.trailProgress = function ({ checkins = {}, patternId, practiceStart, todayKey }) {
+    if (!practiceStart) return { week: 0, done: 0, of: 7, ratio: 0 };
+    const w = R.currentWindow(practiceStart, todayKey); if (!w) return { week: 0, done: 0, of: 7, ratio: 0 };
+    const days = new Set(); Object.values(checkins).forEach(c => { if (c.evening && !c.legacy && c.patternId === patternId && R.inWindow(c.dateKey, w)) days.add(c.dateKey); });
+    return { week: w.idx + 1, done: days.size, of: 7, ratio: days.size / 7, window: w };
+  };
+  /* Вечерний вывод — только из записей дня. Нет данных — нет выдуманного инсайта. */
+  R.eveningFacts = function ({ episodes = [], dateKey, patternId }) {
+    const eps = episodes.filter(e => e.dateKey === dateKey && !e.legacy && (!patternId || e.patternId === patternId) && e.verificationStatus !== "onboarding");
+    const attempts = eps.filter(e => e.newResponse && e.newResponse.status).map(e => e.newResponse);
+    const best = attempts.find(a => a.status === "done") || attempts.find(a => a.status === "partial") || attempts.find(a => a.status === "other") || attempts.find(a => a.status === "rehearsal") || null;
+    return { opportunities: eps.filter(e => !(e.newResponse && e.newResponse.opportunity === "rehearsal") && !e.isRehearsal).length, attempts, best, noted: attempts.map(a => a.afterAnswer).filter(Boolean), episodes: eps };
+  };
+  /* Недельный рассказ: «раньше» только при явной исходной записи; сравнение — по сопоставимым реальным записям. */
+  R.weekNarrative = function ({ pattern, summary: s, episodes = [] }) {
+    const out = { before: null, now: [], source: null };
+    const base = pattern && (pattern.habitualResponse || (pattern.scenario && pattern.scenario.reaction)) || null;
+    if (base) { out.before = base; out.source = pattern.habitualResponse ? "habitualResponse" : "scenario.reaction"; }
+    const a = (s && s.attempts) || {};
+    if (a.done) out.now.push(`${a.done} ${R.plural(a.done, "раз", "раза", "раз")} выполнил свой шаг`);
+    if (a.partial) out.now.push(`${a.partial} ${R.plural(a.partial, "раз", "раза", "раз")} — частично`);
+    if (a.other) out.now.push(`${a.other} ${R.plural(a.other, "раз", "раза", "раз")} сделал иначе`);
+    if (a.rehearsal) out.now.push(`${a.rehearsal} ${R.plural(a.rehearsal, "репетиция", "репетиции", "репетиций")}`);
+    if (s && s.opportunities && !out.now.length) out.now.push(`${s.opportunities} ${R.plural(s.opportunities, "повод", "повода", "поводов")} без записанной попытки`);
+    return out;
+  };
+  /* Следующий инструмент — по недостающему полезному результату, не по номеру дня. Не больше одного нового разбора в день. */
+  R.nextTool = function ({ pattern, plan, hypothesis, research, episodes = [], runsToday = 0 }) {
+    if (runsToday >= 1) return null;
+    const mods = (research && research.modules) || {}, p = pattern || {}, x = plan || {}, v = x.kind === "plan" ? R.planView(x) : { cue: x.ifThen && x.ifThen.signal, action: x.action };
+    const skill = x.skillId || p.skillId;
+    const results = (x.results || []);
+    if (!v || !v.cue || R.hasUnfilled(v.cue)) return { id: "if_then", why: "У шага нет узнаваемого момента." };
+    if (skill === "refuse" && !x.actionUser && !(p.phrases && p.phrases.refuse)) return { id: "assertive_no", why: "Для отказа нужна своя фраза." };
+    if (skill === "need" && !x.actionUser && !(p.phrases && p.phrases.request)) return { id: "assertive_request", why: "Для просьбы нужна своя формулировка." };
+    if (skill === "boundary" && !p.boundary) return { id: "boundary", why: "Граница не определена твоим действием." };
+    if (p.resource && !p.resource.step) return { id: "resource_step", why: "Нехватка ресурса подтверждена, изменение нагрузки не выбрано." };
+    if (!p.thought && !(mods.meaning && mods.meaning.status === "done")) return { id: "thought_check", why: "Мысль в момент случая ещё не записана." };
+    const h = hypothesis;
+    if (!h && !(mods.need && mods.need.status === "done")) return { id: "need_module", why: "Объяснение ещё не выбрано." };
+    if (h && h.branch === "rule" && !(mods.rule && mods.rule.status === "done")) return { id: "rule_permission", why: "Правило названо, гибкая проверка не выбрана." };
+    if (!x.prediction && !(mods.experiment && mods.experiment.status === "done")) return { id: "behavior_experiment", why: "Ожидание не названо — нечего сравнивать с фактом." };
+    if (results.length && results[results.length - 1].outcome === "not") return { id: "thought_check", why: "Ожидание не подтвердилось — уточним вывод." };
+    return null;
+  };
+  /* Схема 6: прежние планы остаются; им предлагается «Уточнить шаг», выдуманные ответы не добавляются. */
+  R.migrateV6 = function (data) {
+    let n = 0; (data.experiments || []).forEach(x => { if (x && !x.planStatus) { x.planStatus = x.kind === "plan" ? "draft" : "legacy"; n++; } });
+    data.tools = data.tools || [];
+    return n;
   };
 
   /* ---------- вспомогательное ---------- */
