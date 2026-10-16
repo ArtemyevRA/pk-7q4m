@@ -255,3 +255,5 @@ mark { background: rgba(226,182,90,.35); color: inherit; border-radius: 4px; pad
 .pathline { display: flex; align-items: center; gap: 6px; text-decoration: none; color: inherit; font-weight: 600; margin: 0 0 6px; }
 .astro.compact { aspect-ratio: auto; height: 190px; max-height: 190px; }
 .recog .chip.on { border-color: #C99A3E; }
+
+.acthint { margin: 2px 0 4px; text-transform: none; letter-spacing: 0; }

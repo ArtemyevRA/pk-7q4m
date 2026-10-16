@@ -1,7 +1,7 @@
 /* Путь кармы v2 — редакционный контент. Правки текстов — здесь. */
 window.KARMA_CONTENT = {
  "schemaVersion": 1,
- "contentVersion": "2026-10-16-v6.4",
+ "contentVersion": "2026-10-16-v6.5",
  "locale": "ru",
  "audience": "adults",
  "status": "original editorial seed content; review and pilot before public claims",
@@ -2576,7 +2576,13 @@ window.KARMA_CONTENT = {
     "staleText": "Шаг уже изменился. Правку можно открыть для проверки или удалить — действующий шаг останется прежним.",
     "staleOpen": "Открыть для проверки",
     "staleDrop": "Удалить правку",
-    "dropped": "Изменения отменены"
+    "dropped": "Изменения отменены",
+    "edSmall": "Правишь лёгкую версию — сейчас действует она.",
+    "edFull": "Правишь полную версию.",
+    "edFullWhileSmall": "Правишь полную версию, а сейчас действует лёгкая.",
+    "edToFull": "Править полную",
+    "edToSmall": "Править лёгкую",
+    "edUseFull": "Применять полную"
    },
    "event2": {
     "title": "Снова знакомый сценарий?",
@@ -2746,7 +2752,8 @@ window.KARMA_CONTENT = {
     "title": "Подсказка пути",
     "show": "Подсказки пути: показывать",
     "hide": "Подсказки пути: свернуть",
-    "observe": "Пока плана нет — просто заметь, когда сюжет повторится."
+    "observe": "Пока плана нет — просто заметь, когда сюжет повторится.",
+    "own": "Шаг сформулирован твоими словами — сегодня просто заметь момент, когда он пригодится."
    },
    "completed": {
     "title": "Пройденные уроки",
@@ -5965,7 +5972,2058 @@ window.KARMA_CONTENT = {
     "uncertainty-l4",
     "fairness-l1",
     "control-l2"
-   ]
+   ],
+   "adapted": {
+    "voice-l1@ev-notlisten@close": {
+     "packId": "voice",
+     "skillId": "need",
+     "effortLabel": "Одна фраза",
+     "limits": "Не применять как обязательную конфронтацию в небезопасной ситуации.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Мне можно выразить мысль, даже если со мной не согласны",
+     "permissionRequiresConfirmation": true,
+     "id": "voice-l1@ev-notlisten@close",
+     "lessonId": "voice-l1",
+     "variantId": "ev-notlisten@close",
+     "title": "занимать своё место в разговоре",
+     "lessonTitle": "занимать своё место в разговоре",
+     "lessonAction": "сказать: «Для меня это важно. Давай обсудим один вопрос»",
+     "cueTemplate": "Когда {person} ответит, что ты всё усложняешь",
+     "actionTemplate": "Сказать: «Для меня это важно. Давай обсудим один вопрос: {question}».",
+     "smallerVersion": "Сказать только: «Для меня это важно».",
+     "afterQuestion": "Удалось ли назвать, что вопрос для тебя важен? Что ответил человек?",
+     "fitQuestion": "Твоё важное отмахивают, и ты хочешь спокойно обозначить, что вопрос для тебя важен?",
+     "purpose": "Проверить, можно ли удержать важную тему, когда её называют «усложнением».",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "С кем это происходит?",
+       "example": "партнёр",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "question",
+       "question": "Какой один вопрос хочешь обсудить?",
+       "example": "как мы проведём выходные",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, если твой вопрос назовут лишним, скажи одной фразой, что он для тебя важен.",
+     "adapted": true
+    },
+    "voice-l1@ev-notlisten@work": {
+     "packId": "voice",
+     "skillId": "need",
+     "effortLabel": "Одна фраза",
+     "limits": "Не применять как обязательную конфронтацию в небезопасной ситуации.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Мне можно выразить мысль, даже если со мной не согласны",
+     "permissionRequiresConfirmation": true,
+     "id": "voice-l1@ev-notlisten@work",
+     "lessonId": "voice-l1",
+     "variantId": "ev-notlisten@work",
+     "title": "занимать своё место в разговоре",
+     "lessonTitle": "занимать своё место в разговоре",
+     "lessonAction": "сказать: «Для меня это важно. Давай обсудим один вопрос»",
+     "cueTemplate": "Когда {person} ответит, что ты всё усложняешь",
+     "actionTemplate": "Сказать: «Для меня это важно. Давай обсудим один вопрос: {question}».",
+     "smallerVersion": "Сказать только: «Для меня это важно».",
+     "afterQuestion": "Удалось ли назвать, что вопрос для тебя важен? Что ответил человек?",
+     "fitQuestion": "Твоё важное отмахивают, и ты хочешь спокойно обозначить, что вопрос для тебя важен?",
+     "purpose": "Проверить, можно ли удержать важную тему, когда её называют «усложнением».",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "С кем это происходит?",
+       "example": "партнёр",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "question",
+       "question": "Какой один вопрос хочешь обсудить?",
+       "example": "как мы проведём выходные",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, если твой вопрос назовут лишним, скажи одной фразой, что он для тебя важен.",
+     "adapted": true
+    },
+    "voice-l2@ev-notlisten@close": {
+     "packId": "voice",
+     "skillId": "boundary",
+     "effortLabel": "Просьба и при необходимости выбранная граница",
+     "limits": "Согласие другого не гарантируется; уход должен быть доступным и безопасным.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу обозначить формат разговора или остановить его",
+     "permissionRequiresConfirmation": true,
+     "id": "voice-l2@ev-notlisten@close",
+     "lessonId": "voice-l2",
+     "variantId": "ev-notlisten@close",
+     "title": "договариваться о формате важного разговора",
+     "lessonTitle": "договариваться о формате важного разговора",
+     "lessonAction": "предложить время и формат разговора о важном",
+     "cueTemplate": "Перед следующим разговором о важном с {person}",
+     "actionTemplate": "Предложить формат: {format}. Если разговор снова сводится к «ты всё усложняешь», предложить вернуться к теме в другое время.",
+     "smallerVersion": "Предложить только время для разговора.",
+     "afterQuestion": "Получилось ли договориться о формате? Как прошёл разговор?",
+     "fitQuestion": "Важные разговоры идут на бегу или в обесценивающем тоне, и хочется договориться, как говорить?",
+     "purpose": "Проверить, меняет ли договорённость о формате ход важного разговора.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "С кем будет разговор?",
+       "example": "партнёром",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "format",
+       "question": "Какой формат тебе подходит?",
+       "example": "двадцать минут вечером, без телефонов",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно не обсуждать всё сразу — достаточно предложить время и формат разговора.",
+     "adapted": true
+    },
+    "voice-l2@ev-notlisten@work": {
+     "packId": "voice",
+     "skillId": "boundary",
+     "effortLabel": "Просьба и при необходимости выбранная граница",
+     "limits": "Согласие другого не гарантируется; уход должен быть доступным и безопасным.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу обозначить формат разговора или остановить его",
+     "permissionRequiresConfirmation": true,
+     "id": "voice-l2@ev-notlisten@work",
+     "lessonId": "voice-l2",
+     "variantId": "ev-notlisten@work",
+     "title": "договариваться о формате важного разговора",
+     "lessonTitle": "договариваться о формате важного разговора",
+     "lessonAction": "предложить время и формат разговора о важном",
+     "cueTemplate": "Перед следующим разговором о важном с {person}",
+     "actionTemplate": "Предложить формат: {format}. Если разговор снова сводится к «ты всё усложняешь», предложить вернуться к теме в другое время.",
+     "smallerVersion": "Предложить только время для разговора.",
+     "afterQuestion": "Получилось ли договориться о формате? Как прошёл разговор?",
+     "fitQuestion": "Важные разговоры идут на бегу или в обесценивающем тоне, и хочется договориться, как говорить?",
+     "purpose": "Проверить, меняет ли договорённость о формате ход важного разговора.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "С кем будет разговор?",
+       "example": "партнёром",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "format",
+       "question": "Какой формат тебе подходит?",
+       "example": "двадцать минут вечером, без телефонов",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно не обсуждать всё сразу — достаточно предложить время и формат разговора.",
+     "adapted": true
+    },
+    "voice-l3@ev-notlisten@close": {
+     "packId": "voice",
+     "skillId": "uncertainty",
+     "effortLabel": "Один вопрос",
+     "limits": "Не убеждать себя, что пренебрежения точно нет; реальные нарушения сохранять как факты.",
+     "methodSources": [
+      "nhs_thought"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу проверить смысл, прежде чем делать вывод о себе",
+     "permissionRequiresConfirmation": true,
+     "id": "voice-l3@ev-notlisten@close",
+     "lessonId": "voice-l3",
+     "variantId": "ev-notlisten@close",
+     "title": "проверять, что стоит за репликой, прежде чем делать вывод о себе",
+     "lessonTitle": "проверять, что стоит за репликой, прежде чем делать вывод о себе",
+     "lessonAction": "спросить, что именно кажется сложным, прежде чем делать вывод о себе",
+     "cueTemplate": "Когда после слов «ты всё усложняешь» появится мысль {thought}",
+     "actionTemplate": "Спросить: «Что для тебя здесь кажется сложным?» Записать ответ отдельно от своего первого вывода.",
+     "smallerVersion": "Мысленно назвать: «Я пока не знаю, что он имел в виду».",
+     "afterQuestion": "Что ответил человек? Чем ответ отличался от твоего первого вывода?",
+     "fitQuestion": "После такой реплики ты сразу решаешь, что с тобой что-то не так?",
+     "purpose": "Отделить свой вывод о себе от того, что имел в виду другой человек.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "thought",
+       "question": "Какая мысль обычно появляется?",
+       "example": "со мной трудно",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, если услышишь «ты всё усложняешь», сначала спроси, что именно кажется сложным.",
+     "adapted": true
+    },
+    "voice-l3@ev-notlisten@work": {
+     "packId": "voice",
+     "skillId": "uncertainty",
+     "effortLabel": "Один вопрос",
+     "limits": "Не убеждать себя, что пренебрежения точно нет; реальные нарушения сохранять как факты.",
+     "methodSources": [
+      "nhs_thought"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу проверить смысл, прежде чем делать вывод о себе",
+     "permissionRequiresConfirmation": true,
+     "id": "voice-l3@ev-notlisten@work",
+     "lessonId": "voice-l3",
+     "variantId": "ev-notlisten@work",
+     "title": "проверять, что стоит за репликой, прежде чем делать вывод о себе",
+     "lessonTitle": "проверять, что стоит за репликой, прежде чем делать вывод о себе",
+     "lessonAction": "спросить, что именно кажется сложным, прежде чем делать вывод о себе",
+     "cueTemplate": "Когда после слов «ты всё усложняешь» появится мысль {thought}",
+     "actionTemplate": "Спросить: «Что для тебя здесь кажется сложным?» Записать ответ отдельно от своего первого вывода.",
+     "smallerVersion": "Мысленно назвать: «Я пока не знаю, что он имел в виду».",
+     "afterQuestion": "Что ответил человек? Чем ответ отличался от твоего первого вывода?",
+     "fitQuestion": "После такой реплики ты сразу решаешь, что с тобой что-то не так?",
+     "purpose": "Отделить свой вывод о себе от того, что имел в виду другой человек.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "thought",
+       "question": "Какая мысль обычно появляется?",
+       "example": "со мной трудно",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, если услышишь «ты всё усложняешь», сначала спроси, что именно кажется сложным.",
+     "adapted": true
+    },
+    "voice-l1@ev-decide@close": {
+     "packId": "voice",
+     "skillId": "need",
+     "effortLabel": "Одна фраза",
+     "limits": "Не применять как обязательную конфронтацию в небезопасной ситуации.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Мне можно выразить мысль, даже если со мной не согласны",
+     "permissionRequiresConfirmation": true,
+     "id": "voice-l1@ev-decide@close",
+     "lessonId": "voice-l1",
+     "variantId": "ev-decide@close",
+     "title": "участвовать в решениях, которые касаются меня",
+     "lessonTitle": "участвовать в решениях, которые касаются меня",
+     "lessonAction": "сказать: «Мне важно участвовать в этом решении»",
+     "cueTemplate": "Когда {person} сообщит о решении, которое касается и тебя",
+     "actionTemplate": "Сказать: «Мне важно участвовать в этом решении. Давай обсудим {topic}».",
+     "smallerVersion": "Сказать только: «Я тоже хочу высказаться об этом».",
+     "afterQuestion": "Удалось ли сказать о своём участии? Что ответили?",
+     "fitQuestion": "Решения, которые касаются тебя, принимают без тебя, и ты хочешь сказать о своём участии?",
+     "purpose": "Проверить, меняется ли решение или разговор, когда ты прямо обозначаешь своё участие.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто обычно сообщает о решении?",
+       "example": "партнёр",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "topic",
+       "question": "Что хочешь обсудить?",
+       "example": "планы на отпуск",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, если решат без тебя, одной фразой скажи, что хочешь участвовать.",
+     "adapted": true
+    },
+    "voice-l1@ev-decide@work": {
+     "packId": "voice",
+     "skillId": "need",
+     "effortLabel": "Одна фраза",
+     "limits": "Не применять как обязательную конфронтацию в небезопасной ситуации.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Мне можно выразить мысль, даже если со мной не согласны",
+     "permissionRequiresConfirmation": true,
+     "id": "voice-l1@ev-decide@work",
+     "lessonId": "voice-l1",
+     "variantId": "ev-decide@work",
+     "title": "участвовать в решениях, которые касаются меня",
+     "lessonTitle": "участвовать в решениях, которые касаются меня",
+     "lessonAction": "сказать: «Мне важно участвовать в этом решении»",
+     "cueTemplate": "Когда {person} сообщит о решении, которое касается и тебя",
+     "actionTemplate": "Сказать: «Мне важно участвовать в этом решении. Давай обсудим {topic}».",
+     "smallerVersion": "Сказать только: «Я тоже хочу высказаться об этом».",
+     "afterQuestion": "Удалось ли сказать о своём участии? Что ответили?",
+     "fitQuestion": "Решения, которые касаются тебя, принимают без тебя, и ты хочешь сказать о своём участии?",
+     "purpose": "Проверить, меняется ли решение или разговор, когда ты прямо обозначаешь своё участие.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто обычно сообщает о решении?",
+       "example": "партнёр",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "topic",
+       "question": "Что хочешь обсудить?",
+       "example": "планы на отпуск",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, если решат без тебя, одной фразой скажи, что хочешь участвовать.",
+     "adapted": true
+    },
+    "voice-l2@ev-decide@close": {
+     "packId": "voice",
+     "skillId": "boundary",
+     "effortLabel": "Просьба и при необходимости выбранная граница",
+     "limits": "Согласие другого не гарантируется; уход должен быть доступным и безопасным.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу обозначить формат разговора или остановить его",
+     "permissionRequiresConfirmation": true,
+     "id": "voice-l2@ev-decide@close",
+     "lessonId": "voice-l2",
+     "variantId": "ev-decide@close",
+     "title": "договариваться, как мы принимаем общие решения",
+     "lessonTitle": "договариваться, как мы принимаем общие решения",
+     "lessonAction": "предложить правило для общих решений",
+     "cueTemplate": "Перед следующим общим решением с {person}",
+     "actionTemplate": "Предложить правило: {rule}.",
+     "smallerVersion": "Попросить предупреждать заранее о решениях, которые касаются тебя.",
+     "afterQuestion": "Получилось ли договориться о правиле? Как его приняли?",
+     "fitQuestion": "Решения, касающиеся тебя, повторно принимают без обсуждения, и хочется договориться о порядке?",
+     "purpose": "Проверить, помогает ли договорённость о порядке принятия общих решений.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "С кем общие решения?",
+       "example": "партнёром",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "rule",
+       "question": "Какое правило предложишь?",
+       "example": "сначала обсуждаем, потом решаем",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня достаточно предложить одно правило для общих решений.",
+     "adapted": true
+    },
+    "voice-l2@ev-decide@work": {
+     "packId": "voice",
+     "skillId": "boundary",
+     "effortLabel": "Просьба и при необходимости выбранная граница",
+     "limits": "Согласие другого не гарантируется; уход должен быть доступным и безопасным.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу обозначить формат разговора или остановить его",
+     "permissionRequiresConfirmation": true,
+     "id": "voice-l2@ev-decide@work",
+     "lessonId": "voice-l2",
+     "variantId": "ev-decide@work",
+     "title": "договариваться, как мы принимаем общие решения",
+     "lessonTitle": "договариваться, как мы принимаем общие решения",
+     "lessonAction": "предложить правило для общих решений",
+     "cueTemplate": "Перед следующим общим решением с {person}",
+     "actionTemplate": "Предложить правило: {rule}.",
+     "smallerVersion": "Попросить предупреждать заранее о решениях, которые касаются тебя.",
+     "afterQuestion": "Получилось ли договориться о правиле? Как его приняли?",
+     "fitQuestion": "Решения, касающиеся тебя, повторно принимают без обсуждения, и хочется договориться о порядке?",
+     "purpose": "Проверить, помогает ли договорённость о порядке принятия общих решений.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "С кем общие решения?",
+       "example": "партнёром",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "rule",
+       "question": "Какое правило предложишь?",
+       "example": "сначала обсуждаем, потом решаем",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня достаточно предложить одно правило для общих решений.",
+     "adapted": true
+    },
+    "refusal-l1@ev-decide@close": {
+     "packId": "refusal",
+     "skillId": "pause",
+     "effortLabel": "Одна фраза сейчас, проверка задач позже",
+     "limits": "Для просьб, которые можно обсуждать. Не откладывать срочное обязательное действие.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Мои потребности тоже имеют значение",
+     "permissionRequiresConfirmation": true,
+     "id": "refusal-l1@ev-decide@close",
+     "lessonId": "refusal-l1",
+     "variantId": "ev-decide@close",
+     "title": "сохранять право выбора, когда от меня ждут согласия",
+     "lessonTitle": "сохранять право выбора, когда от меня ждут согласия",
+     "lessonAction": "сказать: «Мне нужно подумать» вместо согласия ради мира",
+     "cueTemplate": "Когда {person} предложит решение, с которым ты не согласен",
+     "actionTemplate": "Сказать: «Мне нужно подумать, отвечу {replyTime}». Не соглашаться сразу.",
+     "smallerVersion": "Сказать только: «Дай мне подумать».",
+     "afterQuestion": "Удалось ли взять время? Какой ответ ты дал после паузы?",
+     "fitQuestion": "Ты соглашаешься с решением, чтобы не ссориться, а потом жалеешь?",
+     "purpose": "Проверить, меняется ли твой ответ, если сначала взять время подумать.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто предлагает решение?",
+       "example": "партнёр",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "replyTime",
+       "question": "Когда ответишь?",
+       "example": "сегодня вечером",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно не отвечать сразу — возьми время подумать.",
+     "adapted": true
+    },
+    "voice-l1@ev-plans@close": {
+     "packId": "voice",
+     "skillId": "need",
+     "effortLabel": "Одна фраза",
+     "limits": "Не применять как обязательную конфронтацию в небезопасной ситуации.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Мне можно выразить мысль, даже если со мной не согласны",
+     "permissionRequiresConfirmation": true,
+     "id": "voice-l1@ev-plans@close",
+     "lessonId": "voice-l1",
+     "variantId": "ev-plans@close",
+     "title": "участвовать в решениях о совместных планах",
+     "lessonTitle": "участвовать в решениях о совместных планах",
+     "lessonAction": "сказать, что хочешь участвовать в решениях о планах",
+     "cueTemplate": "Когда {person} поменяет планы, не спросив тебя",
+     "actionTemplate": "Сказать: «Мне важно, чтобы такие изменения обсуждали со мной. Давай решим, как быть с {topic}».",
+     "smallerVersion": "Сказать только: «Я хочу участвовать в таких решениях».",
+     "afterQuestion": "Удалось ли сказать об этом? Что ответили?",
+     "fitQuestion": "Планы меняют без тебя, и хочется, чтобы с тобой это обсуждали?",
+     "purpose": "Проверить, меняется ли порядок перемен, когда ты прямо просишь участвовать.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто меняет планы?",
+       "example": "партнёр",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "topic",
+       "question": "Что нужно решить?",
+       "example": "субботними делами",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, если планы поменяют без тебя, скажи, что хочешь участвовать в таких решениях.",
+     "adapted": true
+    },
+    "voice-l1@ev-plans@work": {
+     "packId": "voice",
+     "skillId": "need",
+     "effortLabel": "Одна фраза",
+     "limits": "Не применять как обязательную конфронтацию в небезопасной ситуации.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Мне можно выразить мысль, даже если со мной не согласны",
+     "permissionRequiresConfirmation": true,
+     "id": "voice-l1@ev-plans@work",
+     "lessonId": "voice-l1",
+     "variantId": "ev-plans@work",
+     "title": "участвовать в решениях о совместных планах",
+     "lessonTitle": "участвовать в решениях о совместных планах",
+     "lessonAction": "сказать, что хочешь участвовать в решениях о планах",
+     "cueTemplate": "Когда {person} поменяет планы, не спросив тебя",
+     "actionTemplate": "Сказать: «Мне важно, чтобы такие изменения обсуждали со мной. Давай решим, как быть с {topic}».",
+     "smallerVersion": "Сказать только: «Я хочу участвовать в таких решениях».",
+     "afterQuestion": "Удалось ли сказать об этом? Что ответили?",
+     "fitQuestion": "Планы меняют без тебя, и хочется, чтобы с тобой это обсуждали?",
+     "purpose": "Проверить, меняется ли порядок перемен, когда ты прямо просишь участвовать.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто меняет планы?",
+       "example": "партнёр",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "topic",
+       "question": "Что нужно решить?",
+       "example": "субботними делами",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, если планы поменяют без тебя, скажи, что хочешь участвовать в таких решениях.",
+     "adapted": true
+    },
+    "voice-l1@ev-client-change@work": {
+     "packId": "voice",
+     "skillId": "need",
+     "effortLabel": "Одна фраза",
+     "limits": "Не применять как обязательную конфронтацию в небезопасной ситуации.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Мне можно выразить мысль, даже если со мной не согласны",
+     "permissionRequiresConfirmation": true,
+     "id": "voice-l1@ev-client-change@work",
+     "lessonId": "voice-l1",
+     "variantId": "ev-client-change@work",
+     "title": "участвовать в изменении согласованной задачи",
+     "lessonTitle": "участвовать в изменении согласованной задачи",
+     "lessonAction": "попросить обсудить изменение объёма и срока",
+     "cueTemplate": "Когда {person} изменит уже согласованную задачу",
+     "actionTemplate": "Сказать: «Давай обсудим изменение вместе: что меняется в объёме и сроке?»",
+     "smallerVersion": "Попросить коротко объяснить, что меняется.",
+     "afterQuestion": "Удалось ли обсудить изменение? Что решили про объём и срок?",
+     "fitQuestion": "Согласованную задачу меняют без обсуждения, и ты хочешь участвовать в изменении?",
+     "purpose": "Проверить, удаётся ли обсуждать изменения вместо молчаливого принятия.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто меняет задачу?",
+       "example": "клиент",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, если задачу изменят, попроси обсудить, что меняется в объёме и сроке.",
+     "adapted": true
+    },
+    "voice-l1@ev-double@work": {
+     "packId": "voice",
+     "skillId": "need",
+     "effortLabel": "Одна фраза",
+     "limits": "Не применять как обязательную конфронтацию в небезопасной ситуации.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Мне можно выразить мысль, даже если со мной не согласны",
+     "permissionRequiresConfirmation": true,
+     "id": "voice-l1@ev-double@work",
+     "lessonId": "voice-l1",
+     "variantId": "ev-double@work",
+     "title": "называть разницу в требованиях вслух",
+     "lessonTitle": "называть разницу в требованиях вслух",
+     "lessonAction": "назвать один факт разницы в требованиях",
+     "cueTemplate": "Когда снова заметишь, что к тебе и к коллеге применяют разные правила",
+     "actionTemplate": "Сказать {person}: «Я заметил разницу в требованиях: {fact}. Хочу понять, какие правила действуют для меня».",
+     "smallerVersion": "Записать один факт разницы для будущего разговора.",
+     "afterQuestion": "Удалось ли назвать разницу? Что ответили?",
+     "fitQuestion": "Тебе предъявляют требования, которые не предъявляют другим, и ты молчишь?",
+     "purpose": "Проверить, можно ли спокойно назвать разницу в требованиях.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "С кем говорить?",
+       "example": "руководителю",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "fact",
+       "question": "Какой факт назовёшь?",
+       "example": "коллеге разрешили сдать отчёт позже",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня достаточно одного факта: что именно отличается в требованиях.",
+     "adapted": true
+    },
+    "criticism-l1@ev-double@work": {
+     "packId": "criticism",
+     "skillId": "goodenough",
+     "effortLabel": "Одна малорисковая задача",
+     "limits": "Не использовать для задач с требованиями безопасности, закона или существенными последствиями.",
+     "methodSources": [
+      "cci_experiment"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу ошибаться и оставаться достойным уважения",
+     "permissionRequiresConfirmation": true,
+     "id": "criticism-l1@ev-double@work",
+     "lessonId": "criticism-l1",
+     "variantId": "ev-double@work",
+     "title": "признавать, что я заслуживаю тех же условий",
+     "lessonTitle": "признавать, что я заслуживаю тех же условий",
+     "lessonAction": "опереться на факт своего вклада и сказать, что рассчитываешь на те же условия",
+     "cueTemplate": "Перед разговором о {topic}",
+     "actionTemplate": "Записать один факт своего вклада и сказать: «Я рассчитываю на те же условия».",
+     "smallerVersion": "Записать для себя один факт своего вклада.",
+     "afterQuestion": "Удалось ли сказать, на что ты рассчитываешь? Что ответили?",
+     "fitQuestion": "Ты сомневаешься, что заслуживаешь тех же условий, что и другие?",
+     "purpose": "Проверить, меняется ли разговор, когда ты опираешься на факт своего вклада.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "topic",
+       "question": "О чём будет разговор?",
+       "example": "условиях оплаты",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня назови себе один факт своего вклада.",
+     "adapted": true
+    },
+    "criticism-l1@ev-double@money": {
+     "packId": "criticism",
+     "skillId": "goodenough",
+     "effortLabel": "Одна малорисковая задача",
+     "limits": "Не использовать для задач с требованиями безопасности, закона или существенными последствиями.",
+     "methodSources": [
+      "cci_experiment"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу ошибаться и оставаться достойным уважения",
+     "permissionRequiresConfirmation": true,
+     "id": "criticism-l1@ev-double@money",
+     "lessonId": "criticism-l1",
+     "variantId": "ev-double@money",
+     "title": "признавать, что я заслуживаю тех же условий",
+     "lessonTitle": "признавать, что я заслуживаю тех же условий",
+     "lessonAction": "опереться на факт своего вклада и сказать, что рассчитываешь на те же условия",
+     "cueTemplate": "Перед разговором о {topic}",
+     "actionTemplate": "Записать один факт своего вклада и сказать: «Я рассчитываю на те же условия».",
+     "smallerVersion": "Записать для себя один факт своего вклада.",
+     "afterQuestion": "Удалось ли сказать, на что ты рассчитываешь? Что ответили?",
+     "fitQuestion": "Ты сомневаешься, что заслуживаешь тех же условий, что и другие?",
+     "purpose": "Проверить, меняется ли разговор, когда ты опираешься на факт своего вклада.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "topic",
+       "question": "О чём будет разговор?",
+       "example": "условиях оплаты",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня назови себе один факт своего вклада.",
+     "adapted": true
+    },
+    "fairness-l3@ev-double@work": {
+     "packId": "fairness",
+     "skillId": "need",
+     "effortLabel": "Один запрос обратной связи",
+     "limits": "Не превращать вопрос в обязательную проверку личной ценности.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу сделать ожидание явным",
+     "permissionRequiresConfirmation": true,
+     "id": "fairness-l3@ev-double@work",
+     "lessonId": "fairness-l3",
+     "variantId": "ev-double@work",
+     "title": "делать требования ко мне явными",
+     "lessonTitle": "делать требования ко мне явными",
+     "lessonAction": "спросить, какие требования действуют для тебя",
+     "cueTemplate": "Перед разговором о требованиях с {person}",
+     "actionTemplate": "Назвать факт: {fact} — и спросить: «Какие требования действуют для меня?»",
+     "smallerVersion": "Спросить только, какие требования действуют для тебя.",
+     "afterQuestion": "Стали ли требования яснее? Что осталось неясным?",
+     "fitQuestion": "Правила кажутся двойными, и хочется понять, чего ждут именно от тебя?",
+     "purpose": "Сделать ожидания к себе явными, вместо спора о справедливости.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "С кем говорить?",
+       "example": "руководителем",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "fact",
+       "question": "Какой факт назовёшь?",
+       "example": "мой отчёт вернули за то, что приняли у коллеги",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно спросить, какие требования действуют именно для тебя.",
+     "adapted": true
+    },
+    "criticism-l1@ev-compare@close": {
+     "packId": "criticism",
+     "skillId": "goodenough",
+     "effortLabel": "Одна малорисковая задача",
+     "limits": "Не использовать для задач с требованиями безопасности, закона или существенными последствиями.",
+     "methodSources": [
+      "cci_experiment"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу ошибаться и оставаться достойным уважения",
+     "permissionRequiresConfirmation": true,
+     "id": "criticism-l1@ev-compare@close",
+     "lessonId": "criticism-l1",
+     "variantId": "ev-compare@close",
+     "title": "оставаться достойным уважения, когда меня сравнивают",
+     "lessonTitle": "оставаться достойным уважения, когда меня сравнивают",
+     "lessonAction": "сказать, что сравнение неприятно, и попросить сказать прямо",
+     "cueTemplate": "Когда {person} сравнит тебя с другим",
+     "actionTemplate": "Сказать: «Мне неприятно сравнение. Скажи прямо, чего ты от меня хочешь».",
+     "smallerVersion": "Мысленно назвать: «Сравнение не отменяет моего значения».",
+     "afterQuestion": "Удалось ли сказать о сравнении? Что ответил человек?",
+     "fitQuestion": "Сравнение с другими задевает тебя, и хочется говорить без него?",
+     "purpose": "Проверить, можно ли обозначить, что сравнение неприятно, и перейти к конкретной просьбе.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто сравнивает?",
+       "example": "мама",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, если тебя сравнят, можно сказать, что сравнение неприятно, и попросить сказать прямо.",
+     "adapted": true
+    },
+    "criticism-l2@ev-compare@close": {
+     "packId": "criticism",
+     "skillId": "uncertainty",
+     "effortLabel": "Два коротких вопроса",
+     "limits": "Не обязан соглашаться с унизительной оценкой личности.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу проверить замечание, не обобщая его на всё",
+     "permissionRequiresConfirmation": true,
+     "id": "criticism-l2@ev-compare@close",
+     "lessonId": "criticism-l2",
+     "variantId": "ev-compare@close",
+     "title": "переводить сравнение в конкретную просьбу",
+     "lessonTitle": "переводить сравнение в конкретную просьбу",
+     "lessonAction": "спросить, что именно хотят иначе",
+     "cueTemplate": "Когда {person} сравнит тебя с другим",
+     "actionTemplate": "Спросить: «Что именно ты хочешь, чтобы я сделал иначе?» Записать ответ.",
+     "smallerVersion": "Спросить только об одном конкретном пожелании.",
+     "afterQuestion": "Что именно попросили? Стало ли яснее?",
+     "fitQuestion": "За сравнением непонятно, чего от тебя хотят?",
+     "purpose": "Перевести сравнение в конкретную просьбу.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто сравнивает?",
+       "example": "мама",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, если тебя сравнят, спроси, что именно хотят иначе.",
+     "adapted": true
+    },
+    "criticism-l3@ev-compare@close": {
+     "packId": "criticism",
+     "skillId": "boundary",
+     "effortLabel": "Одна просьба о формате",
+     "limits": "При риске ответных последствий сначала планировать поддержку и безопасный способ, а не прямую конфронтацию.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу обсуждать ошибку и не соглашаться с унижением",
+     "permissionRequiresConfirmation": true,
+     "id": "criticism-l3@ev-compare@close",
+     "lessonId": "criticism-l3",
+     "variantId": "ev-compare@close",
+     "title": "отделять просьбу от обидной формы сравнения",
+     "lessonTitle": "отделять просьбу от обидной формы сравнения",
+     "lessonAction": "попросить говорить прямо, без сравнений",
+     "cueTemplate": "Когда {person} снова сравнит тебя в обидной форме",
+     "actionTemplate": "Сказать: «Если хочешь, чтобы я что-то изменил, скажи прямо, без сравнений».",
+     "smallerVersion": "Подготовить фразу и выбрать спокойный момент её сказать.",
+     "afterQuestion": "Удалось ли сказать? Как изменился разговор?",
+     "fitQuestion": "Сравнение звучит унизительно, и хочется другого тона?",
+     "purpose": "Отделить суть просьбы от обидной формы сравнения.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто сравнивает?",
+       "example": "мама",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно попросить говорить прямо, без сравнений.",
+     "adapted": true
+    },
+    "criticism-l2@ev-money@self": {
+     "packId": "criticism",
+     "skillId": "uncertainty",
+     "effortLabel": "Два коротких вопроса",
+     "limits": "Не обязан соглашаться с унизительной оценкой личности.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу проверить замечание, не обобщая его на всё",
+     "permissionRequiresConfirmation": true,
+     "id": "criticism-l2@ev-money@self",
+     "lessonId": "criticism-l2",
+     "variantId": "ev-money@self",
+     "title": "не обобщать одну трату на всё",
+     "lessonTitle": "не обобщать одну трату на всё",
+     "lessonAction": "записать факт траты и что он меняет, без оценки себя",
+     "cueTemplate": "Когда после незапланированной траты появится мысль {thought}",
+     "actionTemplate": "Записать сумму траты и что она меняет в ближайших планах — фактами, без оценки себя.",
+     "smallerVersion": "Назвать для себя: «Это одна трата, а не всё».",
+     "afterQuestion": "Что изменилось в планах на самом деле? Как изменилась мысль о себе?",
+     "fitQuestion": "После одной траты кажется, что всё испорчено?",
+     "purpose": "Отделить факт траты от общего вывода о себе.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "thought",
+       "question": "Какая мысль появляется?",
+       "example": "я опять всё испортил",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, если ругаешь себя за трату, запиши факт: сколько и что это меняет.",
+     "adapted": true
+    },
+    "control-l2@ev-myway@work": {
+     "packId": "control",
+     "skillId": "uncertainty",
+     "effortLabel": "Одна договорённость",
+     "limits": "Обязательные стандарты качества сохраняются.",
+     "methodSources": [
+      "cci_experiment"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу отличать предпочтение от требования",
+     "permissionRequiresConfirmation": true,
+     "id": "control-l2@ev-myway@work",
+     "lessonId": "control-l2",
+     "variantId": "ev-myway@work",
+     "title": "отличать обязательное требование от предпочтения",
+     "lessonTitle": "отличать обязательное требование от предпочтения",
+     "lessonAction": "уточнить, что в указании обязательно, а что можно сделать по-своему",
+     "cueTemplate": "Когда {person} даст указание, как делать работу",
+     "actionTemplate": "Уточнить: «Что здесь обязательно для результата, а что можно сделать по-своему?»",
+     "smallerVersion": "Для себя отметить: что в указании обязательно, а что — нет.",
+     "afterQuestion": "Что оказалось обязательным? Где осталась свобода?",
+     "fitQuestion": "Любое указание вызывает сопротивление, и хочется отделить обязательное от предпочтений?",
+     "purpose": "Отделить обязательное требование от предпочтения того, кто даёт указание.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто даёт указания?",
+       "example": "руководитель",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, получив указание, уточни, что в нём обязательно.",
+     "adapted": true
+    },
+    "criticism-l2@ev-myway@work": {
+     "packId": "criticism",
+     "skillId": "uncertainty",
+     "effortLabel": "Два коротких вопроса",
+     "limits": "Не обязан соглашаться с унизительной оценкой личности.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу проверить замечание, не обобщая его на всё",
+     "permissionRequiresConfirmation": true,
+     "id": "criticism-l2@ev-myway@work",
+     "lessonId": "criticism-l2",
+     "variantId": "ev-myway@work",
+     "title": "уточнять, какое указание главное",
+     "lessonTitle": "уточнять, какое указание главное",
+     "lessonAction": "спросить, какое из указаний главное",
+     "cueTemplate": "Когда получишь противоречащие указания от {person}",
+     "actionTemplate": "Спросить: «Какое из указаний сейчас главное?» Записать ответ.",
+     "smallerVersion": "Записать, в чём именно противоречие.",
+     "afterQuestion": "Какое указание назвали главным? Стало ли яснее?",
+     "fitQuestion": "Указания противоречат друг другу, и непонятно, что делать?",
+     "purpose": "Получить ясность вместо догадок.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "От кого указания?",
+       "example": "руководителя",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня при противоречивых указаниях спроси, какое главное.",
+     "adapted": true
+    },
+    "criticism-l3@ev-myway@work": {
+     "packId": "criticism",
+     "skillId": "boundary",
+     "effortLabel": "Одна просьба о формате",
+     "limits": "При риске ответных последствий сначала планировать поддержку и безопасный способ, а не прямую конфронтацию.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу обсуждать ошибку и не соглашаться с унижением",
+     "permissionRequiresConfirmation": true,
+     "id": "criticism-l3@ev-myway@work",
+     "lessonId": "criticism-l3",
+     "variantId": "ev-myway@work",
+     "title": "отделять суть указания от резкой формы",
+     "lessonTitle": "отделять суть указания от резкой формы",
+     "lessonAction": "предложить спокойно договориться, что нужно",
+     "cueTemplate": "Когда {person} снова даст указание в резкой форме",
+     "actionTemplate": "Сказать: «Готов обсудить задачу. Давай спокойно договоримся, что нужно».",
+     "smallerVersion": "Подготовить фразу и выбрать время её сказать.",
+     "afterQuestion": "Удалось ли сказать? Изменился ли тон разговора?",
+     "fitQuestion": "Указания звучат как приказ, и хочется другого тона?",
+     "purpose": "Отделить суть указания от резкой формы.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто даёт указания?",
+       "example": "руководитель",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно ответить на суть указания и попросить спокойного тона.",
+     "adapted": true
+    },
+    "control-l2@ev-terms@work": {
+     "packId": "control",
+     "skillId": "uncertainty",
+     "effortLabel": "Одна договорённость",
+     "limits": "Обязательные стандарты качества сохраняются.",
+     "methodSources": [
+      "cci_experiment"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу отличать предпочтение от требования",
+     "permissionRequiresConfirmation": true,
+     "id": "control-l2@ev-terms@work",
+     "lessonId": "control-l2",
+     "variantId": "ev-terms@work",
+     "title": "уточнять критерий результата до начала",
+     "lessonTitle": "уточнять критерий результата до начала",
+     "lessonAction": "уточнить, что должно быть готово, чтобы задача считалась сделанной",
+     "cueTemplate": "Когда получишь новую задачу {task}",
+     "actionTemplate": "До начала уточнить один обязательный критерий: «Что должно быть готово, чтобы задача считалась сделанной?»",
+     "smallerVersion": "Записать, какой результат, по-твоему, ждут, и сверить одной фразой.",
+     "afterQuestion": "Какой критерий назвали? Совпал ли он с твоим представлением?",
+     "fitQuestion": "Потом выясняется, что ждали другого результата?",
+     "purpose": "Договориться о критерии результата до начала работы.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "task",
+       "question": "Какая задача?",
+       "example": "подготовка презентации",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, получив задачу, спроси, что должно быть готово в итоге.",
+     "adapted": true
+    },
+    "control-l2@ev-compare@self": {
+     "packId": "control",
+     "skillId": "uncertainty",
+     "effortLabel": "Одна договорённость",
+     "limits": "Обязательные стандарты качества сохраняются.",
+     "methodSources": [
+      "cci_experiment"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу отличать предпочтение от требования",
+     "permissionRequiresConfirmation": true,
+     "id": "control-l2@ev-compare@self",
+     "lessonId": "control-l2",
+     "variantId": "ev-compare@self",
+     "title": "выбирать свою мерку результата",
+     "lessonTitle": "выбирать свою мерку результата",
+     "lessonAction": "назвать свой критерий достаточного результата",
+     "cueTemplate": "Когда начнёшь сравнивать свой результат с чужим",
+     "actionTemplate": "Назвать один свой критерий, по которому результат достаточен: {criterion}. Сверить результат с ним.",
+     "smallerVersion": "Записать, по какой мерке сейчас себя оцениваешь.",
+     "afterQuestion": "По какому критерию ты оценил результат? Что изменилось в оценке?",
+     "fitQuestion": "Ты оцениваешь себя по чужой мерке?",
+     "purpose": "Заменить сравнение собственным критерием достаточного результата.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "criterion",
+       "question": "Какой критерий для тебя важен?",
+       "example": "текст понятен заказчику",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня оцени свой результат по своему критерию, а не по чужому.",
+     "adapted": true
+    },
+    "control-l4@ev-redo@close": {
+     "packId": "control",
+     "skillId": "refuse",
+     "effortLabel": "Одно изменение плана",
+     "limits": "Не отменять молча важные обязательства.",
+     "methodSources": [
+      "who_stress"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Мне можно уменьшить число задач",
+     "permissionRequiresConfirmation": true,
+     "id": "control-l4@ev-redo@close",
+     "lessonId": "control-l4",
+     "variantId": "ev-redo@close",
+     "title": "не брать на себя лишнее, когда сил мало",
+     "lessonTitle": "не брать на себя лишнее, когда сил мало",
+     "lessonAction": "не переделывать и убрать одну необязательную задачу",
+     "cueTemplate": "Когда захочется переделать за {person}",
+     "actionTemplate": "Не переделывать сегодня и убрать одну необязательную задачу из своего дня.",
+     "smallerVersion": "Отложить переделку хотя бы до завтра.",
+     "afterQuestion": "Удалось ли не переделывать? Что случилось с результатом?",
+     "fitQuestion": "Ты на пределе, но всё равно переделываешь за другими?",
+     "purpose": "Проверить, что происходит, если не брать переделку на себя, когда сил мало.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "За кем хочется переделать?",
+       "example": "партнёром",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно не переделывать — у тебя и так достаточно дел.",
+     "adapted": true
+    },
+    "control-l4@ev-redo@work": {
+     "packId": "control",
+     "skillId": "refuse",
+     "effortLabel": "Одно изменение плана",
+     "limits": "Не отменять молча важные обязательства.",
+     "methodSources": [
+      "who_stress"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Мне можно уменьшить число задач",
+     "permissionRequiresConfirmation": true,
+     "id": "control-l4@ev-redo@work",
+     "lessonId": "control-l4",
+     "variantId": "ev-redo@work",
+     "title": "не брать на себя лишнее, когда сил мало",
+     "lessonTitle": "не брать на себя лишнее, когда сил мало",
+     "lessonAction": "не переделывать и убрать одну необязательную задачу",
+     "cueTemplate": "Когда захочется переделать за {person}",
+     "actionTemplate": "Не переделывать сегодня и убрать одну необязательную задачу из своего дня.",
+     "smallerVersion": "Отложить переделку хотя бы до завтра.",
+     "afterQuestion": "Удалось ли не переделывать? Что случилось с результатом?",
+     "fitQuestion": "Ты на пределе, но всё равно переделываешь за другими?",
+     "purpose": "Проверить, что происходит, если не брать переделку на себя, когда сил мало.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "За кем хочется переделать?",
+       "example": "партнёром",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно не переделывать — у тебя и так достаточно дел.",
+     "adapted": true
+    },
+    "rest-l4@ev-restguilt@self": {
+     "packId": "rest",
+     "skillId": "uncertainty",
+     "effortLabel": "Короткая запись, затем один вопрос",
+     "limits": "Не вести скрытый тотальный учёт другого и не делать вывод о мотивах по одному дню.",
+     "methodSources": [
+      "nhs_thought"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу уточнить картину, не отменяя своих потребностей",
+     "permissionRequiresConfirmation": true,
+     "id": "rest-l4@ev-restguilt@self",
+     "lessonId": "rest-l4",
+     "variantId": "ev-restguilt@self",
+     "title": "сверять свои дела с фактами, а не с другими",
+     "lessonTitle": "сверять свои дела с фактами, а не с другими",
+     "lessonAction": "записать, что сделано, и сверить с планом",
+     "cueTemplate": "Когда после отдыха появится мысль, что все вокруг работают",
+     "actionTemplate": "Записать, что ты сделал сегодня и сколько времени это заняло. Сверить с планом на день.",
+     "smallerVersion": "Назвать одно дело, которое уже сделано.",
+     "afterQuestion": "Что показала сверка? Изменилось ли чувство вины?",
+     "fitQuestion": "После отдыха кажется, что все работают больше тебя?",
+     "purpose": "Заменить сравнение с «другими» фактами своего дня.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [],
+     "tip": "Сегодня сверяйся с фактами своего дня, а не с тем, что делают другие.",
+     "adapted": true
+    },
+    "refusal-l4@ev-ask@work": {
+     "packId": "refusal",
+     "skillId": "boundary",
+     "effortLabel": "Один короткий разговор",
+     "limits": "Граница должна быть выполнимой, без угроз и опасной конфронтации.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу назвать нарушение и ограничить свой вклад",
+     "permissionRequiresConfirmation": true,
+     "id": "refusal-l4@ev-ask@work",
+     "lessonId": "refusal-l4",
+     "variantId": "ev-ask@work",
+     "title": "договариваться о границах помощи и держать их",
+     "lessonTitle": "договариваться о границах помощи и держать их",
+     "lessonAction": "договориться о правиле для просьб",
+     "cueTemplate": "До следующей просьбы от {person}",
+     "actionTemplate": "Договориться о правиле: {rule}. Если его нарушают, ответить: «Сейчас не могу, давай по договорённости».",
+     "smallerVersion": "Отметить, сколько раз за неделю тебя просили.",
+     "afterQuestion": "Удалось ли договориться? Как ответили на следующую просьбу?",
+     "fitQuestion": "Тебя просят слишком часто, и хочется договориться о границах?",
+     "purpose": "Проверить, меняется ли частота просьб после договорённости.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто просит?",
+       "example": "коллега",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "rule",
+       "question": "Какое правило предложишь?",
+       "example": "подменяю не чаще раза в неделю",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно предложить одно правило для просьб.",
+     "adapted": true
+    },
+    "refusal-l4@ev-plans@close": {
+     "packId": "refusal",
+     "skillId": "boundary",
+     "effortLabel": "Один короткий разговор",
+     "limits": "Граница должна быть выполнимой, без угроз и опасной конфронтации.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу назвать нарушение и ограничить свой вклад",
+     "permissionRequiresConfirmation": true,
+     "id": "refusal-l4@ev-plans@close",
+     "lessonId": "refusal-l4",
+     "variantId": "ev-plans@close",
+     "title": "договариваться о предупреждении и держать свою границу",
+     "lessonTitle": "договариваться о предупреждении и держать свою границу",
+     "lessonAction": "договориться, за сколько предупреждать о переменах",
+     "cueTemplate": "До следующих совместных планов с {person}",
+     "actionTemplate": "Договориться: о переменах предупреждаем заранее, за {lead}. Назвать, что сделаешь, если планы меняют в последний момент: {myBoundary}.",
+     "smallerVersion": "Попросить предупреждать о переменах заранее.",
+     "afterQuestion": "Получилось ли договориться? Что произошло при следующей перемене?",
+     "fitQuestion": "Планы меняют в последний момент, и хочется договориться о предупреждении?",
+     "purpose": "Проверить, помогает ли договорённость о сроке предупреждения.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "С кем совместные планы?",
+       "example": "партнёром",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "lead",
+       "question": "За сколько предупреждать?",
+       "example": "день",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "myBoundary",
+       "question": "Что сделаешь при нарушении?",
+       "example": "оставлю свои планы как были",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно договориться, как заранее предупреждать о переменах.",
+     "adapted": true
+    },
+    "fairness-l1@ev-plans@work": {
+     "packId": "fairness",
+     "skillId": "boundary",
+     "effortLabel": "Один уточняющий вопрос",
+     "limits": "Не выдавать переговорный шаблон за юридическую или финансовую консультацию.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу назвать свои условия и выбрать участие",
+     "permissionRequiresConfirmation": true,
+     "id": "fairness-l1@ev-plans@work",
+     "lessonId": "fairness-l1",
+     "variantId": "ev-plans@work",
+     "title": "уточнять условия, когда меняют план",
+     "lessonTitle": "уточнять условия, когда меняют план",
+     "lessonAction": "уточнить срок и объём изменения",
+     "cueTemplate": "Когда тебе сообщат о новых изменениях в плане",
+     "actionTemplate": "Уточнить, что меняется в сроке и объёме, и договориться, как предупреждать заранее.",
+     "smallerVersion": "Спросить, когда о таких изменениях можно узнавать заранее.",
+     "afterQuestion": "Что выяснилось про срок и объём? Договорились ли о предупреждении?",
+     "fitQuestion": "Планы меняют без предупреждения, и ты сразу подстраиваешься?",
+     "purpose": "Уточнять условия изменения вместо молчаливого принятия.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [],
+     "tip": "Сегодня при изменении плана уточни срок и объём.",
+     "adapted": true
+    },
+    "rest-l2@ev-deadline@work": {
+     "packId": "rest",
+     "skillId": "need",
+     "effortLabel": "Один разговор об одной задаче",
+     "limits": "Не обещать, что другой согласится; при отказе пересмотреть своё доступное участие.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу обсуждать справедливый вклад",
+     "permissionRequiresConfirmation": true,
+     "id": "rest-l2@ev-deadline@work",
+     "lessonId": "rest-l2",
+     "variantId": "ev-deadline@work",
+     "title": "говорить о перегрузке и приоритетах",
+     "lessonTitle": "говорить о перегрузке и приоритетах",
+     "lessonAction": "сказать, что успеешь, и спросить о приоритетах",
+     "cueTemplate": "Когда {person} добавит задачу при сжатых сроках",
+     "actionTemplate": "Сказать: «С этим сроком я успею {scope}. Что из задач важнее?»",
+     "smallerVersion": "Назвать только: «Сейчас у меня уже полная загрузка».",
+     "afterQuestion": "Удалось ли сказать о загрузке? Что решили с приоритетами?",
+     "fitQuestion": "Сказать о перегрузке страшно, и ты молча берёшь всё?",
+     "purpose": "Проверить, можно ли обсуждать приоритеты вместо молчаливой перегрузки.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто добавляет задачи?",
+       "example": "руководитель",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "scope",
+       "question": "Что реально успеешь?",
+       "example": "две задачи из трёх",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, если добавят задачу, спроси, что важнее.",
+     "adapted": true
+    },
+    "uncertainty-l2@ev-promise@close": {
+     "packId": "uncertainty",
+     "skillId": "need",
+     "effortLabel": "Один вопрос о сроке",
+     "limits": "Реальный срок отличается от способа заставить другого ответить быстрее.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу просить ясности, не требуя немедленного ответа",
+     "permissionRequiresConfirmation": true,
+     "id": "uncertainty-l2@ev-promise@close",
+     "lessonId": "uncertainty-l2",
+     "variantId": "ev-promise@close",
+     "title": "напоминать о договорённости, не извиняясь",
+     "lessonTitle": "напоминать о договорённости, не извиняясь",
+     "lessonAction": "напомнить об обещанном одной фразой",
+     "cueTemplate": "Когда наступит срок обещанного от {person}",
+     "actionTemplate": "Напомнить одним сообщением: «Ты обещал {promise}. Получится сегодня?»",
+     "smallerVersion": "Написать напоминание и выбрать время отправки.",
+     "afterQuestion": "Удалось ли напомнить? Что ответили?",
+     "fitQuestion": "Тебе неловко напоминать об обещанном?",
+     "purpose": "Проверить, можно ли напоминать о договорённости спокойно и без извинений.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто обещал?",
+       "example": "партнёра",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "promise",
+       "question": "Что обещано?",
+       "example": "забрать посылку",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно напомнить об обещанном одной фразой, без извинений.",
+     "adapted": true
+    },
+    "uncertainty-l2@ev-promise@work": {
+     "packId": "uncertainty",
+     "skillId": "need",
+     "effortLabel": "Один вопрос о сроке",
+     "limits": "Реальный срок отличается от способа заставить другого ответить быстрее.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу просить ясности, не требуя немедленного ответа",
+     "permissionRequiresConfirmation": true,
+     "id": "uncertainty-l2@ev-promise@work",
+     "lessonId": "uncertainty-l2",
+     "variantId": "ev-promise@work",
+     "title": "напоминать о договорённости, не извиняясь",
+     "lessonTitle": "напоминать о договорённости, не извиняясь",
+     "lessonAction": "напомнить об обещанном одной фразой",
+     "cueTemplate": "Когда наступит срок обещанного от {person}",
+     "actionTemplate": "Напомнить одним сообщением: «Ты обещал {promise}. Получится сегодня?»",
+     "smallerVersion": "Написать напоминание и выбрать время отправки.",
+     "afterQuestion": "Удалось ли напомнить? Что ответили?",
+     "fitQuestion": "Тебе неловко напоминать об обещанном?",
+     "purpose": "Проверить, можно ли напоминать о договорённости спокойно и без извинений.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто обещал?",
+       "example": "партнёра",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "promise",
+       "question": "Что обещано?",
+       "example": "забрать посылку",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно напомнить об обещанном одной фразой, без извинений.",
+     "adapted": true
+    },
+    "uncertainty-l2@ev-promise@work-clients": {
+     "packId": "uncertainty",
+     "skillId": "need",
+     "effortLabel": "Один вопрос о сроке",
+     "limits": "Реальный срок отличается от способа заставить другого ответить быстрее.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу просить ясности, не требуя немедленного ответа",
+     "permissionRequiresConfirmation": true,
+     "id": "uncertainty-l2@ev-promise@work-clients",
+     "lessonId": "uncertainty-l2",
+     "variantId": "ev-promise@work-clients",
+     "title": "напоминать о договорённости, не извиняясь",
+     "lessonTitle": "напоминать о договорённости, не извиняясь",
+     "lessonAction": "напомнить об обещанном одной фразой",
+     "cueTemplate": "Когда наступит срок обещанного от {person}",
+     "actionTemplate": "Напомнить одним сообщением: «Ты обещал {promise}. Получится сегодня?»",
+     "smallerVersion": "Написать напоминание и выбрать время отправки.",
+     "afterQuestion": "Удалось ли напомнить? Что ответили?",
+     "fitQuestion": "Тебе неловко напоминать об обещанном?",
+     "purpose": "Проверить, можно ли напоминать о договорённости спокойно и без извинений.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто обещал?",
+       "example": "партнёра",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "promise",
+       "question": "Что обещано?",
+       "example": "забрать посылку",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно напомнить об обещанном одной фразой, без извинений.",
+     "adapted": true
+    },
+    "refusal-l1@ev-loan@money": {
+     "packId": "refusal",
+     "skillId": "pause",
+     "effortLabel": "Одна фраза сейчас, проверка задач позже",
+     "limits": "Для просьб, которые можно обсуждать. Не откладывать срочное обязательное действие.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Мои потребности тоже имеют значение",
+     "permissionRequiresConfirmation": true,
+     "id": "refusal-l1@ev-loan@money",
+     "lessonId": "refusal-l1",
+     "variantId": "ev-loan@money",
+     "title": "брать время подумать, прежде чем дать деньги",
+     "lessonTitle": "брать время подумать, прежде чем дать деньги",
+     "lessonAction": "сказать: «Мне нужно посмотреть свой бюджет»",
+     "cueTemplate": "Когда {person} попросит денег или оплатить расходы",
+     "actionTemplate": "Сказать: «Мне нужно посмотреть свой бюджет, отвечу {replyTime}».",
+     "smallerVersion": "Сказать только: «Мне нужно подумать».",
+     "afterQuestion": "Удалось ли взять время? Какой ответ ты дал?",
+     "fitQuestion": "Ты соглашаешься дать деньги раньше, чем успеваешь подумать?",
+     "purpose": "Проверить, меняется ли ответ, если сначала свериться со своими планами.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто просит?",
+       "example": "брат",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "replyTime",
+       "question": "Когда ответишь?",
+       "example": "завтра",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, если попросят денег, возьми время подумать.",
+     "adapted": true
+    },
+    "refusal-l1@ev-loan@close": {
+     "packId": "refusal",
+     "skillId": "pause",
+     "effortLabel": "Одна фраза сейчас, проверка задач позже",
+     "limits": "Для просьб, которые можно обсуждать. Не откладывать срочное обязательное действие.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Мои потребности тоже имеют значение",
+     "permissionRequiresConfirmation": true,
+     "id": "refusal-l1@ev-loan@close",
+     "lessonId": "refusal-l1",
+     "variantId": "ev-loan@close",
+     "title": "брать время подумать, прежде чем дать деньги",
+     "lessonTitle": "брать время подумать, прежде чем дать деньги",
+     "lessonAction": "сказать: «Мне нужно посмотреть свой бюджет»",
+     "cueTemplate": "Когда {person} попросит денег или оплатить расходы",
+     "actionTemplate": "Сказать: «Мне нужно посмотреть свой бюджет, отвечу {replyTime}».",
+     "smallerVersion": "Сказать только: «Мне нужно подумать».",
+     "afterQuestion": "Удалось ли взять время? Какой ответ ты дал?",
+     "fitQuestion": "Ты соглашаешься дать деньги раньше, чем успеваешь подумать?",
+     "purpose": "Проверить, меняется ли ответ, если сначала свериться со своими планами.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кто просит?",
+       "example": "брат",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "replyTime",
+       "question": "Когда ответишь?",
+       "example": "завтра",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня, если попросят денег, возьми время подумать.",
+     "adapted": true
+    },
+    "refusal-l4@ev-loan@money": {
+     "packId": "refusal",
+     "skillId": "boundary",
+     "effortLabel": "Один короткий разговор",
+     "limits": "Граница должна быть выполнимой, без угроз и опасной конфронтации.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу назвать нарушение и ограничить свой вклад",
+     "permissionRequiresConfirmation": true,
+     "id": "refusal-l4@ev-loan@money",
+     "lessonId": "refusal-l4",
+     "variantId": "ev-loan@money",
+     "title": "напоминать о долге и держать границу",
+     "lessonTitle": "напоминать о долге и держать границу",
+     "lessonAction": "напомнить о долге одной фразой",
+     "cueTemplate": "Когда наступит срок возврата {amount}",
+     "actionTemplate": "Напомнить одной фразой: «Напоминаю про {amount}. Когда сможешь вернуть?» Решить, что сделаешь, если срок снова сорвётся: {myBoundary}.",
+     "smallerVersion": "Написать напоминание и выбрать время отправки.",
+     "afterQuestion": "Удалось ли напомнить? Что ответили?",
+     "fitQuestion": "Тебе не возвращают деньги, а напомнить неловко?",
+     "purpose": "Проверить, можно ли напомнить о долге и держать свою границу.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "amount",
+       "question": "О чём напомнишь?",
+       "example": "пять тысяч",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "myBoundary",
+       "question": "Что сделаешь при новом срыве?",
+       "example": "больше не дам в долг",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно напомнить о долге одной фразой.",
+     "adapted": true
+    },
+    "refusal-l4@ev-loan@close": {
+     "packId": "refusal",
+     "skillId": "boundary",
+     "effortLabel": "Один короткий разговор",
+     "limits": "Граница должна быть выполнимой, без угроз и опасной конфронтации.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу назвать нарушение и ограничить свой вклад",
+     "permissionRequiresConfirmation": true,
+     "id": "refusal-l4@ev-loan@close",
+     "lessonId": "refusal-l4",
+     "variantId": "ev-loan@close",
+     "title": "напоминать о долге и держать границу",
+     "lessonTitle": "напоминать о долге и держать границу",
+     "lessonAction": "напомнить о долге одной фразой",
+     "cueTemplate": "Когда наступит срок возврата {amount}",
+     "actionTemplate": "Напомнить одной фразой: «Напоминаю про {amount}. Когда сможешь вернуть?» Решить, что сделаешь, если срок снова сорвётся: {myBoundary}.",
+     "smallerVersion": "Написать напоминание и выбрать время отправки.",
+     "afterQuestion": "Удалось ли напомнить? Что ответили?",
+     "fitQuestion": "Тебе не возвращают деньги, а напомнить неловко?",
+     "purpose": "Проверить, можно ли напомнить о долге и держать свою границу.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "amount",
+       "question": "О чём напомнишь?",
+       "example": "пять тысяч",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "myBoundary",
+       "question": "Что сделаешь при новом срыве?",
+       "example": "больше не дам в долг",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно напомнить о долге одной фразой.",
+     "adapted": true
+    },
+    "refusal-l2@ev-promise@close": {
+     "packId": "refusal",
+     "skillId": "refuse",
+     "effortLabel": "Одна фраза",
+     "limits": "Не использовать автоматический отказ для согласованных обязанностей или опасного контакта.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу соотносить обязательства со своими силами",
+     "permissionRequiresConfirmation": true,
+     "id": "refusal-l2@ev-promise@close",
+     "lessonId": "refusal-l2",
+     "variantId": "ev-promise@close",
+     "title": "не брать на себя чужую часть молча",
+     "lessonTitle": "не брать на себя чужую часть молча",
+     "lessonAction": "сказать, что чужую часть сегодня не берёшь",
+     "cueTemplate": "Когда обещанная часть {task} снова останется на тебе",
+     "actionTemplate": "Не доделывать молча. Сказать: «Это твоя часть, сегодня я её не беру».",
+     "smallerVersion": "Отметить для себя: это не моя часть, и не делать её сегодня.",
+     "afterQuestion": "Удалось ли не брать чужую часть? Что произошло дальше?",
+     "fitQuestion": "Обещанное другим в итоге делаешь ты?",
+     "purpose": "Проверить, что происходит, если не доделывать чужую часть молча.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "task",
+       "question": "Какая часть остаётся на тебе?",
+       "example": "вынести мусор",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно не доделывать чужую часть молча.",
+     "adapted": true
+    },
+    "refusal-l2@ev-promise@work": {
+     "packId": "refusal",
+     "skillId": "refuse",
+     "effortLabel": "Одна фраза",
+     "limits": "Не использовать автоматический отказ для согласованных обязанностей или опасного контакта.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу соотносить обязательства со своими силами",
+     "permissionRequiresConfirmation": true,
+     "id": "refusal-l2@ev-promise@work",
+     "lessonId": "refusal-l2",
+     "variantId": "ev-promise@work",
+     "title": "не брать на себя чужую часть молча",
+     "lessonTitle": "не брать на себя чужую часть молча",
+     "lessonAction": "сказать, что чужую часть сегодня не берёшь",
+     "cueTemplate": "Когда обещанная часть {task} снова останется на тебе",
+     "actionTemplate": "Не доделывать молча. Сказать: «Это твоя часть, сегодня я её не беру».",
+     "smallerVersion": "Отметить для себя: это не моя часть, и не делать её сегодня.",
+     "afterQuestion": "Удалось ли не брать чужую часть? Что произошло дальше?",
+     "fitQuestion": "Обещанное другим в итоге делаешь ты?",
+     "purpose": "Проверить, что происходит, если не доделывать чужую часть молча.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "task",
+       "question": "Какая часть остаётся на тебе?",
+       "example": "вынести мусор",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно не доделывать чужую часть молча.",
+     "adapted": true
+    },
+    "fairness-l3@ev-double@money": {
+     "packId": "fairness",
+     "skillId": "need",
+     "effortLabel": "Один запрос обратной связи",
+     "limits": "Не превращать вопрос в обязательную проверку личной ценности.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу сделать ожидание явным",
+     "permissionRequiresConfirmation": true,
+     "id": "fairness-l3@ev-double@money",
+     "lessonId": "fairness-l3",
+     "variantId": "ev-double@money",
+     "title": "делать правила оплаты явными",
+     "lessonTitle": "делать правила оплаты явными",
+     "lessonAction": "назвать факт и спросить, по какому правилу определены условия",
+     "cueTemplate": "Перед разговором об условиях с {person}",
+     "actionTemplate": "Назвать факт: {fact} — и спросить, по какому правилу определены твои условия.",
+     "smallerVersion": "Записать один факт для разговора.",
+     "afterQuestion": "Что ответили о правиле? Что стало яснее?",
+     "fitQuestion": "Условия для тебя другие, а спорить кажется бесполезным?",
+     "purpose": "Сделать правило явным вместо спора.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "С кем говорить?",
+       "example": "заказчиком",
+       "exampleIsNotUserAnswer": true
+      },
+      {
+       "key": "fact",
+       "question": "Какой факт назовёшь?",
+       "example": "за ту же работу другому платят больше",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно спросить, по какому правилу определены твои условия.",
+     "adapted": true
+    },
+    "rest-l4@ev-deadline@work": {
+     "packId": "rest",
+     "skillId": "uncertainty",
+     "effortLabel": "Короткая запись, затем один вопрос",
+     "limits": "Не вести скрытый тотальный учёт другого и не делать вывод о мотивах по одному дню.",
+     "methodSources": [
+      "nhs_thought"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу уточнить картину, не отменяя своих потребностей",
+     "permissionRequiresConfirmation": true,
+     "id": "rest-l4@ev-deadline@work",
+     "lessonId": "rest-l4",
+     "variantId": "ev-deadline@work",
+     "title": "сверять задачи со сроком",
+     "lessonTitle": "сверять задачи со сроком",
+     "lessonAction": "спросить, что обязательно к сроку, а что можно перенести",
+     "cueTemplate": "Когда задач больше, чем времени до срока",
+     "actionTemplate": "Спросить {person}: «Что из этого обязательно к сроку, а что можно перенести?»",
+     "smallerVersion": "Для себя отметить одну задачу, которая точно обязательна.",
+     "afterQuestion": "Что назвали обязательным? Что удалось перенести?",
+     "fitQuestion": "Непонятно, что из задач действительно обязательно к сроку?",
+     "purpose": "Сверять задачи и срок вместо попытки сделать всё.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "Кого спросить?",
+       "example": "руководителя",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня уточни, что из задач обязательно к сроку.",
+     "adapted": true
+    },
+    "rest-l4@ev-others-ease@self": {
+     "packId": "rest",
+     "skillId": "uncertainty",
+     "effortLabel": "Короткая запись, затем один вопрос",
+     "limits": "Не вести скрытый тотальный учёт другого и не делать вывод о мотивах по одному дню.",
+     "methodSources": [
+      "nhs_thought"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу уточнить картину, не отменяя своих потребностей",
+     "permissionRequiresConfirmation": true,
+     "id": "rest-l4@ev-others-ease@self",
+     "lessonId": "rest-l4",
+     "variantId": "ev-others-ease@self",
+     "title": "сверять свой день с фактами, а не с другими",
+     "lessonTitle": "сверять свой день с фактами, а не с другими",
+     "lessonAction": "записать факты своего дня и решить про отдых",
+     "cueTemplate": "Когда увидишь, как другой отдыхает, и подумаешь, что тебе нельзя",
+     "actionTemplate": "Записать факты своего дня: что сделано и сколько времени ушло. Решить, можешь ли ты позволить себе короткий отдых.",
+     "smallerVersion": "Назвать одно уже сделанное дело.",
+     "afterQuestion": "Что показали факты? Позволил ли ты себе отдых?",
+     "fitQuestion": "Чужой отдых задевает, потому что себе его не разрешаешь?",
+     "purpose": "Опираться на факты своего дня, а не на сравнение.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [],
+     "tip": "Сегодня сверяйся с фактами своего дня, а не с чужим отдыхом.",
+     "adapted": true
+    },
+    "rest-l3@ev-plans@work": {
+     "packId": "rest",
+     "skillId": "refuse",
+     "effortLabel": "Один пункт плана",
+     "limits": "Не ставить диагноз по усталости и не отменять важные обязанности молча.",
+     "methodSources": [
+      "who_stress"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Мне можно признать предел сил",
+     "permissionRequiresConfirmation": true,
+     "id": "rest-l3@ev-plans@work",
+     "lessonId": "rest-l3",
+     "variantId": "ev-plans@work",
+     "title": "не переносить рабочее раздражение на близких",
+     "lessonTitle": "не переносить рабочее раздражение на близких",
+     "lessonAction": "сделать паузу и сказать близким, что день был тяжёлым",
+     "cueTemplate": "Когда после смены рабочих планов почувствуешь раздражение",
+     "actionTemplate": "Перед встречей с близкими сделать паузу {minutes} минут и сказать им одной фразой, что день был тяжёлым.",
+     "smallerVersion": "Сказать близким: «День был тяжёлый, это не про тебя».",
+     "afterQuestion": "Удалось ли сделать паузу? Как прошла встреча с близкими?",
+     "fitQuestion": "Рабочее раздражение потом достаётся близким?",
+     "purpose": "Не переносить рабочую перегрузку на близких.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "minutes",
+       "question": "Сколько минут паузы реально доступно?",
+       "example": "10",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня перед встречей с близкими сделай короткую паузу.",
+     "adapted": true
+    },
+    "uncertainty-l2@ev-cutoff@close": {
+     "packId": "uncertainty",
+     "skillId": "need",
+     "effortLabel": "Один вопрос о сроке",
+     "limits": "Реальный срок отличается от способа заставить другого ответить быстрее.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "permissionCandidate": "Я могу просить ясности, не требуя немедленного ответа",
+     "permissionRequiresConfirmation": true,
+     "id": "uncertainty-l2@ev-cutoff@close",
+     "lessonId": "uncertainty-l2",
+     "variantId": "ev-cutoff@close",
+     "title": "спрашивать, когда вернуться к разговору",
+     "lessonTitle": "спрашивать, когда вернуться к разговору",
+     "lessonAction": "спросить, когда удобно вернуться к разговору",
+     "cueTemplate": "Когда разговор с {person} оборвался без объяснения",
+     "actionTemplate": "Спросить одним сообщением: «Можем вернуться к разговору? Когда тебе удобно?»",
+     "smallerVersion": "Написать вопрос и выбрать время отправки.",
+     "afterQuestion": "Что ответили? Договорились ли о времени?",
+     "fitQuestion": "Страшно спросить, что случилось после оборванного разговора?",
+     "purpose": "Просить ясности, не требуя немедленного ответа.",
+     "completedWhen": "Попробовал выбранное действие в описанный момент; ответ другого человека записывается отдельно.",
+     "setup": [
+      {
+       "key": "person",
+       "question": "С кем оборвался разговор?",
+       "example": "партнёром",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "tip": "Сегодня можно спросить, когда удобно вернуться к разговору.",
+     "adapted": true
+    }
+   }
   },
   "toolSteps": {
    "thought_check": {
@@ -7071,9 +9129,8 @@ window.KARMA_CONTENT = {
      1
     ],
     "teachers": [
-     "boss",
      "colleague",
-     "client",
+     "boss",
      "situation"
     ],
     "status": "approved",
@@ -7194,7 +9251,6 @@ window.KARMA_CONTENT = {
     "teachers": [
      "boss",
      "colleague",
-     "client",
      "situation"
     ],
     "status": "approved",
@@ -7267,7 +9323,6 @@ window.KARMA_CONTENT = {
     "area": "work",
     "contexts": [
      "colleagues",
-     "clients",
      "load"
     ],
     "topicTags": [
@@ -7313,8 +9368,58 @@ window.KARMA_CONTENT = {
      6
     ],
     "teachers": [
-     "boss",
      "colleague",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-promise@work-clients",
+    "variantId": "ev-promise@work-clients",
+    "eventId": "ev-promise",
+    "familyId": "ev-promise",
+    "area": "work",
+    "contexts": [
+     "clients"
+    ],
+    "topicTags": [
+     "refusal"
+    ],
+    "text": "Клиент обещает прислать материалы или подтверждение, но не присылает",
+    "reactions": [
+     "Делаю сам",
+     "Напоминаю",
+     "Молчу и злюсь",
+     "Перестаю просить",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "k1",
+      "text": "Моя работа стоит, пока ничего нет",
+      "lessonId": "uncertainty-l4",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Договорённость не выполнена",
+      "lessonId": "refusal-l4",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Напоминать неловко",
+      "lessonId": "uncertainty-l2",
+      "observe": null
+     }
+    ],
+    "packId": "refusal",
+    "pathHint": [
+     4,
+     6
+    ],
+    "teachers": [
      "client",
      "situation"
     ],
@@ -7490,7 +9595,6 @@ window.KARMA_CONTENT = {
     "teachers": [
      "boss",
      "colleague",
-     "client",
      "situation"
     ],
     "status": "approved",
@@ -7551,7 +9655,6 @@ window.KARMA_CONTENT = {
     "teachers": [
      "boss",
      "colleague",
-     "client",
      "situation"
     ],
     "status": "approved",
@@ -7714,7 +9817,6 @@ window.KARMA_CONTENT = {
     ],
     "teachers": [
      "boss",
-     "colleague",
      "client",
      "situation"
     ],
@@ -7826,9 +9928,7 @@ window.KARMA_CONTENT = {
      1
     ],
     "teachers": [
-     "boss",
      "colleague",
-     "client",
      "situation"
     ],
     "status": "approved",
@@ -7942,7 +10042,6 @@ window.KARMA_CONTENT = {
     ],
     "teachers": [
      "boss",
-     "colleague",
      "client",
      "situation"
     ],
@@ -8295,7 +10394,6 @@ window.KARMA_CONTENT = {
     ],
     "teachers": [
      "boss",
-     "colleague",
      "client",
      "situation"
     ],
@@ -8416,9 +10514,8 @@ window.KARMA_CONTENT = {
      4
     ],
     "teachers": [
-     "boss",
-     "colleague",
      "client",
+     "boss",
      "situation"
     ],
     "status": "approved",
@@ -8804,7 +10901,6 @@ window.KARMA_CONTENT = {
     "teachers": [
      "boss",
      "colleague",
-     "client",
      "situation"
     ],
     "status": "approved",
@@ -9086,7 +11182,6 @@ window.KARMA_CONTENT = {
     ],
     "teachers": [
      "boss",
-     "colleague",
      "client",
      "situation"
     ],
@@ -9417,9 +11512,7 @@ window.KARMA_CONTENT = {
      2
     ],
     "teachers": [
-     "boss",
      "colleague",
-     "client",
      "situation"
     ],
     "status": "approved",
@@ -9473,7 +11566,6 @@ window.KARMA_CONTENT = {
      4
     ],
     "teachers": [
-     "boss",
      "colleague",
      "client",
      "situation"
@@ -9533,8 +11625,6 @@ window.KARMA_CONTENT = {
      4
     ],
     "teachers": [
-     "boss",
-     "colleague",
      "client",
      "situation"
     ],
@@ -9655,9 +11745,8 @@ window.KARMA_CONTENT = {
      8
     ],
     "teachers": [
-     "boss",
-     "colleague",
      "client",
+     "boss",
      "situation"
     ],
     "status": "approved",
@@ -9711,20 +11800,299 @@ window.KARMA_CONTENT = {
     ],
     "teachers": [
      "boss",
-     "colleague",
-     "client",
      "situation"
     ],
     "status": "approved",
     "reviewedIn": "2026-10-16-v6.4"
    }
   ],
-  "routingVersion": "quiz-domain-v1",
+  "routingVersion": "quiz-domain-v2",
   "eventAreas": [
    "close",
    "work",
    "money",
    "self"
-  ]
+  ],
+  "ctxRole": {
+   "boss": "boss",
+   "colleagues": "colleague",
+   "clients": "client"
+  },
+  "directionReview": {
+   "ev-interrupt@close": {
+    "voice-l1": "native",
+    "voice-l3": "native",
+    "voice-l2": "native",
+    "voice-l4": "native"
+   },
+   "ev-interrupt@work": {
+    "voice-l1": "native",
+    "voice-l3": "native",
+    "voice-l2": "native",
+    "voice-l4": "native"
+   },
+   "ev-decide@close": {
+    "voice-l1": "adapted",
+    "voice-l2": "adapted",
+    "refusal-l1": "adapted"
+   },
+   "ev-decide@work": {
+    "voice-l1": "adapted",
+    "control-l3": "native",
+    "voice-l2": "adapted"
+   },
+   "ev-promise@close": {
+    "refusal-l2": "adapted",
+    "refusal-l4": "native",
+    "refusal-l3": "native",
+    "uncertainty-l2": "adapted"
+   },
+   "ev-promise@work": {
+    "refusal-l2": "adapted",
+    "refusal-l4": "native",
+    "refusal-l3": "native",
+    "uncertainty-l2": "adapted"
+   },
+   "ev-promise@work-clients": {
+    "uncertainty-l4": "native",
+    "refusal-l4": "native",
+    "uncertainty-l2": "adapted"
+   },
+   "ev-promise@money": {
+    "uncertainty-l4": "native",
+    "refusal-l4": "native",
+    "fairness-l6": "native"
+   },
+   "ev-ask@close": {
+    "refusal-l1": "native",
+    "refusal-l2": "native",
+    "rest-l2": "native",
+    "refusal-l3": "native"
+   },
+   "ev-ask@work": {
+    "refusal-l1": "native",
+    "refusal-l2": "native",
+    "refusal-l4": "adapted",
+    "refusal-l3": "native"
+   },
+   "ev-correct@work": {
+    "criticism-l2": "native",
+    "criticism-l3": "native",
+    "criticism-l1": "native",
+    "criticism-l4": "native"
+   },
+   "ev-compare@close": {
+    "criticism-l1": "adapted",
+    "criticism-l2": "adapted",
+    "criticism-l3": "adapted"
+   },
+   "ev-compare@self": {
+    "criticism-l1": "native",
+    "control-l2": "adapted",
+    "rest-l3": "native"
+   },
+   "ev-myway@work": {
+    "control-l3": "native",
+    "control-l2": "adapted",
+    "criticism-l2": "adapted",
+    "criticism-l3": "adapted"
+   },
+   "ev-redo@close": {
+    "control-l1": "native",
+    "control-l2": "native",
+    "refusal-l3": "native",
+    "control-l4": "adapted"
+   },
+   "ev-redo@work": {
+    "control-l1": "native",
+    "control-l2": "native",
+    "control-l4": "adapted"
+   },
+   "ev-plans@close": {
+    "control-l4": "native",
+    "refusal-l4": "adapted",
+    "voice-l1": "adapted"
+   },
+   "ev-plans@work": {
+    "control-l4": "native",
+    "fairness-l1": "adapted",
+    "voice-l1": "adapted",
+    "rest-l3": "adapted"
+   },
+   "ev-phone@close": {
+    "closeness-l3": "native",
+    "closeness-l2": "native",
+    "closeness-l1": "native"
+   },
+   "ev-silence@close": {
+    "uncertainty-l1": "native",
+    "uncertainty-l3": "native",
+    "uncertainty-l2": "native",
+    "uncertainty-l4": "native"
+   },
+   "ev-silence@work": {
+    "uncertainty-l1": "native",
+    "uncertainty-l3": "native",
+    "uncertainty-l2": "native",
+    "uncertainty-l4": "native"
+   },
+   "ev-support@close": {
+    "closeness-l2": "native",
+    "closeness-l1": "native",
+    "closeness-l4": "native",
+    "closeness-l3": "native"
+   },
+   "ev-contrib@money": {
+    "fairness-l1": "native",
+    "fairness-l3": "native",
+    "fairness-l6": "native",
+    "fairness-l4": "native"
+   },
+   "ev-contrib@work": {
+    "fairness-l1": "native",
+    "fairness-l3": "native",
+    "fairness-l2": "native",
+    "fairness-l4": "native"
+   },
+   "ev-terms@money": {
+    "fairness-l1": "native",
+    "fairness-l2": "native",
+    "fairness-l6": "native",
+    "fairness-l3": "native"
+   },
+   "ev-terms@work": {
+    "fairness-l1": "native",
+    "uncertainty-l2": "native",
+    "control-l2": "adapted",
+    "fairness-l4": "native"
+   },
+   "ev-money@money": {
+    "observe:m1": "observation",
+    "observe:m2": "observation",
+    "fairness-l6": "native",
+    "observe:m4": "observation",
+    "fairness-l5": "native"
+   },
+   "ev-money@self": {
+    "observe:m1": "observation",
+    "observe:m2": "observation",
+    "observe:m4": "observation",
+    "criticism-l2": "adapted"
+   },
+   "ev-loan@money": {
+    "refusal-l1": "adapted",
+    "fairness-l5": "native",
+    "refusal-l4": "adapted",
+    "fairness-l6": "native"
+   },
+   "ev-loan@close": {
+    "refusal-l1": "adapted",
+    "fairness-l5": "native",
+    "refusal-l4": "adapted",
+    "fairness-l6": "native"
+   },
+   "ev-double@money": {
+    "fairness-l1": "native",
+    "fairness-l2": "native",
+    "fairness-l3": "adapted",
+    "criticism-l1": "adapted"
+   },
+   "ev-double@work": {
+    "fairness-l3": "adapted",
+    "voice-l1": "adapted",
+    "criticism-l2": "native",
+    "criticism-l1": "adapted"
+   },
+   "ev-restguilt@self": {
+    "rest-l1": "native",
+    "rest-l4": "adapted",
+    "rest-l3": "native"
+   },
+   "ev-overtake@self": {
+    "rest-l1": "native",
+    "rest-l2": "native",
+    "rest-l3": "native",
+    "rest-l4": "native"
+   },
+   "ev-overtake@work": {
+    "rest-l1": "native",
+    "rest-l2": "native",
+    "rest-l3": "native",
+    "rest-l4": "native"
+   },
+   "ev-showfear@self": {
+    "criticism-l1": "native",
+    "criticism-l2": "native",
+    "criticism-l4": "native",
+    "criticism-l3": "native"
+   },
+   "ev-showfear@work": {
+    "criticism-l1": "native",
+    "criticism-l2": "native",
+    "criticism-l4": "native",
+    "criticism-l3": "native"
+   },
+   "ev-redoall@self": {
+    "criticism-l1": "native",
+    "criticism-l2": "native",
+    "criticism-l4": "native"
+   },
+   "ev-others-ease@self": {
+    "rest-l1": "native",
+    "rest-l2": "native",
+    "rest-l3": "native",
+    "rest-l4": "adapted"
+   },
+   "ev-others-ease@close": {
+    "rest-l1": "native",
+    "rest-l2": "native",
+    "rest-l3": "native",
+    "rest-l4": "native"
+   },
+   "ev-cutoff@close": {
+    "uncertainty-l1": "native",
+    "uncertainty-l3": "native",
+    "uncertainty-l2": "adapted",
+    "uncertainty-l4": "native"
+   },
+   "ev-notlisten@close": {
+    "voice-l1": "adapted",
+    "voice-l2": "adapted",
+    "voice-l3": "adapted"
+   },
+   "ev-notlisten@work": {
+    "voice-l1": "adapted",
+    "voice-l2": "adapted",
+    "voice-l3": "adapted"
+   },
+   "ev-workreply@work": {
+    "uncertainty-l4": "native",
+    "uncertainty-l2": "native",
+    "uncertainty-l1": "native"
+   },
+   "ev-client-more@work": {
+    "fairness-l1": "native",
+    "refusal-l1": "native",
+    "fairness-l3": "native",
+    "fairness-l4": "native"
+   },
+   "ev-client-more@money": {
+    "fairness-l1": "native",
+    "refusal-l1": "native",
+    "fairness-l6": "native",
+    "fairness-l4": "native"
+   },
+   "ev-client-change@work": {
+    "fairness-l1": "native",
+    "control-l4": "native",
+    "refusal-l4": "native",
+    "voice-l1": "adapted"
+   },
+   "ev-deadline@work": {
+    "rest-l3": "native",
+    "rest-l2": "adapted",
+    "rest-l4": "adapted"
+   }
+  }
  }
 };

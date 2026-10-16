@@ -370,6 +370,10 @@
   const RV = X.routingVersion;
   const variantById = id => X.variants.find(v => v.variantId === id) || null;
   const eventById = variantById;
+  /* Урок для выбранного варианта: если сцена карточки урока не совпадает с событием, используется адаптированная карточка
+     (своё название направления, действие, момент, вопрос после и подсказка дня). Источник проверки — extra.directionReview. */
+  const adaptedCard = (lessonId, variantId) => (variantId && PR.adapted && PR.adapted[`${lessonId}@${variantId}`]) || null;
+  const lessonView = (lessonId, variantId) => { const L = R.findLesson(C.packs, lessonId); if (!L) return null; const a = adaptedCard(lessonId, variantId); return a ? Object.assign({}, L, { title: a.lessonTitle, action: a.lessonAction, variantId, adapted: true }) : Object.assign({}, L, { variantId: variantId || null }); };
   const curKey = S => R.branchKey({ area: S.area, context: S.area === "work" ? S.ctx : null, routingVersion: RV });
   function stashBranch(S) {
     if (!S.area || S.area === "own" || !((S.picks || []).length || (S.shown || []).length)) return;
@@ -462,7 +466,7 @@
     if (!S.deck) return;
     const ok = R.restoreDeck({ deck: S.deck, savedKey: S.deckKey, variants: X.variants, area: S.area, context: S.area === "work" ? S.ctx : null, routingVersion: RV }).valid;
     if (ok) return;
-    const allowed = new Set(R.selectDeck(Object.assign(deckOpts(S), { limit: Number.MAX_SAFE_INTEGER })).cards.map(c => c.id));
+    const allowed = new Set(R.eligibleVariants({ variants: X.variants, area: S.area, context: S.area === "work" ? S.ctx : null }).map(v => v.variantId));
     const keep = (S.picks || []).filter(p => allowed.has(p.id)), drop = (S.picks || []).filter(p => !allowed.has(p.id));
     if (drop.length) { S.archive = S.archive || []; S.archive.push({ key: S.deckKey || "unknown", picks: drop, at: nowTs() }); }
     S.picks = keep; S.shown = (S.shown || []).filter(id => allowed.has(id) && keep.some(p => p.id === id)); S.deck = null; S.rebuilt = true;
@@ -574,7 +578,9 @@
     const S = onb(); if (!S.event && !S.own) return go("cards");
     const ev = S.event ? variantById(S.event) : null; if (S.event && !ev) { S.event = null; persistOnb(); return go("cards"); }
     const evText = ev ? ev.text : S.own.text, sug = suggestTeacher(S), fa = focusArea(S);
-    const kinds = ev ? ev.teachers : (fa ? (X.variants.find(v => v.area === fa) || {}).teachers : null);
+    const role = ev && ev.area === "work" && X.ctxRole ? X.ctxRole[S.ctx] : null;
+    /* Учителя — роли из текста карточки; выбранный контекст работы (руководитель / коллеги / клиенты) сужает до своей роли. */
+    const kinds = ev ? (role && ev.teachers.includes(role) ? [role, "situation"] : ev.teachers) : (fa ? (X.variants.find(v => v.area === fa) || {}).teachers : null);
     const opts = (kinds ? X.teachers.filter(t => kinds.includes(t[0])) : X.teachers);
     seedDraft("onb-teacher", S.teacher ? { who: S.teacher.ownName ? "__own" : S.teacher.kind, who_own: S.teacher.ownName || "" } : (sug ? { who: sug } : null));
     const steps = [
@@ -638,7 +644,7 @@
   /* Направления для выбранного случая: урок выбранного «что задело» первым, затем другие проверенные направления этого же варианта. */
   function wantOptions(S) {
     const ev = S.event ? variantById(S.event) : null, st = S.sting || {}, out = [], seen = new Set();
-    const add = id => { const l = id && R.findLesson(C.packs, id); if (l && !seen.has(l.id)) { seen.add(l.id); out.push(["L:" + l.id, OB.want.prefix + l.title]); } };
+    const add = id => { const l = id && lessonView(id, ev ? ev.variantId : null); if (l && !seen.has(l.id)) { seen.add(l.id); out.push(["L:" + l.id, OB.want.prefix + l.title]); } };
     add(st.lessonId);
     if (st.observe) out.push(["O:" + st.meaningId, "Сначала понаблюдать: " + st.observe.title]);
     if (ev) ev.meanings.forEach(m => add(m.lessonId));
@@ -658,7 +664,7 @@
         const v = ans.w;
         if (v === "__own") S.want = { kind: "own", text: uc1(ans.w_own || ""), origin: "user_written", lessonId: null };
         else if (v === "__observe") S.want = { kind: "observe", text: OB.plan.observeGoal, origin: "user_selected", lessonId: null };
-        else if (v.startsWith("L:")) { const l = R.findLesson(C.packs, v.slice(2)); S.want = { kind: "lesson", key: v, lessonId: l.id, text: uc1(l.title), origin: "user_selected" }; }
+        else if (v.startsWith("L:")) { const l = lessonView(v.slice(2), S.event || null); S.want = { kind: "lesson", key: v, lessonId: l.id, text: uc1(l.title), origin: "user_selected" }; }
         else if (v.startsWith("O:")) S.want = { kind: "observe", key: v, meaningId: v.slice(2), text: uc1(S.sting.observe ? S.sting.observe.title : OB.plan.observeGoal), origin: "user_selected", lessonId: null };
         S.lesson = null; S.rejected = []; S.confirmed = false; S.step = "summary"; await persistOnb(); go("summary");
       } });
@@ -695,10 +701,12 @@
     P.onb = null; P.seen.start = true; P.lastResult = { kind: "observe" }; await saveProfile(); go(P.seen.map ? "today" : "map");
   }
   /* Урок по значению: глобальный id (направление может быть из другого пакета). Наблюдение по значению — предметный шаг без причины. */
-  const lessonByMeaning = S => { const st = S.sting || {}; if (st.lessonId) return R.findLesson(C.packs, st.lessonId); if (st.observe) return Object.assign({}, X.lessonObserve, { id: "observe:" + (S.event || "own") + ":" + (st.meaningId || ""), title: st.observe.title, action: st.observe.action, signal: st.observe.signal, headline: "Первый шаг — " + st.observe.title }); return null; };
+  const lessonByMeaning = S => { const st = S.sting || {}; if (st.lessonId) return lessonView(st.lessonId, S.event || null); if (st.observe) return Object.assign({}, X.lessonObserve, { id: "observe:" + (S.event || "own") + ":" + (st.meaningId || ""), title: st.observe.title, action: st.observe.action, signal: st.observe.signal, headline: "Первый шаг — " + st.observe.title }); return null; };
   /* Урок по выбранному направлению «что хочу иначе»; свои слова — урок по «что задело», если он есть, иначе наблюдение и выбор направления. */
-  const lessonByWant = S => { const w = S.want; if (!w) return lessonByMeaning(S); if (w.kind === "lesson") return R.findLesson(C.packs, w.lessonId); if (w.kind === "observe") return w.meaningId && S.sting && S.sting.observe ? lessonByMeaning(S) : null; return lessonByMeaning(S); };
+  const lessonByWant = S => { const w = S.want; if (!w) return lessonByMeaning(S); if (w.kind === "lesson") return lessonView(w.lessonId, S.event || null); if (w.kind === "observe") return w.meaningId && S.sting && S.sting.observe ? lessonByMeaning(S) : null; return lessonByMeaning(S); };
   function lessonsFor(S) {
+    const vv = S.event ? variantById(S.event) : null;
+    if (vv) { const seen = new Set(); return vv.meanings.filter(m => m.lessonId && !seen.has(m.lessonId) && seen.add(m.lessonId)).map(m => lessonView(m.lessonId, vv.variantId)); }
     const ids = new Set(), out = []; const add = pk => { if (!pk) return; pk.lessons.forEach(l => { if (!ids.has(l.id)) { ids.add(l.id); out.push(Object.assign({ packId: pk.id, packTitle: pk.title }, l)); } }); };
     const bm = lessonByWant(S) || lessonByMeaning(S); if (bm && bm.packId) add(C.packs.find(x => x.id === bm.packId));
     add(C.packs.find(x => x.id === packIdOf(S)));
@@ -779,6 +787,8 @@
   /* Шаблон для урока: карточка каталога по id урока; наблюдение — предметная карточка (деньги) или общий стартовый план; свои слова — стартовый план по навыку. */
   function templateFor(L, S) {
     const id = L && L.id || "";
+    const ad = adaptedCard(id, (L && L.variantId) || (S && S.event) || null);
+    if (ad) return { template: Object.assign({ catalogVersion: PR.catalogVersion }, ad), kind: "card", mode: PR.modes[id] || null, once: PR.once.includes(id) };
     if (PR.cards[id]) return { template: Object.assign({ catalogVersion: PR.catalogVersion }, PR.cards[id]), kind: "card", mode: PR.modes[id] || null, once: PR.once.includes(id) };
     const st = (S && S.sting) || {};
     if (String(id).startsWith("observe:") || id === X.lessonObserve.id) {
@@ -811,11 +821,12 @@
   function companionFor(p) {
     if (!p || P.companionOff) return null;
     const x = expOf(p), k = today(), id = x ? x.id : null;
-    if (P.companion && P.companion.date === k && P.companion.planId === id) return P.companion;
+    if (P.companion && P.companion.date === k && P.companion.planId === id && P.companion.ver === (x && x.version)) return P.companion;
     const obsMode = !x || x.mode === "observation" || p.status === "observe";
-    const c = R.pickCompanion({ companions: X.pathCompanion, tips: X.lessonTips, observeTip: X.observeTip, pathNumber: pathNum(), lessonId: obsMode ? null : (x && (x.lessonId || (p.lesson && p.lesson.id))) || null, hasPlan: !obsMode && planReady(p).ready });
+    const pv = x && x.kind === "plan" ? R.planView(x) : null;
+    const c = R.pickCompanion({ companions: X.pathCompanion, tips: X.lessonTips, observeTip: X.observeTip, pathNumber: pathNum(), lessonId: obsMode ? null : (x && (x.lessonId || (p.lesson && p.lesson.id))) || null, hasPlan: !obsMode && planReady(p).ready, ownAction: !!(pv && pv.own), ownText: OB.companion.own, tip: x && x.tip || "" });
     if (!c) return null;
-    P.companion = Object.assign({ date: k, planId: id }, c); saveProfile(true); return P.companion;
+    P.companion = Object.assign({ date: k, planId: id, ver: x && x.version }, c); saveProfile(true); return P.companion;
   }
   const companionHTML = p => { const c = companionFor(p); return c ? `<p class="small" style="margin:0 0 6px" id="companion"><b>${esc(OB.companion.title)}:</b> ${esc(c.text)}</p>` : ""; };
   const pathLineHTML = () => { const n = pathNum(); return n ? `<a class="pathline" href="#symbol">${ic("star", "")}<span>${n} · ${esc(X.pathProfiles[String(n)].displayName)}</span></a>` : ""; };
@@ -837,7 +848,7 @@
     } else w = x;
     if (!restored) {
       if (mode === "moment") show.cue = true;
-      if (mode === "action") show.act = true;
+      if (mode === "action") { show.act = true; show.actT = w.simplified ? "small" : "full"; }
       if (mode === "params") show.params = true;
       if (mode === "simplify" && !w.simplified) w.simplified = true;
     }
@@ -852,6 +863,11 @@
     const hl = txt => esc(txt).replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (m, k) => `<mark>${esc(((w.setup || []).find(s => s.key === k) || {}).question || k)}</mark>`);
     const toObserve = () => { const tpl = templateFor({ id: X.lessonObserve.id, skillId: "pause" }, null); const f = R.planFromTemplate({ template: tpl.template, kind: "fallback", patternId: p.id, lessonId: w.lessonId, skillId: "pause", basisIds: w.userBasisIds || [], painText: w.painText || "", mode: "observation" }); Object.assign(w, f, { id: w.id, version: w.version, createdAt: w.createdAt, planStatus: w.planStatus, lineageId: w.lineageId, goalConfirmed: true, goalOrigin: "observe", desiredChange: OPl.observeGoal, cueUser: "", actionUser: "", smallerUser: "" }); };
     let notFit = false, saving = false;
+    /* Какую версию действия правит человек: при включённом упрощении — лёгкую (она действует), иначе полную. Переключение — явное. */
+    const actT = () => show.actT || (w.simplified ? "small" : "full");
+    const seedAct = t => { const v = R.planView(w); if (t === "small") { if (!w.smallerUser) w.smallerUser = v.small || ""; } else if (!w.actionUser) { if (w.simplified && !w.smallerUser) w.smallerUser = v.small || ""; w.actionUser = v.full; } };
+    const actHint = () => { const t = actT(); return t === "small" ? `<p class="tiny acthint" id="actHint">${esc(OPl.edSmall)} <button class="linkbtn" id="actToFull">${esc(OPl.edToFull)}</button></p>` : w.simplified ? `<p class="tiny acthint" id="actHint">${esc(OPl.edFullWhileSmall)} <button class="linkbtn" id="actToSmall">${esc(OPl.edToSmall)}</button> · <button class="linkbtn" id="useFull">${esc(OPl.edUseFull)}</button></p>` : ""; };
+    const openAct = () => { show.act = true; show.actT = w.simplified ? "small" : "full"; seedAct(show.actT); };
     const render = () => {
       app.dataset.flow = "plan";
       const v = R.planView(w), rd = R.planReady(w), slots = usedSlots();
@@ -868,7 +884,7 @@
         ${goalHtml}
         <div class="card mark"><div class="plines">
           <div><span>${esc(OPl.whenL)}:</span> ${show.cue ? `<textarea id="cueOwn" placeholder="свой момент, одной фразой">${esc(w.cueUser || "")}</textarea>` : `<i id="cueTxt" style="font-style:normal">${hl(uc1(v.cue))}</i>`}</div>
-          <div><span>${esc(obs ? OPl.whatObs : OPl.whatL)}:</span> ${show.act ? `<textarea id="actOwn" placeholder="${esc(OPl.ownActionLead)}">${esc(w.actionUser || "")}</textarea>` : `<i id="actTxt" style="font-style:normal">${hl(uc1(v.action || "—"))}</i>`}${v.simplified ? ` <span class="tiny">· ${esc(OPl.simplified)}</span>` : ""}</div>
+          <div><span>${esc(obs ? OPl.whatObs : OPl.whatL)}:</span> ${show.act ? `${actHint()}<textarea id="actOwn" data-target="${actT()}" placeholder="${esc(OPl.ownActionLead)}">${esc((actT() === "small" ? w.smallerUser : w.actionUser) || "")}</textarea>` : `<i id="actTxt" style="font-style:normal">${hl(uc1(v.action || "—"))}</i>`}${v.simplified ? ` <span class="tiny">· ${esc(OPl.simplified)}</span>` : ""}</div>
           ${v.needsSmall ? `<div><label for="smallOwn" style="margin-top:4px">${esc(OPl.smallQ)}</label><textarea id="smallOwn" placeholder="${esc(OPl.smallPh)}">${esc(w.smallerUser || "")}</textarea></div>` : ""}
           ${v.after ? `<div><span>${esc(OPl.afterL)}:</span> ${esc(v.after)}</div>` : ""}
         </div><details class="plain"><summary>${esc(OPl.why)}</summary><p class="small" style="margin:0 0 4px">${esc(v.purpose)}</p>${v.effort ? `<p class="tiny" style="margin:0">${esc(OPl.effort)}: ${esc(v.effort)}</p>` : ""}${v.limits ? `<p class="tiny" style="margin:0">${esc(OPl.limits)}: ${esc(v.limits)}</p>` : ""}</details></div>
@@ -883,12 +899,15 @@
       $$("[data-slot]").forEach(inp => inp.oninput = () => { w.slots = w.slots || {}; w.slots[inp.dataset.slot] = inp.value; changed(); refresh(); });
       $$("[data-slot]").forEach(inp => inp.onchange = () => { saveDraft(); const err = R.planReady(w).errors[inp.dataset.slot]; let el = inp.nextElementSibling; if (!(el && el.classList && el.classList.contains("slerr"))) { el = document.createElement("p"); el.className = "tiny slerr"; el.style.cssText = "margin:0 0 4px;color:#B3261E"; inp.insertAdjacentElement("afterend", el); } el.textContent = err && inp.value ? err : ""; });
       const co = $("#cueOwn"); if (co) co.oninput = () => { w.cueUser = co.value.trim(); changed(); refresh(); };
-      const ao = $("#actOwn"); if (ao) ao.oninput = () => { w.actionUser = ao.value.trim(); changed(); refresh(); };
+      const ao = $("#actOwn"); if (ao) ao.oninput = () => { if (actT() === "small") w.smallerUser = ao.value.trim(); else w.actionUser = ao.value.trim(); changed(); refresh(); };
+      const atf = $("#actToFull"); if (atf) atf.onclick = () => { show.actT = "full"; seedAct("full"); changed(); render(); };
+      const ats = $("#actToSmall"); if (ats) ats.onclick = () => { show.actT = "small"; seedAct("small"); changed(); render(); };
+      const uf = $("#useFull"); if (uf) uf.onclick = () => { w.simplified = false; show.actT = "full"; changed(); saveDraft(); render(); };
       const so = $("#smallOwn"); if (so) so.oninput = () => { w.smallerUser = so.value.trim(); changed(); refresh(); };
       const em = $("#edMoment"); if (em) em.onclick = () => { show.cue = !show.cue; if (show.cue && !w.cueUser) w.cueUser = R.planView(w).cue; changed(); render(); const t = $("#cueOwn"); if (t) t.focus(); };
-      const ea = $("#edAction"); if (ea) ea.onclick = () => { show.act = !show.act; if (show.act && !w.actionUser) { w.actionUser = R.planView(w).full; if (w.simplified && !w.smallerUser) w.smallerUser = R.planView(Object.assign({}, w, { actionUser: "" })).small; } changed(); render(); const t = $("#actOwn"); if (t) t.focus(); };
+      const ea = $("#edAction"); if (ea) ea.onclick = () => { if (show.act) { show.act = false; show.actT = null; } else openAct(); changed(); render(); const t = $("#actOwn"); if (t) t.focus(); };
       const ep = $("#edParams"); if (ep) ep.onclick = () => { show.params = !show.params; render(); };
-      const sm = $("#simpler"); if (sm) sm.onclick = () => { w.simplified = !w.simplified; changed(); saveDraft(); render(); };
+      const sm = $("#simpler"); if (sm) sm.onclick = () => { w.simplified = !w.simplified; if (show.act) { show.actT = w.simplified ? "small" : "full"; seedAct(show.actT); } changed(); saveDraft(); render(); };
       const gy = $("#goalYes"); if (gy) gy.onclick = () => { w.goalConfirmed = true; w.goalOrigin = "user_confirmed"; w.desiredChange = uc1(p.lesson ? p.lesson.title : ""); w.goalAt = nowTs(); changed(); saveDraft(); render(); };
       const ge = $("#goalEdit"); if (ge) ge.onclick = () => { show.goalEdit = true; render(); const t = $("#goalOwn"); if (t) t.focus(); };
       const gc = $("#goalChange"); if (gc) gc.onclick = () => { show.goalEdit = true; render(); };
@@ -898,7 +917,7 @@
       const nf = $("#notfit"); if (nf) nf.onclick = () => { notFit = !notFit; render(); };
       const ng = $("#nfGoal"); if (ng) ng.onclick = () => { editField(p, "lesson"); };
       const na = $("#nfAction"); if (na) na.onclick = () => { $("#nfa").innerHTML = `<div class="chips col" style="margin-top:6px"><button class="chip" id="nfOwn">${esc(OPl.ownAction)}</button>${R.planView(w).canSimplify ? `<button class="chip" id="nfSmall">${esc(OPl.simpler)}</button>` : ""}<button class="chip dim" id="nfObs">${esc(OPl.observeInstead)}</button></div>`;
-        $("#nfOwn").onclick = () => { show.act = true; notFit = false; render(); const a = $("#actOwn"); if (a) a.focus(); };
+        $("#nfOwn").onclick = () => { openAct(); notFit = false; changed(); render(); const a = $("#actOwn"); if (a) a.focus(); };
         const ns = $("#nfSmall"); if (ns) ns.onclick = () => { w.simplified = true; notFit = false; changed(); saveDraft(); render(); };
         $("#nfObs").onclick = () => { toObserve(); notFit = false; changed(); saveDraft(); render(); }; };
       const ce = $("#cancelEdit"); if (ce) ce.onclick = async () => { clearTimeout(timer); dirty = false; planFlush = null; delete P.planDraft; await saveProfile(true); toast(OPl.dropped); go("today"); };
@@ -1551,8 +1570,12 @@
     if (k === "lesson") {
       const x = expOf(p), drift = R.lessonDrift({ pattern: p, experiment: x }), curSkill = skillOfPattern(p);
       const all = C.packs.flatMap(pk => pk.lessons.map(l => Object.assign({ packId: pk.id, packTitle: pk.title }, l)));
+      /* v6.5: для сюжета из карточки — только проверенные направления этого варианта события (со своими сценами). */
+      const vv = p.scenario && p.scenario.variantId ? variantById(p.scenario.variantId) : null;
+      const vlist = vv ? [...new Set(vv.meanings.map(m => m.lessonId).filter(Boolean))].map(id => Object.assign({ packTitle: "" }, lessonView(id, vv.variantId))) : null;
+      if (vlist) vlist.forEach(l => { const i = all.findIndex(a => a.id === l.id); if (i >= 0) all[i] = Object.assign({}, all[i], l); });
       /* При расхождении показываем уроки под текущий навык: подпись подгоняется под практику, а не практика под подпись. */
-      const list = drift.drift ? all.filter(l => l.skillId === curSkill) : all.filter(l => l.packId === (p.packId || l.packId));
+      const list = drift.drift ? all.filter(l => l.skillId === curSkill) : vlist || all.filter(l => l.packId === (p.packId || l.packId));
       const curId = p.lesson ? p.lesson.id : null;
       app.innerHTML = `<h1 class="q">${esc(drift.drift ? "Как назвать урок?" : OB.lesson.alt)}</h1><p class="small muted">${drift.drift ? `Сейчас тренируем: ${esc(skillLabel(curSkill))}. Название урока подстроим под практику; план и записи не меняются.` : "Смена урока создаёт новую версию шага и навыка. Записи и история остаются."}</p>
         <div class="chips col">${list.map(l => `<button class="chip ${l.id === curId ? "on" : ""}" data-l="${l.id}">${esc(uc1(l.title))}${drift.drift && l.packId !== p.packId ? ` <span class="tiny">· ${esc(l.packTitle)}</span>` : ""}</button>`).join("")}${drift.drift ? "" : `<button class="chip dim ${curId === X.lessonObserve.id ? "on" : ""}" data-l="__observe">${esc(X.lessonObserve.headline)}</button>`}</div>

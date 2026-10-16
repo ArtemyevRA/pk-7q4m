@@ -342,11 +342,13 @@
     }
     return { cards: out.map(R.cardOf), reason: out.length ? (out.length < limit ? "short_domain_pool" : "ok") : "domain_exhausted", exhausted: out.length < limit };
   };
+  /* Допустимые варианты ветки без отбора колоды: несколько вариантов одного семейства (например, для разных ролей) допустимы все. */
+  R.eligibleVariants = ({ variants = [], area, context = null }) => R.QUIZ_AREAS.includes(area) ? variants.filter(c => c.area === area && (area !== "work" || !context || context === "any" || (c.contexts || []).includes(context))) : [];
   R.branchKey = ({ area, context, routingVersion }) => `${routingVersion}|${area}|${area === "work" ? context || "-" : "-"}`;
   /* Сохранённая колода годится только для той же ветки и версии маршрутизации и только из допустимых вариантов. */
   R.restoreDeck = function ({ deck, savedKey, variants, area, context, routingVersion }) {
     if (!Array.isArray(deck) || savedKey !== R.branchKey({ area, context, routingVersion })) return { valid: false, reason: "branch_changed" };
-    const allowed = new Set(R.selectDeck({ variants, area, context, limit: Number.MAX_SAFE_INTEGER }).cards.map(c => c.variantId));
+    const allowed = new Set(R.eligibleVariants({ variants, area, context }).map(v => v.variantId));
     const ids = deck.map(c => c && c.variantId);
     if (new Set(ids).size !== ids.length || ids.some(id => !allowed.has(id))) return { valid: false, reason: "invalid_saved_deck" };
     return { valid: true, reason: "ok" };
@@ -548,7 +550,7 @@
       templateId: t.id || null, templateKind: kind, templateVersion: t.catalogVersion || "karma-practice-v6-2026-10-15",
       lessonId: lessonId || null, skillId: skillId || t.skillId || null, userBasisIds: basisIds, desiredChange, painText, goalConfirmed: !!desiredChange, goalOrigin: desiredChange ? "user_confirmed" : (lessonId ? "pending" : "none"), smallerUser: "",
       purpose: t.purpose || "", cueTemplate: t.cueTemplate || "", actionTemplate: t.actionTemplate || "", effort: t.effortLabel || "", afterQuestion: t.afterQuestion || "", completedWhen: t.completedWhen || "", smallerVersion: t.smallerVersion || "", limits: t.limits || "", fitQuestion: t.fitQuestion || "",
-      setup: (t.setup || []).map(s => ({ key: s.key, question: s.question, example: s.example || "" })), slots: Object.assign({}, slots),
+      setup: (t.setup || []).map(s => ({ key: s.key, question: s.question, example: s.example || "" })), slots: Object.assign({}, slots), tip: t.tip || "", adapted: !!t.adapted, variantId: t.variantId || null,
       mode: mode || (t.countsAsBehaviorChange === false ? "observation" : "behavior"), schedule: { kind: once ? "once" : "cue", repeat: !once }, simplified: false,
       cue: "", action: "", ifThen: null, permission: t.permissionCandidate || "", permissionConfirmed: false, prediction: "", criterion: "",
     };
@@ -562,7 +564,10 @@
     const full = x.actionUser || R.fillTemplate(x.actionTemplate, x.slots);
     const small = x.smallerUser || (x.actionUser ? "" : (x.smallerVersion ? R.fillTemplate(x.smallerVersion, x.slots) : ""));
     const action = x.simplified ? small : full;
-    return { cue, action, full, small, canSimplify: !!small || !!x.actionUser, needsSmall: !!x.simplified && !small, purpose: x.purpose || "", effort: x.effort || "", after: x.afterQuestion || "", limits: x.limits || "", simplified: !!x.simplified && !!small && small !== full, mode: x.mode || "behavior" };
+    /* Вопрос после попытки шаблона описывает шаблонное действие; для своего действия — общий вопрос. */
+    const tplFull = R.fillTemplate(x.actionTemplate, x.slots), tplSmall = x.smallerVersion ? R.fillTemplate(x.smallerVersion, x.slots) : "";
+    const ownFull = !!x.actionUser && x.actionUser !== tplFull, own = x.simplified ? ownFull || (!!x.smallerUser && x.smallerUser !== tplSmall) : ownFull;
+    return { cue, action, full, small, own, canSimplify: !!small || !!x.actionUser, needsSmall: !!x.simplified && !small, purpose: x.purpose || "", effort: x.effort || "", after: own ? R.OWN_AFTER : (x.afterQuestion || ""), limits: x.limits || "", simplified: !!x.simplified && !!small && small !== full, mode: x.mode || "behavior" };
   };
   /* Готовность: шаблон с незаполненными слотами или без момента/действия не становится активной рекомендацией. */
   R.planReady = function (x) {
@@ -665,7 +670,12 @@
     return n;
   };
   /* Сопровождение дня: 1) редакторская связка число × урок; 2) текст урока без числовой интерпретации; 3) без плана — приглашение к наблюдению. */
-  R.pickCompanion = function ({ companions = [], tips = {}, observeTip = "", pathNumber, lessonId, hasPlan }) {
+  R.OWN_AFTER = "Что ты сделал? Что произошло дальше?";
+  /* Порядок: своё действие → подсказка адаптированной карточки → связка число × урок → подсказка урока → наблюдение.
+     Подсказка не описывает сцену, которой нет в шаге человека. */
+  R.pickCompanion = function ({ companions = [], tips = {}, observeTip = "", pathNumber, lessonId, hasPlan, ownAction = false, ownText = "", tip = "" }) {
+    if (hasPlan && ownAction && ownText) return { text: ownText, src: "own", id: "own" };
+    if (hasPlan && tip) return { text: tip, src: "card", id: lessonId || "card" };
     const exact = pathNumber && lessonId ? companions.find(c => c.pathNumber === Number(pathNumber) && c.lessonId === lessonId) : null;
     if (exact) return { text: exact.text, src: "path", id: exact.id };
     if (lessonId && tips[lessonId]) return { text: tips[lessonId], src: "lesson", id: lessonId };
