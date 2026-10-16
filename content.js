@@ -1,7 +1,7 @@
 /* Путь кармы v2 — редакционный контент. Правки текстов — здесь. */
 window.KARMA_CONTENT = {
  "schemaVersion": 1,
- "contentVersion": "2026-10-16-v6.3",
+ "contentVersion": "2026-10-16-v6.4",
  "locale": "ru",
  "audience": "adults",
  "status": "original editorial seed content; review and pilot before public claims",
@@ -2166,6 +2166,10 @@ window.KARMA_CONTENT = {
     "Ребёнок"
    ],
    [
+    "relative",
+    "Другой близкий человек"
+   ],
+   [
     "friend",
     "Друг"
    ],
@@ -2187,7 +2191,8 @@ window.KARMA_CONTENT = {
    "friend": "отношения с другом",
    "other": "отношения с этим человеком",
    "situation": "повторяющаяся ситуация",
-   "client": "отношения с клиентом"
+   "client": "отношения с клиентом",
+   "relative": "другой близкий человек"
   },
   "lessonUnknown": {
    "id": "lesson-unknown",
@@ -2250,7 +2255,12 @@ window.KARMA_CONTENT = {
      "q": "Сейчас переключаемся с работы на личные отношения?",
      "yes": "Да, это важнее",
      "back": "Вернуться к работе"
-    }
+    },
+    "otherArea": "Это про другую сферу",
+    "switchQ": "Сменить сферу?",
+    "switchLead": "Сейчас разбираем «{area}». При смене начнём примеры другой сферы; ответы этой сохранятся отдельно.",
+    "switchYes": "Да, сменить сферу",
+    "switchNo": "Нет, остаюсь здесь"
    },
    "lesson": {
     "teacherLead": "Твой учитель сейчас —",
@@ -2303,7 +2313,8 @@ window.KARMA_CONTENT = {
     "repeat": "Это знакомое повторение или один случай?",
     "reaction": "Что ты обычно делаешь в такой момент?",
     "reactionLead": "По желанию. Можно пропустить и вернуться к этому завтра.",
-    "notStung": "Было, но не задело"
+    "notStung": "Было, но не задело",
+    "unsure": "Пока не понимаю"
    },
    "number": {
     "lead": "Твоё число —",
@@ -2311,9 +2322,11 @@ window.KARMA_CONTENT = {
     "cta": "Дальше"
    },
    "area": {
-    "title": "Где сейчас чаще всего возникает напряжение?",
-    "sub": "Один выбор. Если уже знаешь свой случай — опиши его.",
-    "ownCta": "У меня есть свой случай"
+    "title": "Где это сейчас больше всего задевает?",
+    "sub": "Выбери одну сферу. Примеры будут только из неё. Другую можно разобрать потом.",
+    "ownCta": "У меня есть свой случай",
+    "unclearTitle": "Выбери, с чего начать",
+    "unclearSub": "Когда трудно понять, легче начать с одной сферы. Вот пример из каждой — выбери ту, что ближе."
    },
    "events": {
     "title": "Что из этого цепляло тебя в последнее время?",
@@ -2331,7 +2344,7 @@ window.KARMA_CONTENT = {
     "undo": "Вернуть карточку",
     "take": "Разобрать этот случай",
     "more": "Смотреть дальше",
-    "moreEvents": "Другие события",
+    "moreEvents": "Ещё примеры из этой сферы",
     "own": "У меня есть свой случай",
     "observe": "Пока понаблюдать",
     "none": "Ничего не зацепило — это нормальный результат. Посмотрим другой контекст, возьмём твой случай или просто понаблюдаем.",
@@ -2386,7 +2399,9 @@ window.KARMA_CONTENT = {
     "fixWhat": "Что поправить?",
     "fixTeacher": "Учителя",
     "fixCase": "Случай",
-    "fixSting": "Что задело"
+    "fixSting": "Что задело",
+    "want": "Хочу попробовать иначе",
+    "fixWant": "Что хочу иначе"
    },
    "map": {
     "title": "Как будет устроен твой путь",
@@ -2721,7 +2736,7 @@ window.KARMA_CONTENT = {
    },
    "recog": {
     "title": "Что из этого сейчас знакомо?",
-    "sub": "Можно отметить несколько. Это подсказка для подбора примеров, а не вывод о тебе.",
+    "sub": "Можно отметить несколько. Это подскажет, какие примеры показать первыми, — сферу выберешь сам.",
     "other": "Сейчас у меня другая история",
     "next": "Дальше",
     "pickOne": "Что сейчас актуальнее для старта?",
@@ -2736,6 +2751,21 @@ window.KARMA_CONTENT = {
    "completed": {
     "title": "Пройденные уроки",
     "none": "Пока нет завершённых уроков."
+   },
+   "deck": {
+    "exhausted": "Подходящие примеры в этой сфере закончились",
+    "exhaustedText": "Других примеров из этой сферы пока нет. Можно описать свой случай, выбрать другую сферу или пока понаблюдать.",
+    "short": "В этой сфере больше нет новых примеров.",
+    "changeArea": "Сменить сферу",
+    "branchRebuilt": "Примеры обновлены под выбранную сферу. Твои ответы сохранены."
+   },
+   "want": {
+    "title": "Что хочешь попробовать иначе?",
+    "lead": "Выбери направление — от него зависит урок и шаг.",
+    "observe": "Пока не знаю — сначала понаблюдаю",
+    "own": "Своими словами",
+    "ownPh": "Например: говорить о своём раньше, чем накопится",
+    "prefix": "Учиться "
    }
   },
   "areas": [
@@ -4141,8 +4171,12 @@ window.KARMA_CONTENT = {
   ],
   "meaningExtra": [
    [
+    "__unsure",
+    "Пока не понимаю"
+   ],
+   [
     "__none",
-    "В этот раз меня это не задело"
+    "Было, но не задело"
    ],
    [
     "__other",
@@ -6222,29 +6256,36 @@ window.KARMA_CONTENT = {
      {
       "id": "p1-r1",
       "text": "Жду одобрения перед решением",
-      "scenarioTags": [
-       "ev-decide",
-       "ev-myway"
+      "topicTags": [
+       "approval"
       ],
-      "area": "work"
+      "preferTopics": [
+       "criticism",
+       "voice"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p1-r2",
       "text": "Трудно уступить часть дела",
-      "scenarioTags": [
-       "ev-redo",
-       "ev-myway"
+      "topicTags": [
+       "control"
       ],
-      "area": "work"
+      "preferTopics": [
+       "control"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p1-r3",
       "text": "Откладываю первый шаг",
-      "scenarioTags": [
-       "ev-showfear",
-       "ev-redoall"
+      "topicTags": [
+       "starting"
       ],
-      "area": "self"
+      "preferTopics": [
+       "criticism"
+      ],
+      "assignsArea": false
      }
     ],
     "contentVersion": "2026-10-16-v6.3"
@@ -6271,29 +6312,36 @@ window.KARMA_CONTENT = {
      {
       "id": "p2-r1",
       "text": "Соглашаюсь ради мира",
-      "scenarioTags": [
-       "ev-ask",
-       "ev-promise"
+      "topicTags": [
+       "refusal"
       ],
-      "area": "work"
+      "preferTopics": [
+       "refusal"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p2-r2",
       "text": "Трудно прямо попросить",
-      "scenarioTags": [
-       "ev-support",
-       "ev-phone"
+      "topicTags": [
+       "closeness"
       ],
-      "area": "close"
+      "preferTopics": [
+       "closeness"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p2-r3",
       "text": "Долго переживаю разногласие",
-      "scenarioTags": [
-       "ev-cutoff",
-       "ev-silence"
+      "topicTags": [
+       "conflict"
       ],
-      "area": "close"
+      "preferTopics": [
+       "uncertainty",
+       "voice"
+      ],
+      "assignsArea": false
      }
     ],
     "contentVersion": "2026-10-16-v6.3"
@@ -6320,30 +6368,36 @@ window.KARMA_CONTENT = {
      {
       "id": "p3-r1",
       "text": "Молчу о важном",
-      "scenarioTags": [
-       "ev-interrupt",
-       "ev-notlisten",
-       "ev-decide"
+      "topicTags": [
+       "voice"
       ],
-      "area": "work"
+      "preferTopics": [
+       "voice"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p3-r2",
       "text": "Стесняюсь показать результат",
-      "scenarioTags": [
-       "ev-showfear",
-       "ev-correct"
+      "topicTags": [
+       "criticism"
       ],
-      "area": "self"
+      "preferTopics": [
+       "criticism"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p3-r3",
       "text": "Прячу серьёзные чувства за шуткой",
-      "scenarioTags": [
-       "ev-support",
-       "ev-phone"
+      "topicTags": [
+       "expression"
       ],
-      "area": "close"
+      "preferTopics": [
+       "closeness",
+       "voice"
+      ],
+      "assignsArea": false
      }
     ],
     "contentVersion": "2026-10-16-v6.3"
@@ -6370,30 +6424,35 @@ window.KARMA_CONTENT = {
      {
       "id": "p4-r1",
       "text": "Раздражаюсь, когда меняют договорённость",
-      "scenarioTags": [
-       "ev-plans",
-       "ev-client-change",
-       "ev-terms"
+      "topicTags": [
+       "control"
       ],
-      "area": "work"
+      "preferTopics": [
+       "control"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p4-r2",
       "text": "Трудно начать без точного плана",
-      "scenarioTags": [
-       "ev-plans",
-       "ev-showfear"
+      "topicTags": [
+       "uncertainty"
       ],
-      "area": "work"
+      "preferTopics": [
+       "uncertainty"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p4-r3",
       "text": "Переделываю за другими",
-      "scenarioTags": [
-       "ev-redo",
-       "ev-redoall"
+      "topicTags": [
+       "control"
       ],
-      "area": "work"
+      "preferTopics": [
+       "control"
+      ],
+      "assignsArea": false
      }
     ],
     "contentVersion": "2026-10-16-v6.3"
@@ -6420,29 +6479,36 @@ window.KARMA_CONTENT = {
      {
       "id": "p5-r1",
       "text": "Тяготит однообразие",
-      "scenarioTags": [
-       "ev-myway",
-       "ev-overtake"
+      "topicTags": [
+       "routine"
       ],
-      "area": "work"
+      "preferTopics": [
+       "control"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p5-r2",
       "text": "Хочется всё бросить",
-      "scenarioTags": [
-       "ev-deadline",
-       "ev-overtake"
+      "topicTags": [
+       "overload"
       ],
-      "area": "work"
+      "preferTopics": [
+       "rest"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p5-r3",
       "text": "Сложно удержать выбранное направление",
-      "scenarioTags": [
-       "ev-decide",
-       "ev-plans"
+      "topicTags": [
+       "direction"
       ],
-      "area": "work"
+      "preferTopics": [
+       "control",
+       "voice"
+      ],
+      "assignsArea": false
      }
     ],
     "contentVersion": "2026-10-16-v6.3"
@@ -6469,30 +6535,35 @@ window.KARMA_CONTENT = {
      {
       "id": "p6-r1",
       "text": "Беру чужие задачи",
-      "scenarioTags": [
-       "ev-ask",
-       "ev-promise",
-       "ev-overtake"
+      "topicTags": [
+       "refusal"
       ],
-      "area": "work"
+      "preferTopics": [
+       "refusal"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p6-r2",
       "text": "Чувствую вину за отказ",
-      "scenarioTags": [
-       "ev-ask",
-       "ev-loan"
+      "topicTags": [
+       "refusal"
       ],
-      "area": "work"
+      "preferTopics": [
+       "refusal"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p6-r3",
       "text": "Жду благодарности за помощь",
-      "scenarioTags": [
-       "ev-contrib",
-       "ev-support"
+      "topicTags": [
+       "fairness"
       ],
-      "area": "money"
+      "preferTopics": [
+       "fairness"
+      ],
+      "assignsArea": false
      }
     ],
     "contentVersion": "2026-10-16-v6.3"
@@ -6519,30 +6590,36 @@ window.KARMA_CONTENT = {
      {
       "id": "p7-r1",
       "text": "Анализирую вместо действия",
-      "scenarioTags": [
-       "ev-silence",
-       "ev-cutoff",
-       "ev-workreply"
+      "topicTags": [
+       "overthinking"
       ],
-      "area": "close"
+      "preferTopics": [
+       "uncertainty"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p7-r2",
       "text": "Закрываюсь, когда трудно",
-      "scenarioTags": [
-       "ev-support",
-       "ev-cutoff"
+      "topicTags": [
+       "closeness"
       ],
-      "area": "close"
+      "preferTopics": [
+       "closeness"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p7-r3",
       "text": "Сложно сказать, что чувствую",
-      "scenarioTags": [
-       "ev-phone",
-       "ev-notlisten"
+      "topicTags": [
+       "expression"
       ],
-      "area": "close"
+      "preferTopics": [
+       "closeness",
+       "voice"
+      ],
+      "assignsArea": false
      }
     ],
     "contentVersion": "2026-10-16-v6.3"
@@ -6569,30 +6646,36 @@ window.KARMA_CONTENT = {
      {
       "id": "p8-r1",
       "text": "Болезненно реагирую на контроль",
-      "scenarioTags": [
-       "ev-myway",
-       "ev-correct"
+      "topicTags": [
+       "control"
       ],
-      "area": "work"
+      "preferTopics": [
+       "control"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p8-r2",
       "text": "Оцениваю себя через достижения",
-      "scenarioTags": [
-       "ev-compare",
-       "ev-restguilt",
-       "ev-contrib"
+      "topicTags": [
+       "achievement"
       ],
-      "area": "close"
+      "preferTopics": [
+       "criticism",
+       "fairness"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p8-r3",
       "text": "Трудно доверить ответственность",
-      "scenarioTags": [
-       "ev-redo",
-       "ev-myway"
+      "topicTags": [
+       "control"
       ],
-      "area": "work"
+      "preferTopics": [
+       "control"
+      ],
+      "assignsArea": false
      }
     ],
     "contentVersion": "2026-10-16-v6.3"
@@ -6619,31 +6702,37 @@ window.KARMA_CONTENT = {
      {
       "id": "p9-r1",
       "text": "Держусь за завершившуюся историю",
-      "scenarioTags": [
-       "ev-cutoff",
-       "ev-silence"
+      "topicTags": [
+       "closure"
       ],
-      "area": "close"
+      "preferTopics": [
+       "uncertainty"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p9-r2",
       "text": "Отдаю силы всем подряд",
-      "scenarioTags": [
-       "ev-ask",
-       "ev-overtake",
-       "ev-loan"
+      "topicTags": [
+       "refusal",
+       "rest"
       ],
-      "area": "work"
+      "preferTopics": [
+       "refusal",
+       "rest"
+      ],
+      "assignsArea": false
      },
      {
       "id": "p9-r3",
       "text": "Перестаю понимать, ради чего стараюсь",
-      "scenarioTags": [
-       "ev-contrib",
-       "ev-deadline",
-       "ev-restguilt"
+      "topicTags": [
+       "meaning"
       ],
-      "area": "money"
+      "preferTopics": [
+       "rest"
+      ],
+      "assignsArea": false
      }
     ],
     "contentVersion": "2026-10-16-v6.3"
@@ -6858,6 +6947,2784 @@ window.KARMA_CONTENT = {
     "applicability": "деньги и вклад",
     "contentVersion": "2026-10-16-v6.3"
    }
+  ],
+  "teacherArea": {
+   "partner": "close",
+   "parent": "close",
+   "child": "close",
+   "relative": "close",
+   "friend": "close",
+   "boss": "work",
+   "colleague": "work",
+   "client": "work"
+  },
+  "variants": [
+   {
+    "id": "ev-interrupt@close",
+    "variantId": "ev-interrupt@close",
+    "eventId": "ev-interrupt",
+    "familyId": "ev-interrupt",
+    "area": "close",
+    "contexts": [],
+    "topicTags": [
+     "voice"
+    ],
+    "text": "Близкий перебивает меня, когда я рассказываю о важном",
+    "reactions": [
+     "Замолкаю",
+     "Спорю",
+     "Уступаю",
+     "Ухожу",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Не дали закончить мысль",
+      "lessonId": "voice-l1",
+      "observe": null
+     },
+     {
+      "id": "c2",
+      "text": "Кажется, мой рассказ ему неинтересен",
+      "lessonId": "voice-l3",
+      "observe": null
+     },
+     {
+      "id": "c3",
+      "text": "О важном говорим на бегу",
+      "lessonId": "voice-l2",
+      "observe": null
+     },
+     {
+      "id": "c4",
+      "text": "Начинаем спорить, не дослушав друг друга",
+      "lessonId": "voice-l4",
+      "observe": null
+     }
+    ],
+    "packId": "voice",
+    "pathHint": [
+     3,
+     1
+    ],
+    "teachers": [
+     "partner",
+     "parent",
+     "child",
+     "relative",
+     "friend"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-interrupt@work",
+    "variantId": "ev-interrupt@work",
+    "eventId": "ev-interrupt",
+    "familyId": "ev-interrupt",
+    "area": "work",
+    "contexts": [
+     "colleagues",
+     "boss"
+    ],
+    "topicTags": [
+     "voice"
+    ],
+    "text": "На работе меня перебивают, прежде чем я закончу мысль",
+    "reactions": [
+     "Замолкаю",
+     "Спорю",
+     "Уступаю",
+     "Ухожу",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Не дали закончить мысль",
+      "lessonId": "voice-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Решили, что знают лучше меня",
+      "lessonId": "voice-l3",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Это происходит при других",
+      "lessonId": "voice-l2",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Не успеваю включиться в разговор",
+      "lessonId": "voice-l4",
+      "observe": null
+     }
+    ],
+    "packId": "voice",
+    "pathHint": [
+     3,
+     1
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-decide@close",
+    "variantId": "ev-decide@close",
+    "eventId": "ev-decide",
+    "familyId": "ev-decide",
+    "area": "close",
+    "contexts": [],
+    "topicTags": [
+     "voice"
+    ],
+    "text": "Близкий принимает решение, которое касается нас обоих, не спросив меня",
+    "reactions": [
+     "Замолкаю",
+     "Спорю",
+     "Уступаю",
+     "Ухожу",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Моё мнение не учли",
+      "lessonId": "voice-l1",
+      "observe": null
+     },
+     {
+      "id": "c2",
+      "text": "Узнаю о решении, когда изменить уже ничего нельзя",
+      "lessonId": "voice-l2",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Моё несогласие осталось невысказанным",
+      "lessonId": "voice-l1",
+      "observe": null
+     },
+     {
+      "id": "c4",
+      "text": "Соглашаюсь, чтобы не ссориться",
+      "lessonId": "refusal-l1",
+      "observe": null
+     }
+    ],
+    "packId": "voice",
+    "pathHint": [
+     1,
+     3
+    ],
+    "teachers": [
+     "partner",
+     "parent",
+     "child",
+     "relative",
+     "friend"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-decide@work",
+    "variantId": "ev-decide@work",
+    "eventId": "ev-decide",
+    "familyId": "ev-decide",
+    "area": "work",
+    "contexts": [
+     "boss",
+     "colleagues",
+     "chat"
+    ],
+    "topicTags": [
+     "voice"
+    ],
+    "text": "Решение по моей работе принимают без обсуждения со мной",
+    "reactions": [
+     "Замолкаю",
+     "Спорю",
+     "Уступаю",
+     "Ухожу",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Моё мнение не учли",
+      "lessonId": "voice-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Решили, что знают лучше меня",
+      "lessonId": "control-l3",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Моё несогласие осталось невысказанным",
+      "lessonId": "voice-l1",
+      "observe": null
+     },
+     {
+      "id": "w4",
+      "text": "Узнаю о решении последним",
+      "lessonId": "voice-l2",
+      "observe": null
+     }
+    ],
+    "packId": "voice",
+    "pathHint": [
+     1,
+     3
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-promise@close",
+    "variantId": "ev-promise@close",
+    "eventId": "ev-promise",
+    "familyId": "ev-promise",
+    "area": "close",
+    "contexts": [],
+    "topicTags": [
+     "refusal"
+    ],
+    "text": "Близкий обещает помочь с общим делом, но не делает этого",
+    "reactions": [
+     "Делаю сам",
+     "Напоминаю",
+     "Молчу и злюсь",
+     "Перестаю просить",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Всё остаётся на мне",
+      "lessonId": "refusal-l2",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Договорённость не выполнена",
+      "lessonId": "refusal-l4",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Я ждал взаимности",
+      "lessonId": "refusal-l3",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Напоминать неловко",
+      "lessonId": "uncertainty-l2",
+      "observe": null
+     }
+    ],
+    "packId": "refusal",
+    "pathHint": [
+     4,
+     6
+    ],
+    "teachers": [
+     "partner",
+     "parent",
+     "child",
+     "relative",
+     "friend"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-promise@work",
+    "variantId": "ev-promise@work",
+    "eventId": "ev-promise",
+    "familyId": "ev-promise",
+    "area": "work",
+    "contexts": [
+     "colleagues",
+     "clients",
+     "load"
+    ],
+    "topicTags": [
+     "refusal"
+    ],
+    "text": "Коллега обещает взять часть общей работы, но не берёт",
+    "reactions": [
+     "Делаю сам",
+     "Напоминаю",
+     "Молчу и злюсь",
+     "Перестаю просить",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Всё остаётся на мне",
+      "lessonId": "refusal-l2",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Договорённость не выполнена",
+      "lessonId": "refusal-l4",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Я ждал взаимности",
+      "lessonId": "refusal-l3",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Напоминать неловко",
+      "lessonId": "uncertainty-l2",
+      "observe": null
+     }
+    ],
+    "packId": "refusal",
+    "pathHint": [
+     4,
+     6
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-promise@money",
+    "variantId": "ev-promise@money",
+    "eventId": "ev-promise",
+    "familyId": "ev-promise",
+    "area": "money",
+    "contexts": [],
+    "topicTags": [
+     "refusal"
+    ],
+    "text": "Договорённость о платеже или возврате денег не выполняют",
+    "reactions": [
+     "Делаю сам",
+     "Напоминаю",
+     "Молчу и злюсь",
+     "Перестаю просить",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "d1",
+      "text": "Мои планы срываются, пока денег нет",
+      "lessonId": "uncertainty-l4",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Договорённость не выполнена",
+      "lessonId": "refusal-l4",
+      "observe": null
+     },
+     {
+      "id": "d3",
+      "text": "Говорить о деньгах неловко",
+      "lessonId": "fairness-l6",
+      "observe": null
+     }
+    ],
+    "packId": "refusal",
+    "pathHint": [
+     4,
+     6
+    ],
+    "teachers": [
+     "client",
+     "partner",
+     "parent",
+     "relative",
+     "friend",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-ask@close",
+    "variantId": "ev-ask@close",
+    "eventId": "ev-ask",
+    "familyId": "ev-ask",
+    "area": "close",
+    "contexts": [],
+    "topicTags": [
+     "refusal"
+    ],
+    "text": "Близкий просит меня взять на себя ещё одно бытовое дело",
+    "reactions": [
+     "Соглашаюсь",
+     "Соглашаюсь и злюсь",
+     "Тяну с ответом",
+     "Отказываю с объяснениями",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Отказать страшно",
+      "lessonId": "refusal-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Моя загрузка никого не интересует",
+      "lessonId": "refusal-l2",
+      "observe": null
+     },
+     {
+      "id": "c3",
+      "text": "Домашние дела незаметно переходят ко мне",
+      "lessonId": "rest-l2",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Жду, что заметят мой вклад",
+      "lessonId": "refusal-l3",
+      "observe": null
+     }
+    ],
+    "packId": "refusal",
+    "pathHint": [
+     2,
+     6
+    ],
+    "teachers": [
+     "partner",
+     "parent",
+     "child",
+     "relative",
+     "friend"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-ask@work",
+    "variantId": "ev-ask@work",
+    "eventId": "ev-ask",
+    "familyId": "ev-ask",
+    "area": "work",
+    "contexts": [
+     "boss",
+     "colleagues",
+     "load"
+    ],
+    "topicTags": [
+     "refusal"
+    ],
+    "text": "На работе меня просят подменить другого или взять дополнительную задачу",
+    "reactions": [
+     "Соглашаюсь",
+     "Соглашаюсь и злюсь",
+     "Тяну с ответом",
+     "Отказываю с объяснениями",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Отказать страшно",
+      "lessonId": "refusal-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Моя загрузка никого не интересует",
+      "lessonId": "refusal-l2",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Просят слишком часто",
+      "lessonId": "refusal-l4",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Жду, что заметят мой вклад",
+      "lessonId": "refusal-l3",
+      "observe": null
+     }
+    ],
+    "packId": "refusal",
+    "pathHint": [
+     2,
+     6
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-correct@work",
+    "variantId": "ev-correct@work",
+    "eventId": "ev-correct",
+    "familyId": "ev-correct",
+    "area": "work",
+    "contexts": [
+     "boss",
+     "colleagues"
+    ],
+    "topicTags": [
+     "criticism"
+    ],
+    "text": "Руководитель или коллега поправляет меня при других",
+    "reactions": [
+     "Оправдываюсь",
+     "Молчу",
+     "Спорю",
+     "Переделываю всё",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Неясно, что именно нужно изменить",
+      "lessonId": "criticism-l2",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Со мной говорят унизительно",
+      "lessonId": "criticism-l3",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Одна ошибка — и я чувствую себя несостоятельным",
+      "lessonId": "criticism-l1",
+      "observe": null
+     },
+     {
+      "id": "w4",
+      "text": "После этого долго прокручиваю разговор",
+      "lessonId": "criticism-l4",
+      "observe": null
+     }
+    ],
+    "packId": "criticism",
+    "pathHint": [
+     4,
+     8
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-compare@close",
+    "variantId": "ev-compare@close",
+    "eventId": "ev-compare",
+    "familyId": "ev-compare",
+    "area": "close",
+    "contexts": [],
+    "topicTags": [
+     "criticism"
+    ],
+    "text": "Близкий сравнивает меня с другим человеком",
+    "reactions": [
+     "Оправдываюсь",
+     "Молчу",
+     "Спорю",
+     "Отдаляюсь",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Меня не принимают таким, какой я есть",
+      "lessonId": "criticism-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Не понимаю, чего от меня хотят",
+      "lessonId": "criticism-l2",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Это звучит унизительно",
+      "lessonId": "criticism-l3",
+      "observe": null
+     }
+    ],
+    "packId": "criticism",
+    "pathHint": [
+     1,
+     3
+    ],
+    "teachers": [
+     "partner",
+     "parent",
+     "child",
+     "relative",
+     "friend"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-compare@self",
+    "variantId": "ev-compare@self",
+    "eventId": "ev-compare",
+    "familyId": "ev-compare",
+    "area": "self",
+    "contexts": [],
+    "topicTags": [
+     "criticism"
+    ],
+    "text": "Сравниваю себя с другими и обесцениваю свой результат",
+    "reactions": [
+     "Оправдываюсь",
+     "Молчу",
+     "Спорю",
+     "Отдаляюсь",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "s1",
+      "text": "Мой результат кажется недостаточным",
+      "lessonId": "criticism-l1",
+      "observe": null
+     },
+     {
+      "id": "s2",
+      "text": "Не понимаю, по какой мерке себя оцениваю",
+      "lessonId": "control-l2",
+      "observe": null
+     },
+     {
+      "id": "s3",
+      "text": "Сил радоваться своему уже нет",
+      "lessonId": "rest-l3",
+      "observe": null
+     }
+    ],
+    "packId": "criticism",
+    "pathHint": [
+     1,
+     3
+    ],
+    "teachers": [
+     "situation",
+     "other"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-myway@work",
+    "variantId": "ev-myway@work",
+    "eventId": "ev-myway",
+    "familyId": "ev-myway",
+    "area": "work",
+    "contexts": [
+     "boss",
+     "clients"
+    ],
+    "topicTags": [
+     "control"
+    ],
+    "text": "Мне подробно указывают, как выполнять мою работу",
+    "reactions": [
+     "Делаю по-своему молча",
+     "Спорю",
+     "Подчиняюсь и злюсь",
+     "Переспрашиваю",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Моему способу не доверяют",
+      "lessonId": "control-l3",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Любое указание вызывает сопротивление",
+      "lessonId": "control-l2",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Указания противоречат друг другу",
+      "lessonId": "criticism-l2",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Это звучит как приказ",
+      "lessonId": "criticism-l3",
+      "observe": null
+     }
+    ],
+    "packId": "control",
+    "pathHint": [
+     1,
+     4
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-redo@close",
+    "variantId": "ev-redo@close",
+    "eventId": "ev-redo",
+    "familyId": "ev-redo",
+    "area": "close",
+    "contexts": [],
+    "topicTags": [
+     "control"
+    ],
+    "text": "Близкий делает общее бытовое дело иначе, чем я ожидал",
+    "reactions": [
+     "Переделываю сам",
+     "Делаю замечание",
+     "Молчу и злюсь",
+     "Проверяю каждый шаг",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Руки тянутся переделать",
+      "lessonId": "control-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Результат будет хуже",
+      "lessonId": "control-l2",
+      "observe": null
+     },
+     {
+      "id": "c3",
+      "text": "Не говорю прямо, как мне важно",
+      "lessonId": "refusal-l3",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Я и так на пределе",
+      "lessonId": "control-l4",
+      "observe": null
+     }
+    ],
+    "packId": "control",
+    "pathHint": [
+     4,
+     1
+    ],
+    "teachers": [
+     "partner",
+     "parent",
+     "child",
+     "relative",
+     "friend"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-redo@work",
+    "variantId": "ev-redo@work",
+    "eventId": "ev-redo",
+    "familyId": "ev-redo",
+    "area": "work",
+    "contexts": [
+     "colleagues"
+    ],
+    "topicTags": [
+     "control"
+    ],
+    "text": "Коллега выполняет общую задачу иначе, чем я ожидал",
+    "reactions": [
+     "Переделываю сам",
+     "Делаю замечание",
+     "Молчу и злюсь",
+     "Проверяю каждый шаг",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Руки тянутся переделать",
+      "lessonId": "control-l1",
+      "observe": null
+     },
+     {
+      "id": "w2",
+      "text": "Результат будет хуже, а отвечать мне",
+      "lessonId": "control-l2",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Я и так на пределе",
+      "lessonId": "control-l4",
+      "observe": null
+     }
+    ],
+    "packId": "control",
+    "pathHint": [
+     4,
+     1
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-plans@close",
+    "variantId": "ev-plans@close",
+    "eventId": "ev-plans",
+    "familyId": "ev-plans",
+    "area": "close",
+    "contexts": [],
+    "topicTags": [
+     "control"
+    ],
+    "text": "Близкий меняет наши совместные планы в последний момент",
+    "reactions": [
+     "Раздражаюсь на близких",
+     "Соглашаюсь молча",
+     "Спорю",
+     "Пытаюсь вернуть прежний план",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Не успеваю перестроиться",
+      "lessonId": "control-l4",
+      "observe": null
+     },
+     {
+      "id": "c2",
+      "text": "Меня не предупредили заранее",
+      "lessonId": "refusal-l4",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Снова всё решили без меня",
+      "lessonId": "voice-l1",
+      "observe": null
+     }
+    ],
+    "packId": "control",
+    "pathHint": [
+     5,
+     4
+    ],
+    "teachers": [
+     "partner",
+     "parent",
+     "child",
+     "relative",
+     "friend"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-plans@work",
+    "variantId": "ev-plans@work",
+    "eventId": "ev-plans",
+    "familyId": "ev-plans",
+    "area": "work",
+    "contexts": [
+     "boss",
+     "load",
+     "clients"
+    ],
+    "topicTags": [
+     "control"
+    ],
+    "text": "Рабочие планы меняют, когда я уже распределил своё время",
+    "reactions": [
+     "Раздражаюсь на близких",
+     "Соглашаюсь молча",
+     "Спорю",
+     "Пытаюсь вернуть прежний план",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Не успеваю перестроиться",
+      "lessonId": "control-l4",
+      "observe": null
+     },
+     {
+      "id": "w2",
+      "text": "Меня не предупредили заранее",
+      "lessonId": "fairness-l1",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Снова всё решили без меня",
+      "lessonId": "voice-l1",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Раздражение потом достаётся близким",
+      "lessonId": "rest-l3",
+      "observe": null
+     }
+    ],
+    "packId": "control",
+    "pathHint": [
+     5,
+     4
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-phone@close",
+    "variantId": "ev-phone@close",
+    "eventId": "ev-phone",
+    "familyId": "ev-phone",
+    "area": "close",
+    "contexts": [],
+    "topicTags": [
+     "closeness"
+    ],
+    "text": "Близкий смотрит в телефон, когда я хочу поговорить",
+    "reactions": [
+     "Замолкаю и отдаляюсь",
+     "Делаю замечание",
+     "Жду, когда заметят",
+     "Ухожу в своё",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Не чувствую, что важен в этот момент",
+      "lessonId": "closeness-l3",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Не получаю ответа на важное",
+      "lessonId": "closeness-l2",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Неловко просить внимания",
+      "lessonId": "closeness-l1",
+      "observe": null
+     }
+    ],
+    "packId": "closeness",
+    "pathHint": [
+     2,
+     6
+    ],
+    "teachers": [
+     "partner",
+     "parent",
+     "child",
+     "relative",
+     "friend"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-silence@close",
+    "variantId": "ev-silence@close",
+    "eventId": "ev-silence",
+    "familyId": "ev-silence",
+    "area": "close",
+    "contexts": [],
+    "topicTags": [
+     "uncertainty"
+    ],
+    "text": "Близкий долго не отвечает на моё сообщение",
+    "reactions": [
+     "Проверяю снова и снова",
+     "Пишу ещё раз",
+     "Отвлекаюсь через силу",
+     "Решаю, что всё плохо",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Кажется, дело во мне",
+      "lessonId": "uncertainty-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Жизнь на паузе, пока нет ответа",
+      "lessonId": "uncertainty-l3",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Не знаю, можно ли спросить ещё раз",
+      "lessonId": "uncertainty-l2",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Планы зависли из-за ответа",
+      "lessonId": "uncertainty-l4",
+      "observe": null
+     }
+    ],
+    "packId": "uncertainty",
+    "pathHint": [
+     7,
+     2
+    ],
+    "teachers": [
+     "partner",
+     "parent",
+     "child",
+     "relative",
+     "friend"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-silence@work",
+    "variantId": "ev-silence@work",
+    "eventId": "ev-silence",
+    "familyId": "ev-silence",
+    "area": "work",
+    "contexts": [
+     "chat"
+    ],
+    "topicTags": [
+     "uncertainty"
+    ],
+    "text": "В рабочей переписке долго не отвечают на мой вопрос",
+    "reactions": [
+     "Проверяю снова и снова",
+     "Пишу ещё раз",
+     "Отвлекаюсь через силу",
+     "Решаю, что всё плохо",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Кажется, дело во мне",
+      "lessonId": "uncertainty-l1",
+      "observe": null
+     },
+     {
+      "id": "w2",
+      "text": "Не могу переключиться, всё время проверяю переписку",
+      "lessonId": "uncertainty-l3",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Не знаю, можно ли спросить ещё раз",
+      "lessonId": "uncertainty-l2",
+      "observe": null
+     },
+     {
+      "id": "w4",
+      "text": "Моя задача зависла из-за ответа",
+      "lessonId": "uncertainty-l4",
+      "observe": null
+     }
+    ],
+    "packId": "uncertainty",
+    "pathHint": [
+     7,
+     2
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-support@close",
+    "variantId": "ev-support@close",
+    "eventId": "ev-support",
+    "familyId": "ev-support",
+    "area": "close",
+    "contexts": [],
+    "topicTags": [
+     "closeness"
+    ],
+    "text": "Я рассказываю близкому о трудности, а в ответ получаю мало поддержки",
+    "reactions": [
+     "Молчу",
+     "Обижаюсь",
+     "Справляюсь сам",
+     "Намекаю",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Ждал, что поймут без слов",
+      "lessonId": "closeness-l2",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Просить — значит быть слабым",
+      "lessonId": "closeness-l1",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Помощь предлагали, а взять трудно",
+      "lessonId": "closeness-l4",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Внимание достаётся другим",
+      "lessonId": "closeness-l3",
+      "observe": null
+     }
+    ],
+    "packId": "closeness",
+    "pathHint": [
+     2,
+     6
+    ],
+    "teachers": [
+     "partner",
+     "parent",
+     "child",
+     "relative",
+     "friend"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-contrib@money",
+    "variantId": "ev-contrib@money",
+    "eventId": "ev-contrib",
+    "familyId": "ev-contrib",
+    "area": "money",
+    "contexts": [],
+    "topicTags": [
+     "fairness"
+    ],
+    "text": "Мой труд или дополнительные расходы не учитывают при расчёте оплаты",
+    "reactions": [
+     "Молчу и продолжаю",
+     "Делаю меньше",
+     "Намекаю",
+     "Говорю прямо и жалею",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Условия так и не названы",
+      "lessonId": "fairness-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Жду признания",
+      "lessonId": "fairness-l3",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Неловко говорить о деньгах",
+      "lessonId": "fairness-l6",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Вклад больше, чем мне по силам",
+      "lessonId": "fairness-l4",
+      "observe": null
+     }
+    ],
+    "packId": "fairness",
+    "pathHint": [
+     8,
+     4
+    ],
+    "teachers": [
+     "client",
+     "partner",
+     "parent",
+     "relative",
+     "friend",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-contrib@work",
+    "variantId": "ev-contrib@work",
+    "eventId": "ev-contrib",
+    "familyId": "ev-contrib",
+    "area": "work",
+    "contexts": [
+     "boss",
+     "clients",
+     "load"
+    ],
+    "topicTags": [
+     "fairness"
+    ],
+    "text": "Дополнительную работу воспринимают как само собой разумеющуюся",
+    "reactions": [
+     "Молчу и продолжаю",
+     "Делаю меньше",
+     "Намекаю",
+     "Говорю прямо и жалею",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Условия так и не названы",
+      "lessonId": "fairness-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Жду признания",
+      "lessonId": "fairness-l3",
+      "observe": null
+     },
+     {
+      "id": "w3",
+      "text": "Неловко говорить о своём вкладе",
+      "lessonId": "fairness-l2",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Вклад больше, чем мне по силам",
+      "lessonId": "fairness-l4",
+      "observe": null
+     }
+    ],
+    "packId": "fairness",
+    "pathHint": [
+     8,
+     4
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-terms@money",
+    "variantId": "ev-terms@money",
+    "eventId": "ev-terms",
+    "familyId": "ev-terms",
+    "area": "money",
+    "contexts": [],
+    "topicTags": [
+     "fairness"
+    ],
+    "text": "Неясно, сколько, за что и когда мне должны заплатить",
+    "reactions": [
+     "Молчу и надеюсь",
+     "Уточняю и чувствую себя мелочным",
+     "Соглашаюсь на что есть",
+     "Откладываю разговор",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "d1",
+      "text": "Неясно, о чём договорились",
+      "lessonId": "fairness-l1",
+      "observe": null
+     },
+     {
+      "id": "d2",
+      "text": "Неловко задать вопрос об оплате",
+      "lessonId": "fairness-l2",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Боюсь показаться мелочным",
+      "lessonId": "fairness-l6",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Каждый понимает по-своему",
+      "lessonId": "fairness-l3",
+      "observe": null
+     }
+    ],
+    "packId": "fairness",
+    "pathHint": [
+     8,
+     4
+    ],
+    "teachers": [
+     "client",
+     "partner",
+     "parent",
+     "relative",
+     "friend",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-terms@work",
+    "variantId": "ev-terms@work",
+    "eventId": "ev-terms",
+    "familyId": "ev-terms",
+    "area": "work",
+    "contexts": [
+     "clients",
+     "boss",
+     "chat"
+    ],
+    "topicTags": [
+     "fairness"
+    ],
+    "text": "Мне поручают работу, но не уточняют условия и границы задачи",
+    "reactions": [
+     "Молчу и надеюсь",
+     "Уточняю и чувствую себя мелочным",
+     "Соглашаюсь на что есть",
+     "Откладываю разговор",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "w1",
+      "text": "Неясно, что именно входит в задачу",
+      "lessonId": "fairness-l1",
+      "observe": null
+     },
+     {
+      "id": "w2",
+      "text": "Неловко уточнять, боюсь показаться непонятливым",
+      "lessonId": "uncertainty-l2",
+      "observe": null
+     },
+     {
+      "id": "w3",
+      "text": "Потом выясняется, что ждали другого",
+      "lessonId": "control-l2",
+      "observe": null
+     },
+     {
+      "id": "w4",
+      "text": "Задача разрастается",
+      "lessonId": "fairness-l4",
+      "observe": null
+     }
+    ],
+    "packId": "fairness",
+    "pathHint": [
+     8,
+     4
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-money@money",
+    "variantId": "ev-money@money",
+    "eventId": "ev-money",
+    "familyId": "ev-money",
+    "area": "money",
+    "contexts": [],
+    "topicTags": [
+     "fairness"
+    ],
+    "text": "До следующего поступления денег не хватает на запланированные расходы",
+    "reactions": [
+     "Молчу и терплю",
+     "Занимаю или прошу",
+     "Урезаю своё",
+     "Ругаю себя",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Не хватает на необходимое",
+      "lessonId": null,
+      "observe": {
+       "title": "отличать обязательные траты от решений, о которых потом жалею",
+       "action": "в конце дня отметить одну трату: обязательная она была или решение, о котором жалею",
+       "signal": "замечу неожиданный расход"
+      }
+     },
+     {
+      "id": "m2",
+      "text": "Теряю ощущение контроля",
+      "lessonId": null,
+      "observe": {
+       "title": "замечать момент неожиданного расхода и состояние перед ним",
+       "action": "в момент неожиданного расхода отметить, что было перед этим и что я решил",
+       "signal": "потянусь к неожиданной трате"
+      }
+     },
+     {
+      "id": "m3",
+      "text": "Приходится просить или отказывать",
+      "lessonId": "fairness-l6",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Злюсь на конкретный расход",
+      "lessonId": null,
+      "observe": {
+       "title": "записывать конкретный расход и решение, которое к нему привело",
+       "action": "записать один расход, который злит, и что я решил в тот момент",
+       "signal": "вспомню расход, который злит"
+      }
+     },
+     {
+      "id": "m5",
+      "text": "Обязательства оказались больше возможностей",
+      "lessonId": "fairness-l5",
+      "observe": null
+     }
+    ],
+    "packId": "fairness",
+    "pathHint": [
+     8,
+     5
+    ],
+    "teachers": [
+     "client",
+     "partner",
+     "parent",
+     "relative",
+     "friend",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-money@self",
+    "variantId": "ev-money@self",
+    "eventId": "ev-money",
+    "familyId": "ev-money",
+    "area": "self",
+    "contexts": [],
+    "topicTags": [
+     "fairness"
+    ],
+    "text": "После незапланированной траты долго ругаю себя",
+    "reactions": [
+     "Молчу и терплю",
+     "Занимаю или прошу",
+     "Урезаю своё",
+     "Ругаю себя",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Не понимаю, какие траты были обязательными",
+      "lessonId": null,
+      "observe": {
+       "title": "отличать обязательные траты от решений, о которых потом жалею",
+       "action": "в конце дня отметить одну трату: обязательная она была или решение, о котором жалею",
+       "signal": "замечу неожиданный расход"
+      }
+     },
+     {
+      "id": "m2",
+      "text": "Теряю ощущение контроля",
+      "lessonId": null,
+      "observe": {
+       "title": "замечать момент неожиданного расхода и состояние перед ним",
+       "action": "в момент неожиданного расхода отметить, что было перед этим и что я решил",
+       "signal": "потянусь к неожиданной трате"
+      }
+     },
+     {
+      "id": "m4",
+      "text": "Злюсь на конкретный расход",
+      "lessonId": null,
+      "observe": {
+       "title": "записывать конкретный расход и решение, которое к нему привело",
+       "action": "записать один расход, который злит, и что я решил в тот момент",
+       "signal": "вспомню расход, который злит"
+      }
+     },
+     {
+      "id": "s6",
+      "text": "Одна трата — и кажется, что я всё испортил",
+      "lessonId": "criticism-l2",
+      "observe": null
+     }
+    ],
+    "packId": "fairness",
+    "pathHint": [
+     8,
+     5
+    ],
+    "teachers": [
+     "situation",
+     "other"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-loan@money",
+    "variantId": "ev-loan@money",
+    "eventId": "ev-loan",
+    "familyId": "ev-loan",
+    "area": "money",
+    "contexts": [],
+    "topicTags": [
+     "refusal"
+    ],
+    "text": "Меня просят дать в долг или оплатить чужие расходы",
+    "reactions": [
+     "Молчу и терплю",
+     "Занимаю или прошу",
+     "Урезаю своё",
+     "Ругаю себя",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Отказать страшно",
+      "lessonId": "refusal-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Мои планы снова отодвигаются",
+      "lessonId": "fairness-l5",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Не возвращают, а напомнить неловко",
+      "lessonId": "refusal-l4",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Говорить о деньгах неловко",
+      "lessonId": "fairness-l6",
+      "observe": null
+     }
+    ],
+    "packId": "refusal",
+    "pathHint": [
+     6,
+     8
+    ],
+    "teachers": [
+     "client",
+     "partner",
+     "parent",
+     "relative",
+     "friend",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-loan@close",
+    "variantId": "ev-loan@close",
+    "eventId": "ev-loan",
+    "familyId": "ev-loan",
+    "area": "close",
+    "contexts": [],
+    "topicTags": [
+     "refusal"
+    ],
+    "text": "Близкий просит оплатить его расходы, хотя я этого не планировал",
+    "reactions": [
+     "Молчу и терплю",
+     "Занимаю или прошу",
+     "Урезаю своё",
+     "Ругаю себя",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Отказать страшно",
+      "lessonId": "refusal-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Мои планы снова отодвигаются",
+      "lessonId": "fairness-l5",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Не возвращают, а напомнить неловко",
+      "lessonId": "refusal-l4",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Говорить о деньгах неловко",
+      "lessonId": "fairness-l6",
+      "observe": null
+     }
+    ],
+    "packId": "refusal",
+    "pathHint": [
+     6,
+     8
+    ],
+    "teachers": [
+     "partner",
+     "parent",
+     "child",
+     "relative",
+     "friend"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-double@money",
+    "variantId": "ev-double@money",
+    "eventId": "ev-double",
+    "familyId": "ev-double",
+    "area": "money",
+    "contexts": [],
+    "topicTags": [
+     "fairness"
+    ],
+    "text": "За похожую работу или обязательство для меня действуют другие денежные условия",
+    "reactions": [
+     "Молчу",
+     "Говорю и жалею",
+     "Отстраняюсь",
+     "Делаю меньше",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Правила двойные",
+      "lessonId": "fairness-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Обида растёт, а сказать нельзя",
+      "lessonId": "fairness-l2",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Спорить бесполезно",
+      "lessonId": "fairness-l3",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Сомневаюсь, что заслуживаю того же",
+      "lessonId": "criticism-l1",
+      "observe": null
+     }
+    ],
+    "packId": "fairness",
+    "pathHint": [
+     8,
+     1
+    ],
+    "teachers": [
+     "client",
+     "partner",
+     "parent",
+     "relative",
+     "friend",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-double@work",
+    "variantId": "ev-double@work",
+    "eventId": "ev-double",
+    "familyId": "ev-double",
+    "area": "work",
+    "contexts": [
+     "boss",
+     "colleagues"
+    ],
+    "topicTags": [
+     "fairness"
+    ],
+    "text": "Коллеге разрешают то, за что меня критикуют",
+    "reactions": [
+     "Молчу",
+     "Говорю и жалею",
+     "Отстраняюсь",
+     "Делаю меньше",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "w1",
+      "text": "Правила двойные",
+      "lessonId": "fairness-l3",
+      "observe": null
+     },
+     {
+      "id": "w2",
+      "text": "Обида растёт, а сказать не решаюсь",
+      "lessonId": "voice-l1",
+      "observe": null
+     },
+     {
+      "id": "w3",
+      "text": "Не понимаю, чего от меня ждут",
+      "lessonId": "criticism-l2",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Сомневаюсь, что заслуживаю того же",
+      "lessonId": "criticism-l1",
+      "observe": null
+     }
+    ],
+    "packId": "fairness",
+    "pathHint": [
+     8,
+     1
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-restguilt@self",
+    "variantId": "ev-restguilt@self",
+    "eventId": "ev-restguilt",
+    "familyId": "ev-restguilt",
+    "area": "self",
+    "contexts": [],
+    "topicTags": [
+     "rest"
+    ],
+    "text": "После отдыха чувствую, что потратил время зря",
+    "reactions": [
+     "Продолжаю через силу",
+     "Откладываю",
+     "Ругаю себя",
+     "Переделываю",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Отдых надо заслужить",
+      "lessonId": "rest-l1",
+      "observe": null
+     },
+     {
+      "id": "s2",
+      "text": "Все вокруг работают",
+      "lessonId": "rest-l4",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Остановиться не получается",
+      "lessonId": "rest-l3",
+      "observe": null
+     }
+    ],
+    "packId": "rest",
+    "pathHint": [
+     4,
+     6
+    ],
+    "teachers": [
+     "situation",
+     "other"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-overtake@self",
+    "variantId": "ev-overtake@self",
+    "eventId": "ev-overtake",
+    "familyId": "ev-overtake",
+    "area": "self",
+    "contexts": [],
+    "topicTags": [
+     "rest"
+    ],
+    "text": "Замечаю усталость, но всё равно добавляю себе дела",
+    "reactions": [
+     "Продолжаю через силу",
+     "Откладываю",
+     "Ругаю себя",
+     "Переделываю",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Остановиться не получается",
+      "lessonId": "rest-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Если не я, то никто",
+      "lessonId": "rest-l2",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Я на пределе",
+      "lessonId": "rest-l3",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Кажется, другие не делают свою часть",
+      "lessonId": "rest-l4",
+      "observe": null
+     }
+    ],
+    "packId": "rest",
+    "pathHint": [
+     4,
+     6
+    ],
+    "teachers": [
+     "situation",
+     "other"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-overtake@work",
+    "variantId": "ev-overtake@work",
+    "eventId": "ev-overtake",
+    "familyId": "ev-overtake",
+    "area": "work",
+    "contexts": [
+     "load"
+    ],
+    "topicTags": [
+     "rest"
+    ],
+    "text": "Мне предлагают новые задачи, когда текущая нагрузка уже велика",
+    "reactions": [
+     "Продолжаю через силу",
+     "Откладываю",
+     "Ругаю себя",
+     "Переделываю",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Остановиться не получается",
+      "lessonId": "rest-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Если не я, то никто",
+      "lessonId": "rest-l2",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Я на пределе",
+      "lessonId": "rest-l3",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Кажется, другие не делают свою часть",
+      "lessonId": "rest-l4",
+      "observe": null
+     }
+    ],
+    "packId": "rest",
+    "pathHint": [
+     4,
+     6
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-showfear@self",
+    "variantId": "ev-showfear@self",
+    "eventId": "ev-showfear",
+    "familyId": "ev-showfear",
+    "area": "self",
+    "contexts": [],
+    "topicTags": [
+     "criticism"
+    ],
+    "text": "Откладываю показ своего результата, потому что боюсь оценки",
+    "reactions": [
+     "Продолжаю через силу",
+     "Откладываю",
+     "Ругаю себя",
+     "Переделываю",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Боюсь замечаний",
+      "lessonId": "criticism-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Не понимаю критерии",
+      "lessonId": "criticism-l2",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Сил на обратную связь сейчас нет",
+      "lessonId": "criticism-l4",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Однажды уже было унизительно",
+      "lessonId": "criticism-l3",
+      "observe": null
+     }
+    ],
+    "packId": "criticism",
+    "pathHint": [
+     3,
+     1
+    ],
+    "teachers": [
+     "situation",
+     "other"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-showfear@work",
+    "variantId": "ev-showfear@work",
+    "eventId": "ev-showfear",
+    "familyId": "ev-showfear",
+    "area": "work",
+    "contexts": [
+     "boss",
+     "clients"
+    ],
+    "topicTags": [
+     "criticism"
+    ],
+    "text": "Пора показать рабочий результат, но я откладываю отправку",
+    "reactions": [
+     "Продолжаю через силу",
+     "Откладываю",
+     "Ругаю себя",
+     "Переделываю",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Боюсь замечаний",
+      "lessonId": "criticism-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Не понимаю критерии",
+      "lessonId": "criticism-l2",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Сил на обратную связь сейчас нет",
+      "lessonId": "criticism-l4",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Однажды уже было унизительно",
+      "lessonId": "criticism-l3",
+      "observe": null
+     }
+    ],
+    "packId": "criticism",
+    "pathHint": [
+     3,
+     1
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-redoall@self",
+    "variantId": "ev-redoall@self",
+    "eventId": "ev-redoall",
+    "familyId": "ev-redoall",
+    "area": "self",
+    "contexts": [],
+    "topicTags": [
+     "criticism"
+    ],
+    "text": "После одного замечания хочу переделать весь результат",
+    "reactions": [
+     "Продолжаю через силу",
+     "Откладываю",
+     "Ругаю себя",
+     "Переделываю",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Одна ошибка значит, что всё плохо",
+      "lessonId": "criticism-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Не знаю, что именно не так",
+      "lessonId": "criticism-l2",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Устал, и всё кажется неверным",
+      "lessonId": "criticism-l4",
+      "observe": null
+     }
+    ],
+    "packId": "criticism",
+    "pathHint": [
+     4,
+     7
+    ],
+    "teachers": [
+     "situation",
+     "other"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-others-ease@self",
+    "variantId": "ev-others-ease@self",
+    "eventId": "ev-others-ease",
+    "familyId": "ev-others-ease",
+    "area": "self",
+    "contexts": [],
+    "topicTags": [
+     "rest"
+    ],
+    "text": "Вижу, как другой позволяет себе отдых, и думаю, что мне так нельзя",
+    "reactions": [
+     "Продолжаю через силу",
+     "Откладываю",
+     "Ругаю себя",
+     "Переделываю",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Себе лёгкость не разрешаю",
+      "lessonId": "rest-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Кажется, я тяну больше всех",
+      "lessonId": "rest-l2",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Сил на лёгкость нет",
+      "lessonId": "rest-l3",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Сравнение несправедливо, но цепляет",
+      "lessonId": "rest-l4",
+      "observe": null
+     }
+    ],
+    "packId": "rest",
+    "pathHint": [
+     5,
+     3
+    ],
+    "teachers": [
+     "situation",
+     "other"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-others-ease@close",
+    "variantId": "ev-others-ease@close",
+    "eventId": "ev-others-ease",
+    "familyId": "ev-others-ease",
+    "area": "close",
+    "contexts": [],
+    "topicTags": [
+     "rest"
+    ],
+    "text": "Близкий отдыхает, пока на мне остаются общие домашние дела",
+    "reactions": [
+     "Продолжаю через силу",
+     "Откладываю",
+     "Ругаю себя",
+     "Переделываю",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Себе отдых не разрешаю, пока дела не закончены",
+      "lessonId": "rest-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Кажется, я тяну больше всех",
+      "lessonId": "rest-l2",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Сил уже нет",
+      "lessonId": "rest-l3",
+      "observe": null
+     },
+     {
+      "id": "c4",
+      "text": "Спорим о том, кто сколько делает",
+      "lessonId": "rest-l4",
+      "observe": null
+     }
+    ],
+    "packId": "rest",
+    "pathHint": [
+     5,
+     3
+    ],
+    "teachers": [
+     "partner",
+     "parent",
+     "child",
+     "relative",
+     "friend"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-cutoff@close",
+    "variantId": "ev-cutoff@close",
+    "eventId": "ev-cutoff",
+    "familyId": "ev-cutoff",
+    "area": "close",
+    "contexts": [],
+    "topicTags": [
+     "uncertainty"
+    ],
+    "text": "Близкий обрывает разговор и не объясняет, когда мы к нему вернёмся",
+    "reactions": [
+     "Проверяю снова и снова",
+     "Пишу ещё раз",
+     "Отвлекаюсь через силу",
+     "Решаю, что всё плохо",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "В голове худшие версии",
+      "lessonId": "uncertainty-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Своё дело стоит, пока нет ответа",
+      "lessonId": "uncertainty-l3",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Страшно спросить, что случилось",
+      "lessonId": "uncertainty-l2",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Это повторяется с этим человеком",
+      "lessonId": "uncertainty-l4",
+      "observe": null
+     }
+    ],
+    "packId": "uncertainty",
+    "pathHint": [
+     9,
+     7
+    ],
+    "teachers": [
+     "partner",
+     "parent",
+     "child",
+     "relative",
+     "friend"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-notlisten@close",
+    "variantId": "ev-notlisten@close",
+    "eventId": "ev-notlisten",
+    "familyId": "ev-notlisten",
+    "area": "close",
+    "contexts": [],
+    "topicTags": [
+     "voice"
+    ],
+    "text": "Когда я говорю о важном, близкий отвечает: «Ты всё усложняешь»",
+    "reactions": [
+     "Замолкаю",
+     "Спорю",
+     "Уступаю",
+     "Ухожу",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Моё важное обесценили",
+      "lessonId": "voice-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Разговор ведут в неподходящей форме",
+      "lessonId": "voice-l2",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Может, я и правда усложняю",
+      "lessonId": "voice-l3",
+      "observe": null
+     }
+    ],
+    "packId": "voice",
+    "pathHint": [
+     3,
+     2
+    ],
+    "teachers": [
+     "partner",
+     "parent",
+     "child",
+     "relative",
+     "friend"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-notlisten@work",
+    "variantId": "ev-notlisten@work",
+    "eventId": "ev-notlisten",
+    "familyId": "ev-notlisten",
+    "area": "work",
+    "contexts": [
+     "colleagues",
+     "chat"
+    ],
+    "topicTags": [
+     "voice"
+    ],
+    "text": "В рабочем обсуждении мой вопрос называют лишним усложнением",
+    "reactions": [
+     "Замолкаю",
+     "Спорю",
+     "Уступаю",
+     "Ухожу",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Мой вопрос обесценили",
+      "lessonId": "voice-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Обсуждение ведут в неподходящей форме",
+      "lessonId": "voice-l2",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Может, я и правда усложняю",
+      "lessonId": "voice-l3",
+      "observe": null
+     }
+    ],
+    "packId": "voice",
+    "pathHint": [
+     3,
+     2
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-workreply@work",
+    "variantId": "ev-workreply@work",
+    "eventId": "ev-workreply",
+    "familyId": "ev-workreply",
+    "area": "work",
+    "contexts": [
+     "chat",
+     "colleagues",
+     "clients"
+    ],
+    "topicTags": [
+     "uncertainty"
+    ],
+    "text": "Не получаю ответ по рабочему вопросу, и моя задача зависает",
+    "reactions": [
+     "Пишу ещё раз",
+     "Жду и злюсь",
+     "Делаю сам, не дождавшись",
+     "Иду выяснять лично",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Моя работа стоит из-за другого",
+      "lessonId": "uncertainty-l4",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Непонятно, можно ли напомнить ещё раз",
+      "lessonId": "uncertainty-l2",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Кажется, мой вопрос неважен",
+      "lessonId": "uncertainty-l1",
+      "observe": null
+     }
+    ],
+    "packId": "uncertainty",
+    "pathHint": [
+     7,
+     4
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-client-more@work",
+    "variantId": "ev-client-more@work",
+    "eventId": "ev-client-more",
+    "familyId": "ev-client-more",
+    "area": "work",
+    "contexts": [
+     "clients"
+    ],
+    "topicTags": [
+     "fairness"
+    ],
+    "text": "Клиент требует больше работы, чем мы согласовали",
+    "reactions": [
+     "Делаю больше молча",
+     "Напоминаю об условиях и жалею",
+     "Тяну с ответом",
+     "Отказываю с оправданиями",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Условия оказались неясными",
+      "lessonId": "fairness-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Отказать страшно",
+      "lessonId": "refusal-l1",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Мой вклад не ценят",
+      "lessonId": "fairness-l3",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Сил на это уже нет",
+      "lessonId": "fairness-l4",
+      "observe": null
+     }
+    ],
+    "packId": "fairness",
+    "pathHint": [
+     8,
+     4
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-client-more@money",
+    "variantId": "ev-client-more@money",
+    "eventId": "ev-client-more",
+    "familyId": "ev-client-more",
+    "area": "money",
+    "contexts": [],
+    "topicTags": [
+     "fairness"
+    ],
+    "text": "Клиент просит дополнительную работу без дополнительной оплаты",
+    "reactions": [
+     "Делаю больше молча",
+     "Напоминаю об условиях и жалею",
+     "Тяну с ответом",
+     "Отказываю с оправданиями",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Условия оказались неясными",
+      "lessonId": "fairness-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Отказать страшно",
+      "lessonId": "refusal-l1",
+      "observe": null
+     },
+     {
+      "id": "d3",
+      "text": "Неловко назвать цену",
+      "lessonId": "fairness-l6",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Сил на это уже нет",
+      "lessonId": "fairness-l4",
+      "observe": null
+     }
+    ],
+    "packId": "fairness",
+    "pathHint": [
+     8,
+     4
+    ],
+    "teachers": [
+     "client",
+     "partner",
+     "parent",
+     "relative",
+     "friend",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-client-change@work",
+    "variantId": "ev-client-change@work",
+    "eventId": "ev-client-change",
+    "familyId": "ev-client-change",
+    "area": "work",
+    "contexts": [
+     "clients",
+     "boss",
+     "chat"
+    ],
+    "topicTags": [
+     "control"
+    ],
+    "text": "Рабочую задачу меняют после того, как мы её согласовали",
+    "reactions": [
+     "Переделываю молча",
+     "Спорю",
+     "Соглашаюсь и злюсь",
+     "Напоминаю о договорённости",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Сделанная работа пропадает",
+      "lessonId": "fairness-l1",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Не успеваю перестроиться",
+      "lessonId": "control-l4",
+      "observe": null
+     },
+     {
+      "id": "m3",
+      "text": "Договорённость не соблюдена",
+      "lessonId": "refusal-l4",
+      "observe": null
+     },
+     {
+      "id": "m4",
+      "text": "Снова решили без меня",
+      "lessonId": "voice-l1",
+      "observe": null
+     }
+    ],
+    "packId": "control",
+    "pathHint": [
+     5,
+     8
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   },
+   {
+    "id": "ev-deadline@work",
+    "variantId": "ev-deadline@work",
+    "eventId": "ev-deadline",
+    "familyId": "ev-deadline",
+    "area": "work",
+    "contexts": [
+     "load",
+     "boss"
+    ],
+    "topicTags": [
+     "rest"
+    ],
+    "text": "Сроки сжимают, а задач не убавляют",
+    "reactions": [
+     "Тяну через силу",
+     "Беру ещё",
+     "Молчу о перегрузке",
+     "Срываюсь на близких",
+     "По-разному"
+    ],
+    "meanings": [
+     {
+      "id": "m1",
+      "text": "Я на пределе",
+      "lessonId": "rest-l3",
+      "observe": null
+     },
+     {
+      "id": "m2",
+      "text": "Сказать о перегрузке страшно",
+      "lessonId": "rest-l2",
+      "observe": null
+     },
+     {
+      "id": "w4",
+      "text": "Непонятно, что из этого обязательно",
+      "lessonId": "rest-l4",
+      "observe": null
+     }
+    ],
+    "packId": "rest",
+    "pathHint": [
+     4,
+     8
+    ],
+    "teachers": [
+     "boss",
+     "colleague",
+     "client",
+     "situation"
+    ],
+    "status": "approved",
+    "reviewedIn": "2026-10-16-v6.4"
+   }
+  ],
+  "routingVersion": "quiz-domain-v1",
+  "eventAreas": [
+   "close",
+   "work",
+   "money",
+   "self"
   ]
  }
 };

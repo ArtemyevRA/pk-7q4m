@@ -315,26 +315,74 @@
   };
   /* Колода событий v4: сфера определяет подборку (до first карточек), число не влияет. «Пока трудно понять» — по одному событию из разных сфер.
      Расширение — следующие события той же сферы, затем других. exclude — уже показанные. */
-  R.buildEventDeck = function ({ events = [], area = null, ctx = null, first = 6, primary = 4, seed = 0, exclude = [], prefer = [] }) {
-    const ex = new Set(exclude), s = Math.abs(Number(seed) || 0);
-    const pool = events.filter(e => !ex.has(e.id));
-    const rot = (list, k) => list.length ? [...list.slice(k % list.length), ...list.slice(0, k % list.length)] : [];
-    const inArea = e => area && area !== "unclear" && (e.areas || []).includes(area);
-    const inCtx = e => ctx && ctx !== "any" && (e.ctx || []).includes(ctx);
-    const out = [], used = new Set();
-    const take = (list, n) => { for (const e of rot(list, s)) { if (out.length >= n) break; if (!used.has(e.id)) { used.add(e.id); out.push(e); } } };
-    /* Узнанная ситуация пути сужает первые примеры (не больше primary), но не назначает сюжет: остальные — по сфере и соседние. */
-    if (prefer.length) prefer.forEach(id => { const e = pool.find(q => q.id === id); if (e && !used.has(id) && out.length < primary) { used.add(id); out.push(e); } });
-    if (ctx && ctx !== "any") { take(pool.filter(e => inArea(e) && inCtx(e)), primary); take(pool.filter(inArea), first); }
-    else if (area && area !== "unclear") { take(pool.filter(inArea), primary); take(pool.filter(e => !inArea(e)), first); take(pool.filter(inArea), first); }
-    if (out.length < first) {
-      /* разные сферы по очереди */
-      const rest = pool.filter(e => !used.has(e.id)), byArea = {}; rest.forEach(e => { const a = (e.areas || ["other"])[0]; (byArea[a] = byArea[a] || []).push(e); });
-      const keys = rot(Object.keys(byArea).sort(), s); let i = 0, guard = 0;
-      while (out.length < first && keys.length && guard++ < 100) { const q = byArea[keys[i % keys.length]]; if (q && q.length) { const e = q.shift(); used.add(e.id); out.push(e); } if (Object.values(byArea).every(q => !q.length)) break; i++; }
+  /* v6.4: прежний построитель buildEventDeck удалён — он добавлял карточки других сфер. Колоду строит R.selectDeck. */
+
+
+  /* v6.4 Квиз по сфере (эталон karma-quiz-router.cjs, перенесён без изменения правил отбора).
+     Сфера — жёсткая граница: карточки только выбранной сферы, для работы — только выбранного контекста («any» = любые рабочие).
+     Тематическое предпочтение (от явного отклика) — не больше двух первых карточек и только внутри допустимого пула.
+     Одно семейство события — одна карточка. Порядок задаёт сохранённый seed сессии; исчерпание пула не дополняется чужой сферой. */
+  R.QUIZ_AREAS = ["close", "work", "money", "self"];
+  R.QUIZ_CONTEXTS = ["boss", "colleagues", "clients", "chat", "load", "any"];
+  R.qhash = function (value) { let h = 2166136261; for (const c of String(value)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+  R.cardOf = v => ({ id: v.variantId, variantId: v.variantId, eventId: v.eventId, familyId: v.familyId, area: v.area, ctx: v.contexts || [], topicTags: v.topicTags || [], text: v.text, packId: v.packId, pathHint: v.pathHint || [] });
+  R.selectDeck = function ({ variants = [], area, context = null, preferredTopics = [], exclude = [], seed = 0, limit = 6 }) {
+    if (!R.QUIZ_AREAS.includes(area)) return { cards: [], reason: "choose_area", exhausted: false };
+    if (area === "work" && !R.QUIZ_CONTEXTS.includes(context)) return { cards: [], reason: "choose_work_context", exhausted: false };
+    const ex = new Set(exclude), topics = new Set(preferredTopics || []);
+    const eligible = variants.filter(c => c.area === area && (area !== "work" || context === "any" || (c.contexts || []).includes(context)) && !ex.has(c.variantId) && !ex.has(c.eventId));
+    const ordered = eligible.slice().sort((a, b) => R.qhash(`${seed}|${a.variantId}`) - R.qhash(`${seed}|${b.variantId}`) || a.variantId.localeCompare(b.variantId));
+    const out = [], families = new Set(), counts = new Map();
+    const take = c => { if (!c || families.has(c.familyId)) return false; out.push(c); families.add(c.familyId); const t = (c.topicTags || [])[0] || "other"; counts.set(t, (counts.get(t) || 0) + 1); return true; };
+    for (const c of ordered.filter(c => (c.topicTags || []).some(t => topics.has(t)))) { if (out.length >= Math.min(2, limit)) break; take(c); }
+    while (out.length < limit) {
+      const rest = ordered.filter(c => !families.has(c.familyId)); if (!rest.length) break;
+      rest.sort((a, b) => (counts.get((a.topicTags || [])[0] || "other") || 0) - (counts.get((b.topicTags || [])[0] || "other") || 0));
+      take(rest[0]);
     }
-    return out.map(e => ({ id: e.id, text: e.text, packId: e.packId, areas: e.areas, ctx: e.ctx || [], pathHint: e.pathHint || [] }));
+    return { cards: out.map(R.cardOf), reason: out.length ? (out.length < limit ? "short_domain_pool" : "ok") : "domain_exhausted", exhausted: out.length < limit };
   };
+  R.branchKey = ({ area, context, routingVersion }) => `${routingVersion}|${area}|${area === "work" ? context || "-" : "-"}`;
+  /* Сохранённая колода годится только для той же ветки и версии маршрутизации и только из допустимых вариантов. */
+  R.restoreDeck = function ({ deck, savedKey, variants, area, context, routingVersion }) {
+    if (!Array.isArray(deck) || savedKey !== R.branchKey({ area, context, routingVersion })) return { valid: false, reason: "branch_changed" };
+    const allowed = new Set(R.selectDeck({ variants, area, context, limit: Number.MAX_SAFE_INTEGER }).cards.map(c => c.variantId));
+    const ids = deck.map(c => c && c.variantId);
+    if (new Set(ids).size !== ids.length || ids.some(id => !allowed.has(id))) return { valid: false, reason: "invalid_saved_deck" };
+    return { valid: true, reason: "ok" };
+  };
+  /* Кандидаты только из показанного в текущей ветке; последний ответ на карточку заменяет прежний. */
+  R.quizCandidates = function ({ answers = [], presented = [], area }) {
+    const known = new Map(presented.filter(c => c.area === area).map(c => [c.variantId, c]));
+    const latest = new Map(); for (const a of answers) if (known.has(a.variantId || a.id)) latest.set(a.variantId || a.id, a);
+    return [...latest.values()].filter(a => (a.response || a.r) === "yes" && !a.notStung).map(a => known.get(a.variantId || a.id));
+  };
+  /* Миграция незавершённого входа на ветки v6.4: автоматическая сфера из отклика пути не считается выбором человека;
+     ответы старой колоды переносятся только если для их события есть вариант выбранной сферы; остальное — в архив ветки. */
+  R.migrateOnbV64 = function (S, { variants, routingVersion, recognitionTopics }) {
+    if (!S || S.routingVersion === routingVersion) return false;
+    const byId = new Map(variants.map(v => [v.variantId, v]));
+    const auto = !!S.recogMain && !S.areaExplicit;
+    if (auto || S.area === "unclear") { S.area = null; S.ctx = null; }
+    if (S.recogMain) { S.recogDone = true; S.preferTopics = (recognitionTopics && recognitionTopics[S.recogMain]) || []; }
+    const explicit = !!S.area && R.QUIZ_AREAS.includes(S.area);
+    S.areaExplicit = explicit || S.area === "own";
+    const fits = v => v && explicit && v.area === S.area && (S.area !== "work" || !S.ctx || S.ctx === "any" || (v.contexts || []).includes(S.ctx));
+    const map = id => { if (!id) return null; const v = byId.get(id) || byId.get(`${id}@${S.area}`); return fits(v) ? v : null; };
+    const keep = [], drop = [];
+    (S.picks || []).forEach(p => { const v = map(p.id); if (v && !keep.some(k => k.id === v.variantId)) keep.push(Object.assign({}, p, { id: v.variantId, variantId: v.variantId, area: v.area, text: v.text, packId: v.packId })); else drop.push(p); });
+    if (drop.length) { S.archive = S.archive || []; S.archive.push({ key: "legacy", picks: drop, at: Date.now() }); }
+    S.picks = keep;
+    const ev = map(S.event);
+    if (ev) S.event = ev.variantId;
+    else if (S.event) { S.event = null; S.case = null; S.sting = null; S.want = null; S.confirmed = false; }
+    if (!S.want && ["summary", "lesson", "path"].includes(S.step)) S.step = S.event || S.own ? "want" : S.step;
+    if (!S.event && !S.own && ["teacher", "case", "sting", "want", "summary", "lesson", "path"].includes(S.step)) S.step = explicit ? "cards" : "area";
+    delete S.prefer; delete S.areaSwitched; S.deck = null; S.deckKey = null; S.idx = 0; S.undo = null; S.shown = keep.map(p => p.id); S.choose = false;
+    if (!explicit && ["cards", "workctx"].includes(S.step)) S.step = "area";
+    S.routingVersion = routingVersion; return true;
+  };
+
 
   /* Ответы по колоде: один ответ на карточку; отмена возвращает карточку и прежний ответ; дубликатов нет. */
   R.deckAnswer = function (S, r) {
