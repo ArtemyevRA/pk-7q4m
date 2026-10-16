@@ -85,7 +85,7 @@ a { color: var(--ink); }
 .btn:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, .chip:focus-visible, summary:focus-visible, a:focus-visible, .tap:focus-visible, .swcard:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
 label { display: block; font-weight: 500; margin: 10px 0 5px; }
-input[type="date"], input[type="text"], input[type="time"], select { font: inherit; width: 100%; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 12px; background: var(--paper-2); color: var(--ink); min-height: 46px; }
+input[type="date"], input[type="text"], input[type="number"], input[type="time"], select { font: inherit; width: 100%; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 12px; background: var(--paper-2); color: var(--ink); min-height: 46px; }
 textarea { font: inherit; width: 100%; min-height: 72px; padding: 8px 12px; border: 1px solid var(--rule); border-radius: 12px; color: var(--ink); resize: vertical; background: var(--paper-2); }
 ::placeholder { color: var(--ink-3); }
 .hint { font-size: 13px; color: var(--ink-2); margin-top: 5px; }
@@ -250,3 +250,8 @@ details.plain > summary { cursor: pointer; color: var(--ink-2); font-size: 14px;
 /* v6: подсветка незаполненных условий шага */
 mark { background: rgba(226,182,90,.35); color: inherit; border-radius: 4px; padding: 0 3px; }
 .plines textarea { min-height: 64px; margin-top: 4px; }
+/* v6.3 */
+.linkbtn { font: inherit; font-size: 13px; background: transparent; border: 0; color: inherit; opacity: .75; text-decoration: underline; cursor: pointer; padding: 2px 4px; }
+.pathline { display: flex; align-items: center; gap: 6px; text-decoration: none; color: inherit; font-weight: 600; margin: 0 0 6px; }
+.astro.compact { aspect-ratio: auto; height: 190px; max-height: 190px; }
+.recog .chip.on { border-color: #C99A3E; }

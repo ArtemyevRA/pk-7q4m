@@ -124,9 +124,13 @@
   /* Подтверждённое применение выбранного ответа: не репетиция; пауза — только выбранная.
      Если указан навык, запись считается только при совпадении навыка, записанного в момент действия.
      Запись без навыка (неизвестная принадлежность) доказательством для навыка не является. Версия плана не важна: навык тот же — практика та же. */
-  R.isConfirmedAction = function (ep, skillId) {
+  /* Совместимость версий (v6.3): попытка подтверждает навык только в своей линии плана (lineageId). Линия сохраняется при смене момента,
+     упрощении/возврате полной версии и параметрах, не меняющих полное действие; меняется при новом действии, шаблоне, навыке или уроке.
+     Попытки без lineageId (до v6.3) — по прежнему правилу навыка; новые записи никогда не получают их повторно. */
+  R.isConfirmedAction = function (ep, skillId, lineageId) {
     const nr = ep && ep.newResponse; if (!nr || ep.isRehearsal || ep.legacy) return false;
     if (skillId && (nr.skillId !== skillId || nr.backfilled)) return false;
+    if (lineageId && nr.lineageId && nr.lineageId !== lineageId) return false;
     /* v6: попытка подтверждает навык только когда выполнен именно шаг плана (status done) при реальном поводе.
        Частично, другое действие и репетиция — отдельные записи, не подтверждение. */
     if (nr.status) return nr.status === "done" && nr.opportunity !== "rehearsal" && nr.opportunity !== "none";
@@ -136,11 +140,12 @@
   R.isAttempt = ep => !!(ep && ep.newResponse && !ep.legacy && (ep.newResponse.status ? ["done", "partial", "other"].includes(ep.newResponse.status) && ep.newResponse.opportunity !== "rehearsal" : !ep.isRehearsal));
   /* Навык, восстановленный задним числом (backfilled), для флага не достаточен: прошлая версия позволяла менять навык плана на месте,
      поэтому исходный навык такой записи достоверно не известен. Запись остаётся в истории. */
-  R.eveningConfirms = (c, skillId) => !!(c && c.evening && c.evening.actionStatus === "done" && (!skillId || (c.evening.skillId === skillId && !c.evening.backfilled)));
-  R.confirmedActionDays = function ({ episodes = [], checkins = {}, patternId, skillId }) {
+  /* Вечер, производный от дневной попытки (fromEpisodeId), — не второе доказательство: подтверждает сама попытка. */
+  R.eveningConfirms = (c, skillId, lineageId) => !!(c && c.evening && c.evening.actionStatus === "done" && !c.evening.fromEpisodeId && !c.evening.provenanceUnknown && (!skillId || (c.evening.skillId === skillId && !c.evening.backfilled)) && !(lineageId && c.evening.lineageId && c.evening.lineageId !== lineageId));
+  R.confirmedActionDays = function ({ episodes = [], checkins = {}, patternId, skillId, lineageId }) {
     const days = new Set();
-    episodes.forEach(e => { if (patternId && e.patternId === patternId && R.isConfirmedAction(e, skillId)) days.add(e.dateKey); });
-    Object.values(checkins).forEach(c => { if (R.eveningEvidence(c, patternId) && R.eveningConfirms(c, skillId)) days.add(c.dateKey); });
+    episodes.forEach(e => { if (patternId && e.patternId === patternId && R.isConfirmedAction(e, skillId, lineageId)) days.add(e.dateKey); });
+    Object.values(checkins).forEach(c => { if (R.eveningEvidence(c, patternId) && R.eveningConfirms(c, skillId, lineageId)) days.add(c.dateKey); });
     return days;
   };
   /* Шаги на тропе: один за завершённый вечер (любой честный ответ), максимум один в день, без прошлой версии. */
@@ -157,7 +162,7 @@
   };
 
   /* ---------- итог окна с фактическими знаменателями: только записи этого сюжета и этого навыка ---------- */
-  R.windowSummary = function ({ checkins = {}, episodes = [], window: w, patternId, skillId, experiment }) {
+  R.windowSummary = function ({ checkins = {}, episodes = [], window: w, patternId, skillId, experiment, lineageId }) {
     const days = []; for (let k = w.start; R.diffDays(k, w.end) >= 0; k = R.addDays(k, 1)) days.push(k);
     const evenings = Object.values(checkins).filter(c => R.eveningEvidence(c, patternId) && R.inWindow(c.dateKey, w)).sort((a, b) => a.dateKey < b.dateKey ? -1 : 1);
     const impactRatings = evenings.filter(c => c.evening.currentImpact != null).map(c => ({ dateKey: c.dateKey, value: Number(c.evening.currentImpact) }));
@@ -166,8 +171,8 @@
     const eps = episodes.filter(e => e.dateKey && R.inWindow(e.dateKey, w) && !e.legacy && patternId && e.patternId === patternId);
     const realEps = eps.filter(e => !e.isRehearsal);
     const actionDays = new Set();
-    eps.forEach(e => { if (R.isConfirmedAction(e, skillId)) actionDays.add(e.dateKey); });
-    evenings.forEach(c => { if (R.eveningConfirms(c, skillId)) actionDays.add(c.dateKey); });
+    eps.forEach(e => { if (R.isConfirmedAction(e, skillId, lineageId)) actionDays.add(e.dateKey); });
+    evenings.forEach(c => { if (R.eveningConfirms(c, skillId, lineageId)) actionDays.add(c.dateKey); });
     const partial = evenings.filter(c => c.evening.actionStatus === "partial" && !c.evening.fromEpisodeId).length + eps.filter(e => e.newResponse && e.newResponse.status === "partial" && !e.isRehearsal).length;
     const attempts = { done: 0, partial: 0, other: 0, rehearsal: 0, viewed: 0 };
     eps.forEach(e => { const nr = e.newResponse; if (!nr) return; const st = nr.status || (e.isRehearsal ? "rehearsal" : (R.isConfirmedAction(e) ? "done" : "other")); if (st in attempts) attempts[st]++; });
@@ -180,7 +185,7 @@
 
   /* ---------- правило флага (продуктовая эвристика пилота) ---------- */
   R.DEFAULT_POLICY = { minElapsedCalendarDays: 21, stabilityWindowCount: 2, stabilityWindowDays: 7, minImpactRatingsPerWindow: 4, maxEachRecordedImpact: 2, minRealOpportunitiesPerWindow: 1, minConfirmedActionsAcrossWindowsOnDistinctDays: 3, countRehearsalsAsReal: false };
-  R.flagEligibility = function ({ pattern, checkins = {}, episodes = [], todayKey, policy, experiment, skillId }) {
+  R.flagEligibility = function ({ pattern, checkins = {}, episodes = [], todayKey, policy, experiment, skillId, lineageId }) {
     const P = Object.assign({}, R.DEFAULT_POLICY, policy || {});
     const skill = skillId || (experiment && experiment.skillId) || (pattern && pattern.skillId) || null;
     /* Срок считается от фактического старта практики, не от даты вспомненного случая. */
@@ -192,7 +197,7 @@
     if (out.daysElapsed < P.minElapsedCalendarDays) out.reasons.push(`Прошло ${out.daysElapsed} из ${P.minElapsedCalendarDays} календарных дней практики.`);
     const done = R.completedWindows(start, todayKey);
     if (done.length < P.stabilityWindowCount) { out.reasons.push(`Завершённых недель: ${done.length} из ${P.stabilityWindowCount}.`); return out; }
-    const last = done.slice(-P.stabilityWindowCount).map(w => R.windowSummary({ checkins, episodes, window: w, patternId: pattern.id, skillId: skill, experiment }));
+    const last = done.slice(-P.stabilityWindowCount).map(w => R.windowSummary({ checkins, episodes, window: w, patternId: pattern.id, skillId: skill, experiment, lineageId }));
     out.windows = last;
     let actionDays = new Set();
     last.forEach((s, i) => {
@@ -310,7 +315,7 @@
   };
   /* Колода событий v4: сфера определяет подборку (до first карточек), число не влияет. «Пока трудно понять» — по одному событию из разных сфер.
      Расширение — следующие события той же сферы, затем других. exclude — уже показанные. */
-  R.buildEventDeck = function ({ events = [], area = null, ctx = null, first = 6, primary = 4, seed = 0, exclude = [] }) {
+  R.buildEventDeck = function ({ events = [], area = null, ctx = null, first = 6, primary = 4, seed = 0, exclude = [], prefer = [] }) {
     const ex = new Set(exclude), s = Math.abs(Number(seed) || 0);
     const pool = events.filter(e => !ex.has(e.id));
     const rot = (list, k) => list.length ? [...list.slice(k % list.length), ...list.slice(0, k % list.length)] : [];
@@ -318,6 +323,8 @@
     const inCtx = e => ctx && ctx !== "any" && (e.ctx || []).includes(ctx);
     const out = [], used = new Set();
     const take = (list, n) => { for (const e of rot(list, s)) { if (out.length >= n) break; if (!used.has(e.id)) { used.add(e.id); out.push(e); } } };
+    /* Узнанная ситуация пути сужает первые примеры (не больше primary), но не назначает сюжет: остальные — по сфере и соседние. */
+    if (prefer.length) prefer.forEach(id => { const e = pool.find(q => q.id === id); if (e && !used.has(id) && out.length < primary) { used.add(id); out.push(e); } });
     if (ctx && ctx !== "any") { take(pool.filter(e => inArea(e) && inCtx(e)), primary); take(pool.filter(inArea), first); }
     else if (area && area !== "unclear") { take(pool.filter(inArea), primary); take(pool.filter(e => !inArea(e)), first); take(pool.filter(inArea), first); }
     if (out.length < first) {
@@ -419,7 +426,7 @@
   /* ---------- экспорт / импорт ---------- */
   /* Схема 3: записи дня по ключу «дата|сюжет», действия помнят навык. Схема 4: у разрешений есть происхождение.
      Файлы схем 2–4 читаются и приводятся к текущей. Валидатор никогда не бросает исключение: всегда {ok, errors}. */
-  R.SCHEMA_VERSION = 6;
+  R.SCHEMA_VERSION = 7;
   R.MIN_IMPORT_SCHEMA = 2;
   R.COLLECTIONS = ["patterns", "episodes", "hypotheses", "experiments", "reviews", "flags", "tools"];
   R.validateImport = function (obj) {
@@ -466,13 +473,16 @@
     if (iv < 4) R.markMigratedPermissions(out.patterns);
     if (iv < 5) R.migrateV5(out.patterns);
     if (iv < 6) R.migrateV6(out);
+    if (iv < 7) R.migrateV63(out);
     return { data: out, stats };
   };
 
   /* ---------- v6: личный план — шаблон каталога, заполненный ответами человека ---------- */
   R.PLAN_SLOT_RE = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g;
   R.templateSlots = tpl => { const out = []; String(tpl || "").replace(R.PLAN_SLOT_RE, (m, k) => { if (!out.includes(k)) out.push(k); return m; }); return out; };
-  R.fillTemplate = (tpl, slots) => String(tpl || "").replace(R.PLAN_SLOT_RE, (m, k) => { const v = slots && slots[k]; return v != null && String(v).trim() ? String(v).trim() : m; });
+  /* Если пользователь начал ответ с того же предлога, что стоит в шаблоне («с {person}» + «с коллегой»), предлог не удваивается. */
+  R.fillTemplate = (tpl, slots) => String(tpl || "").replace(R.PLAN_SLOT_RE, (m, k) => { const v = slots && slots[k]; return v != null && String(v).trim() ? String(v).trim() : m; })
+    .replace(/(^|[\s(«])(с|со|в|во|о|об|на|к|ко|до|по|у|за|при|для|от|из)\s+\2(?=\s)/giu, "$1$2");
   R.hasUnfilled = txt => /\{[a-zA-Z_][a-zA-Z0-9_]*\}/.test(String(txt || ""));
   /* Проверка значения слота по типу: минуты — положительное целое; время/срок — непустая строка (дата или контекст); остальное — непустой текст. */
   R.validateSlot = function (key, value) {
@@ -483,12 +493,12 @@
     return "";
   };
   /* Сборка личного плана из шаблона. Пример поля — не ответ: слоты заполняются только словами человека. */
-  R.planFromTemplate = function ({ template, kind = "card", patternId, lessonId, skillId, basisIds = [], desiredChange = "", slots = {}, version = 1, createdAt, mode, once }) {
+  R.planFromTemplate = function ({ template, kind = "card", patternId, lessonId, skillId, basisIds = [], desiredChange = "", painText = "", slots = {}, version = 1, createdAt, mode, once }) {
     const t = template || {};
     return {
       patternId, kind: "plan", version, status: "active", planStatus: "draft", createdAt: createdAt || Date.now(), results: [],
       templateId: t.id || null, templateKind: kind, templateVersion: t.catalogVersion || "karma-practice-v6-2026-10-15",
-      lessonId: lessonId || null, skillId: skillId || t.skillId || null, userBasisIds: basisIds, desiredChange,
+      lessonId: lessonId || null, skillId: skillId || t.skillId || null, userBasisIds: basisIds, desiredChange, painText, goalConfirmed: !!desiredChange, goalOrigin: desiredChange ? "user_confirmed" : (lessonId ? "pending" : "none"), smallerUser: "",
       purpose: t.purpose || "", cueTemplate: t.cueTemplate || "", actionTemplate: t.actionTemplate || "", effort: t.effortLabel || "", afterQuestion: t.afterQuestion || "", completedWhen: t.completedWhen || "", smallerVersion: t.smallerVersion || "", limits: t.limits || "", fitQuestion: t.fitQuestion || "",
       setup: (t.setup || []).map(s => ({ key: s.key, question: s.question, example: s.example || "" })), slots: Object.assign({}, slots),
       mode: mode || (t.countsAsBehaviorChange === false ? "observation" : "behavior"), schedule: { kind: once ? "once" : "cue", repeat: !once }, simplified: false,
@@ -499,15 +509,19 @@
   R.planView = function (x) {
     if (!x) return null;
     const cue = x.cueUser || R.fillTemplate(x.cueTemplate, x.slots);
-    const action = x.actionUser || (x.simplified && x.smallerVersion ? x.smallerVersion : R.fillTemplate(x.actionTemplate, x.slots));
-    return { cue, action, purpose: x.purpose || "", effort: x.effort || "", after: x.afterQuestion || "", limits: x.limits || "", simplified: !!x.simplified, mode: x.mode || "behavior" };
+    /* Полная и уменьшенная формулировки хранятся отдельно; активная выбирается флагом simplified.
+       Своё или перенесённое действие уменьшается только своей лёгкой версией (smallerUser), не меньшей версией шаблона. */
+    const full = x.actionUser || R.fillTemplate(x.actionTemplate, x.slots);
+    const small = x.smallerUser || (x.actionUser ? "" : (x.smallerVersion ? R.fillTemplate(x.smallerVersion, x.slots) : ""));
+    const action = x.simplified ? small : full;
+    return { cue, action, full, small, canSimplify: !!small || !!x.actionUser, needsSmall: !!x.simplified && !small, purpose: x.purpose || "", effort: x.effort || "", after: x.afterQuestion || "", limits: x.limits || "", simplified: !!x.simplified && !!small && small !== full, mode: x.mode || "behavior" };
   };
   /* Готовность: шаблон с незаполненными слотами или без момента/действия не становится активной рекомендацией. */
   R.planReady = function (x) {
     if (!x) return { ready: false, missing: ["plan"], errors: {} };
     if (x.kind !== "plan") return { ready: !!(x.action && x.ifThen && x.ifThen.signal), missing: x.action ? ["cue"] : ["action"], legacy: true, errors: {} };
     const errors = {}, missing = [];
-    const cueKeys = x.cueUser ? [] : R.templateSlots(x.cueTemplate), actKeys = x.actionUser ? [] : R.templateSlots(x.simplified && x.smallerVersion ? x.smallerVersion : x.actionTemplate);
+    const cueKeys = x.cueUser ? [] : R.templateSlots(x.cueTemplate), actKeys = x.actionUser ? [] : R.templateSlots(x.actionTemplate + " " + (x.simplified && !x.smallerUser && x.smallerVersion ? x.smallerVersion : ""));
     (x.setup || []).forEach(sl => { if (!(cueKeys.includes(sl.key) || actKeys.includes(sl.key))) return; const err = R.validateSlot(sl.key, (x.slots || {})[sl.key]); if (err) errors[sl.key] = err; });
     const v = R.planView(x);
     if (!v.cue || R.hasUnfilled(v.cue)) missing.push("cue");
@@ -526,11 +540,16 @@
     return { week: w.idx + 1, done: days.size, of: 7, ratio: days.size / 7, window: w };
   };
   /* Вечерний вывод — только из записей дня. Нет данных — нет выдуманного инсайта. */
-  R.eveningFacts = function ({ episodes = [], dateKey, patternId }) {
+  /* Попытки дня делятся по принадлежности: текущего плана (planId совпадает) и прежних версий. Производный вечер берёт только попытку текущего плана
+     и наследует её принадлежность; попытки прежнего шага остаются фактами дня. */
+  R.eveningFacts = function ({ episodes = [], dateKey, patternId, planId, lineageId }) {
     const eps = episodes.filter(e => e.dateKey === dateKey && !e.legacy && (!patternId || e.patternId === patternId) && e.verificationStatus !== "onboarding");
-    const attempts = eps.filter(e => e.newResponse && e.newResponse.status).map(e => e.newResponse);
-    const best = attempts.find(a => a.status === "done") || attempts.find(a => a.status === "partial") || attempts.find(a => a.status === "other") || attempts.find(a => a.status === "rehearsal") || null;
-    return { opportunities: eps.filter(e => !(e.newResponse && e.newResponse.opportunity === "rehearsal") && !e.isRehearsal).length, attempts, best, noted: attempts.map(a => a.afterAnswer).filter(Boolean), episodes: eps };
+    const all = eps.filter(e => e.newResponse && e.newResponse.status).map(e => Object.assign({ episodeId: e.id }, e.newResponse));
+    const mine = a => !planId || !a.planId || a.planId === planId || (!!lineageId && a.lineageId === lineageId);
+    const attempts = all.filter(mine), other = all.filter(a => !mine(a) && a.status !== "rehearsal");
+    const pick = list => list.find(a => a.status === "done") || list.find(a => a.status === "partial") || list.find(a => a.status === "other") || list.find(a => a.status === "rehearsal") || null;
+    const best = pick(attempts);
+    return { opportunities: eps.filter(e => !(e.newResponse && e.newResponse.opportunity === "rehearsal") && !e.isRehearsal).length, attempts, other, all, best, otherBest: pick(other), noted: attempts.map(a => a.afterAnswer).filter(Boolean), episodes: eps };
   };
   /* Недельный рассказ: «раньше» только при явной исходной записи; сравнение — по сопоставимым реальным записям. */
   R.weekNarrative = function ({ pattern, summary: s, episodes = [] }) {
@@ -569,6 +588,41 @@
     let n = 0; (data.experiments || []).forEach(x => { if (x && !x.planStatus) { x.planStatus = x.kind === "plan" ? "draft" : "legacy"; n++; } });
     data.tools = data.tools || [];
     return n;
+  };
+
+  /* Линия плана: сохраняется, если навык, шаблон и полное действие те же (момент, упрощение, параметры момента). Иначе — новая линия. */
+  R.planLineage = function (oldX, newX) {
+    if (!oldX || oldX.kind !== "plan" || newX.kind !== "plan") return newX.id;
+    const fullOf = x => x.actionUser || R.fillTemplate(x.actionTemplate, x.slots);
+    const same = oldX.skillId === newX.skillId && (oldX.templateId || null) === (newX.templateId || null) && (oldX.lessonId || null) === (newX.lessonId || null) && fullOf(oldX) === fullOf(newX);
+    return same ? (oldX.lineageId || oldX.id) : newX.id;
+  };
+  /* Схема 7 (v6.3), повторяемо: 1) desiredChange без подтверждения не считается целью — исходный текст сохраняется в desiredChangeLegacy;
+     2) у планов появляется lineageId; 3) вечер с выведенным статусом без достоверного источника исключается из строгих подтверждений. */
+  R.migrateV63 = function (data) {
+    let n = 0;
+    (data.experiments || []).forEach(x => {
+      if (!x || x.kind !== "plan") return;
+      if (!x.lineageId) { x.lineageId = x.id; n++; }
+      if (!x.goalOrigin) { if (x.desiredChange) { x.desiredChangeLegacy = x.desiredChange; x.painText = x.painText || x.desiredChange; x.desiredChange = ""; } x.goalOrigin = "unconfirmed_legacy"; x.goalConfirmed = false; n++; }
+    });
+    const eps = new Map((data.episodes || []).map(e => [e.id, e]));
+    Object.values(data.checkins || {}).forEach(c => {
+      const ev = c && c.evening; if (!ev || !ev.fromEpisodeId || ev.provenanceChecked) return;
+      const src = eps.get(ev.fromEpisodeId), nr = src && src.newResponse;
+      if (nr && nr.planId) { ev.planId = nr.planId; ev.planVersion = nr.planVersion; ev.skillId = nr.skillId; ev.experimentId = nr.experimentId || nr.planId; }
+      else ev.provenanceUnknown = true;
+      ev.provenanceChecked = true; n++;
+    });
+    return n;
+  };
+  /* Сопровождение дня: 1) редакторская связка число × урок; 2) текст урока без числовой интерпретации; 3) без плана — приглашение к наблюдению. */
+  R.pickCompanion = function ({ companions = [], tips = {}, observeTip = "", pathNumber, lessonId, hasPlan }) {
+    const exact = pathNumber && lessonId ? companions.find(c => c.pathNumber === Number(pathNumber) && c.lessonId === lessonId) : null;
+    if (exact) return { text: exact.text, src: "path", id: exact.id };
+    if (lessonId && tips[lessonId]) return { text: tips[lessonId], src: "lesson", id: lessonId };
+    if (!hasPlan || !lessonId) return { text: observeTip, src: "observe", id: "observe" };
+    return null;
   };
 
   /* ---------- вспомогательное ---------- */

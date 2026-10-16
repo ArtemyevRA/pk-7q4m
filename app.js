@@ -61,9 +61,10 @@
   const flagsReal = () => D.flags.filter(f => !f.legacy);
   const policy = () => Object.assign({}, R.DEFAULT_POLICY, C.progressPolicy || {});
   function skillOfPattern(p) { const x = expOf(p); return (x && x.skillId) || (p && p.skillId) || null; }
-  function eligibility(p) { return R.flagEligibility({ pattern: p, checkins: D.checkins, episodes: D.episodes, todayKey: today(), policy: policy(), experiment: expOf(p), skillId: skillOfPattern(p) }); }
+  const lineageOf = p => { const x = expOf(p); return x && x.kind === "plan" ? (x.lineageId || x.id) : null; };
+  function eligibility(p) { return R.flagEligibility({ pattern: p, checkins: D.checkins, episodes: D.episodes, todayKey: today(), policy: policy(), experiment: expOf(p), skillId: skillOfPattern(p), lineageId: lineageOf(p) }); }
   /* Метка доказательства: навык и версия плана в момент записи. Смена навыка потом не переименовывает историю. */
-  function evidenceTag(p) { const x = expOf(p); return { skillId: (x && x.skillId) || (p && p.skillId) || null, experimentId: x ? x.id : null, planVersion: x ? x.version : null }; }
+  function evidenceTag(p) { const x = expOf(p); return { skillId: (x && x.skillId) || (p && p.skillId) || null, experimentId: x ? x.id : null, planId: x ? x.id : null, planVersion: x ? x.version : null, lineageId: lineageOf(p) }; }
   /* Разрешение из пакета не затирает формулировку пользователя; источник запоминается для пересмотра при смене объяснения. */
   function setPermissionFromPack(p, text, hypId) { const ps = p.permissionSource; if (!text) return; if (!p.permission || !ps || ps.origin !== "user") { p.permission = text; p.permissionSource = { origin: "pack", hypothesisVersionId: hypId || null }; } }
   function setPermissionByUser(p, text) { p.permission = text; p.permissionSource = { origin: "user", hypothesisVersionId: p.hypothesisVersionId || null }; }
@@ -77,7 +78,8 @@
   /* Короткий вид шага: «Когда … / Что …», с «Зачем этот шаг?» по раскрытию. */
   function stepHTML(p, { why = true, lead = "" } = {}) {
     const v = planView(p); if (!v) return "";
-    return `${lead ? `<p class="small" style="margin:2px 0 6px">${esc(lead)}</p>` : ""}<div class="plines"><div><span>${esc(OB.plan.when)}:</span> ${esc(uc1(v.cue) || "—")}</div><div><span>${esc(OB.plan.what)}:</span> ${esc(uc1(v.action))}${v.simplified ? ` <span class="tiny">· ${esc(OB.plan.simplified)}</span>` : ""}</div></div>${why && v.purpose ? `<details class="plain"><summary>${esc(OB.plan.whyStep)}</summary><p class="small">${esc(v.purpose)}${p.lesson ? ` ${esc(bridgeText(p))}` : ""}</p></details>` : ""}`;
+    const lt = learningText(p);
+    return `${lead ? `<p class="small" style="margin:2px 0 6px">${esc(lead)}</p>` : ""}<div class="plines"><div><span>${esc(OB.plan.whenL)}:</span> ${esc(uc1(v.cue) || "—")}</div><div><span>${esc(v.mode === "observation" ? OB.plan.whatObs : OB.plan.whatL)}:</span> ${esc(uc1(v.action))}${v.simplified ? ` <span class="tiny">· ${esc(OB.plan.simplified)}</span>` : ""}</div>${v.after ? `<div><span>${esc(OB.plan.afterL)}:</span> ${esc(v.after)}</div>` : ""}</div>${why && v.purpose ? `<details class="plain"><summary>${esc(OB.plan.whyStep)}</summary><p class="small">${lt ? `${esc(OB.plan.learn)}: ${esc(lt)}. ` : ""}${esc(v.purpose)}</p></details>` : ""}`;
   }
   const bridgeText = p => { const v = planView(p); if (!v || !p.lesson) return ""; return OB.plan.bridge.replace("{lesson}", lc1(p.lesson.title)).replace("{action}", lc1(v.action.split(/[.;]/)[0])).replace("{purpose}", lc1(v.purpose).replace(/[.!]+$/, "")) + "."; };
   /* Разрешение показывается в ежедневном потоке только подтверждённым человеком (свои слова или шаг «Что я себе разрешаю»); кандидат из каталога — по раскрытию. */
@@ -125,8 +127,8 @@
   const hasDraft = (id, scope) => !!(P.drafts && P.drafts[draftKey(id, scope)]);
   const dropDraft = (id, scope) => { if (P.drafts) delete P.drafts[draftKey(id, scope)]; };
   let flowFlush = null;
-  document.addEventListener("visibilitychange", () => { if (document.hidden && flowFlush) flowFlush(); });
-  window.addEventListener("pagehide", () => { if (flowFlush) flowFlush(); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden && flowFlush) flowFlush(); if (document.hidden && typeof planFlush === "function" && planFlush) planFlush(); });
+  window.addEventListener("pagehide", () => { if (flowFlush) flowFlush(); if (typeof planFlush === "function") planFlush(); });
   function flow({ id, scope, steps, title, onDone, onCancel, cancelLabel }) {
     P.drafts = P.drafts || {};
     const key = draftKey(id, scope), saved = P.drafts[key];
@@ -227,7 +229,7 @@
   const go = h => { if (location.hash === "#" + h) route(); else location.hash = h; };
   function route() {
     if (!D) return;
-    if (flowFlush) { flowFlush(); flowFlush = null; } app.dataset.flow = "";
+    if (flowFlush) { flowFlush(); flowFlush = null; } if (planFlush) { planFlush(); planFlush = null; } app.dataset.flow = "";
     applyTheme();
     let [h, arg] = (location.hash || "#today").slice(1).split("/");
     const p = anyPattern();
@@ -330,7 +332,7 @@
           p = { id: R.uuid(), title: shortTitle(ans.event, fromCard), packId: fromCard ? fromCard.packId : null, contexts: val(ans, "who") ? [val(ans, "who")] : [], status: "active", startDate: k, practiceStartDate: k, practiceStartOrigin: "user", createdAt: ts, hypothesisVersionId: null, experimentId: null, queue: [], firstPlan: plan, skillId: plan.skill || null, habitualResponse: val(ans, "response") || null, legacy: false };
           /* Стартовый план без слотов принят явным выбором человека; момент и действие — из стартового шаблона. */
           const f = PR.fallback[plan.id] || PR.fallback.pause;
-          const x = Object.assign(R.planFromTemplate({ template: Object.assign({ catalogVersion: PR.catalogVersion }, f), kind: "fallback", patternId: p.id, lessonId: null, skillId: plan.skill || null, basisIds: [], desiredChange: "", createdAt: ts, mode: plan.id === "observe" ? "observation" : "behavior" }), { id: R.uuid(), hypothesisVersionId: null });
+          const x = Object.assign(R.planFromTemplate({ template: Object.assign({ catalogVersion: PR.catalogVersion }, f), kind: "fallback", patternId: p.id, lessonId: null, skillId: plan.skill || null, basisIds: [], desiredChange: "", createdAt: ts, mode: plan.id === "observe" ? "observation" : "behavior" }), { id: R.uuid(), hypothesisVersionId: null }); x.lineageId = x.id;
           const v = R.planView(x); Object.assign(x, { planStatus: "accepted", acceptedAt: ts, cue: v.cue, action: v.action, ifThen: { signal: v.cue, action: v.action } });
           p.experimentId = x.id; await saveExp(x); await savePattern(p);
           const r = { patternId: p.id, modules: { episode: { status: "done", dateKey: k, doneAt: ts, answers: { response: val(ans, "response") } } } }; await saveResearch(r);
@@ -361,13 +363,39 @@
   /* Черновик шага входа заполняется прежним ответом, когда человек возвращается поправить: ответы не исчезают. */
   const seedDraft = (id, ans) => { P.drafts = P.drafts || {}; const key = draftKey(id, "onb"); if (!P.drafts[key] && ans) P.drafts[key] = { i: 0, ans, at: nowTs() }; };
   /* Сфера: навигация, не тест. Конкретная ситуация — сразу свой текст. Работа — ещё один короткий выбор контекста. */
+  /* Узнавание темы пути (если число известно): три ситуации пути и равноправное «Сейчас у меня другая история».
+     Выбор только сужает первые примеры колоды; сюжет назначается после пяти ответов и явного подтверждения. Отклик хранится отдельно от числа. */
+  const pathNum = () => P.symbolic && P.symbolic.num ? (P.symbolic.chosen || P.symbolic.num) : null;
+  function recogStart(S, item) { S.recogMain = item.id; S.area = item.area; S.ctx = item.area === "work" ? "any" : null; S.prefer = item.scenarioTags; S.deck = null; S.picks = []; S.undo = null; S.shown = []; S.choose = false; S.step = "cards"; }
   function area() {
-    const S = onb();
+    const S = onb(), num = pathNum(), pr = num ? X.pathProfiles[String(num)] : null, RG = OB.recog;
+    if (pr && !S.otherStory) {
+      const sel = S.recogSel || [];
+      if (S.recogPickOne && sel.length > 1) {
+        app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${num} · ${esc(pr.displayName)}</p><h1 class="q">${esc(RG.pickOne)}</h1><p class="muted small">${esc(RG.pickSub)}</p><div class="chips col">${sel.map(id => `<button class="chip" data-one="${id}">${esc(pr.recognitionItems.find(i => i.id === id).text)}</button>`).join("")}</div><div class="row tight"><button class="btn ghost sm" id="rgBack">Назад</button></div>`;
+        $$("[data-one]").forEach(b => b.onclick = async () => { recogStart(S, pr.recognitionItems.find(i => i.id === b.dataset.one)); S.recogPickOne = false; await persistOnb(); go("cards"); });
+        $("#rgBack").onclick = async () => { S.recogPickOne = false; await persistOnb(); area(); };
+        return;
+      }
+      app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${num} · ${esc(pr.displayName)}</p><h1 class="q">${esc(RG.title)}</h1><p class="muted small">${esc(RG.sub)}</p>
+        <div class="chips col recog">${pr.recognitionItems.map(i => `<button class="chip ${sel.includes(i.id) ? "on" : ""}" data-rg="${i.id}" aria-pressed="${sel.includes(i.id)}">${esc(i.text)}</button>`).join("")}<button class="chip dim" id="otherStory">${esc(RG.other)}</button></div>
+        <div class="row"><button class="btn block" id="rgNext" ${sel.length ? "" : "disabled"}>${esc(RG.next)}</button></div>
+        <div class="row tight"><a class="btn ghost sm" href="#help">${esc(OB.buttons.sos.label)}</a></div>`;
+      $$("[data-rg]").forEach(b => b.onclick = async () => { const id = b.dataset.rg; S.recogSel = sel.includes(id) ? sel.filter(x => x !== id) : [...sel, id]; await persistOnb(); area(); });
+      $("#otherStory").onclick = async () => { S.otherStory = true; S.prefer = null; await persistOnb(); area(); };
+      $("#rgNext").onclick = async () => {
+        P.pathRecognition = [...(P.pathRecognition || []), ...sel.map(id => ({ itemId: id, answer: "familiar", date: today(), pathNumber: num, contentVersion: C.contentVersion }))];
+        if (sel.length === 1) { recogStart(S, pr.recognitionItems.find(i => i.id === sel[0])); await persistOnb(); return go("cards"); }
+        S.recogPickOne = true; await persistOnb(); area();
+      };
+      return;
+    }
     app.innerHTML = `<h1 class="q">${esc(OA.title)}</h1><p class="muted small">${esc(OA.sub)}</p>
       <div class="chips col">${X.areas.map(([v, l]) => `<button class="chip ${S.area === v ? "on" : ""}" data-v="${v}">${esc(l)}</button>`).join("")}</div>
-      <div class="row tight"><a class="btn ghost sm" href="#help">${esc(OB.buttons.sos.label)}</a></div>`;
+      <div class="row tight"><a class="btn ghost sm" href="#help">${esc(OB.buttons.sos.label)}</a>${pr ? `<button class="btn ghost sm" id="backRecog">${esc(RG.title)}</button>` : ""}</div>`;
+    const br = $("#backRecog"); if (br) br.onclick = async () => { S.otherStory = false; await persistOnb(); area(); };
     $$("[data-v]").forEach(b => b.onclick = async () => {
-      const v = b.dataset.v;
+      const v = b.dataset.v; S.prefer = null; S.recogMain = null;
       if (v === "own") { S.area = "own"; S.step = "own"; await persistOnb(); return go("own"); }
       if (S.area !== v) { S.area = v; S.ctx = null; S.areaSwitched = null; S.deck = null; S.picks = []; S.undo = null; S.shown = []; S.choose = false; }
       if (v === "work") { S.step = "workctx"; await persistOnb(); return go("workctx"); }
@@ -384,7 +412,7 @@
   }
   function newDeck(S) {
     const seed = (P.installId || "").charCodeAt(0) || 0, shown = S.shown || [];
-    const opts = { events: X.events, area: S.area, ctx: S.area === "work" ? S.ctx : null, first: DECK_N, primary: CI.pathCards || 4, seed };
+    const opts = { events: X.events, area: S.area, ctx: S.area === "work" ? S.ctx : null, first: DECK_N, primary: CI.pathCards || 4, seed, prefer: S.prefer || [] };
     let deck = R.buildEventDeck(Object.assign({ exclude: shown }, opts));
     if (!deck.length) { S.shown = []; deck = R.buildEventDeck(opts); }
     S.deck = deck; S.idx = 0; S.picks = S.picks || []; S.undo = null; S.choose = false; S.offer = null; S.shown = [...(S.shown || []), ...deck.map(c => c.id)];
@@ -493,7 +521,7 @@
       { k: "who", q: OB.teacher.title, lead: `«${evText}». ${OB.teacher.text}`, type: "choice", opts: X.teachers, own: true, ownPh: "Кто это, своими словами (имя не нужно)" },
       { k: "sw", q: OB.teacher.switch.q, lead: "Фокус можно сменить. Ответы по работе никуда не денутся.", type: "choice", opts: [["yes", OB.teacher.switch.yes], ["back", OB.teacher.switch.back]], skip: a => !(S.area === "work" && a.who === "partner") },
     ];
-    flow({ id: "onb-teacher", scope: "onb", steps, title: "Учитель", cancelLabel: "Назад", onCancel: () => go(S.own ? "own" : "cards"),
+    flow({ id: "onb-teacher", scope: "onb", steps, title: pathNum() ? `Учитель · ${pathNum()} · ${X.pathProfiles[String(pathNum())].displayName}` : "Учитель", cancelLabel: "Назад", onCancel: () => go(S.own ? "own" : "cards"),
       onDone: async ans => {
         if (ans.sw === "back") { S.areaSwitched = null; await persistOnb(); return setTimeout(teacher, 0); }
         const kind = ans.who === "__own" ? "other" : ans.who; const label = ans.who === "__own" ? ans.who_own : (X.teacherLabels[kind] || "");
@@ -597,7 +625,9 @@
       return;
     }
     const observe = L.id === X.lessonObserve.id || String(L.id).startsWith("observe:");
-    app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(evText)}${S.sting.text ? ` · ${esc(lc1(S.sting.text))}` : ""}</p>
+    /* Связь с темой пути — одним предложением и только при редакторской связке события с числом. */
+    const pn = pathNum(), pathLink = pn && ev && (ev.pathHint || []).includes(Number(pn)) ? `<p class="tiny" style="margin:0 0 6px">В твоём пути «${esc(X.pathProfiles[String(pn)].displayName)}» это часть темы: ${esc(X.paths[String(pn)].theme)}.</p>` : "";
+    app.innerHTML = `${pathLink}<p class="tiny" style="margin:0 0 4px">${esc(evText)}${S.sting.text ? ` · ${esc(lc1(S.sting.text))}` : ""}</p>
       <p class="muted small" style="margin:0 0 8px">${esc(OB.lesson.intro)}</p>
       <div class="card mark">
         <p style="margin:0 0 6px"><b>${esc(OB.lesson.teacherLead)} ${esc(tl)}.</b></p>
@@ -630,7 +660,7 @@
     if (L.inner) { p.permission = L.inner; p.permissionSource = { origin: "lesson", hypothesisVersionId: null, confirmed: false }; }
     /* Личный план — черновик из шаблона: активируется только после заполнения момента и действия словами человека. */
     const tpl = templateFor(L, S), basis = [ev ? ev.id : null, S.sting.meaningId ? "meaning:" + S.sting.meaningId : null].filter(Boolean);
-    const x = Object.assign(R.planFromTemplate({ template: tpl.template, kind: tpl.kind, patternId: p.id, lessonId: L.id, skillId: L.skillId, basisIds: basis, desiredChange: S.sting.text || "", createdAt: ts, mode: tpl.mode, once: tpl.once }), { id: R.uuid(), hypothesisVersionId: null, lessonId: L.id });
+    const x = Object.assign(R.planFromTemplate({ template: tpl.template, kind: tpl.kind, patternId: p.id, lessonId: L.id, skillId: L.skillId, basisIds: basis, painText: S.sting.text || "", createdAt: ts, mode: tpl.mode, once: tpl.once }), { id: R.uuid(), hypothesisVersionId: null, lessonId: L.id }); x.lineageId = x.id;
     p.experimentId = x.id; await saveExp(x); await savePattern(p);
     if (hasCase) {
       const e = { id: R.uuid(), patternId: p.id, linkStatus: "confirmed", occurredAt: ts, loggedAt: ts, dateKey: caseDate, dateApprox: cs.date || cs.when === "today" ? null : cs.when, tz: R.tz(), event: caseText, person: tl, emotion: null, intensity: null, response: null, verificationStatus: "onboarding", isRehearsal: false, legacy: false, meaning: S.sting.text || null };
@@ -668,68 +698,119 @@
       <div class="row"><button class="btn block" id="go">${esc(M.cta)}</button></div>`;
     $("#go").onclick = async () => { P.seen.map = true; await saveProfile(true); go("today"); };
   }
-  /* =================== ЛИЧНЫЙ ШАГ (v6) ===================
-     Один экран: подтверждённая ситуация, зачем, когда, что, объём, после. Слоты заполняются словами человека; пример — не ответ.
-     «Попробую» доступно только когда момент и действие заполнены. «Сделать проще» — меньшая версия того же шаблона (та же цель).
-     «Не подходит»: цель — меняем направление (урок), действие — свой шаг, меньшая версия или наблюдение. */
+  /* =================== ЛИЧНЫЙ ШАГ (v6.3) ===================
+     Настройка (черновик плана): цель подтверждается человеком, условия заполняются его словами, «Попробую» — после готовности.
+     Правка принятого плана — отдельный черновик P.planDraft {patternId, planId, baseVersion, w, show}: сохраняется по вводу и при уходе,
+     восстанавливается после перезагрузки и помощи; действующий план меняется только по «Сохранить изменения»; «Отменить изменения» удаляет черновик. */
+  let planFlush = null;
+  const learningText = p => { const x = expOf(p); return x && x.goalConfirmed && x.desiredChange ? lc1(x.desiredChange) : (p && p.lesson ? lc1(p.lesson.title) : ""); };
+  /* Сопровождение дня: одна мысль, сохраняется на день и сменяется вместе с планом; не создаёт действие и не даёт прогресса. */
+  function companionFor(p) {
+    if (!p || P.companionOff) return null;
+    const x = expOf(p), k = today(), id = x ? x.id : null;
+    if (P.companion && P.companion.date === k && P.companion.planId === id) return P.companion;
+    const obsMode = !x || x.mode === "observation" || p.status === "observe";
+    const c = R.pickCompanion({ companions: X.pathCompanion, tips: X.lessonTips, observeTip: X.observeTip, pathNumber: pathNum(), lessonId: obsMode ? null : (x && (x.lessonId || (p.lesson && p.lesson.id))) || null, hasPlan: !obsMode && planReady(p).ready });
+    if (!c) return null;
+    P.companion = Object.assign({ date: k, planId: id }, c); saveProfile(true); return P.companion;
+  }
+  const companionHTML = p => { const c = companionFor(p); return c ? `<p class="small" style="margin:0 0 6px" id="companion"><b>${esc(OB.companion.title)}:</b> ${esc(c.text)}</p>` : ""; };
+  const pathLineHTML = () => { const n = pathNum(); return n ? `<a class="pathline" href="#symbol">${ic("star", "")}<span>${n} · ${esc(X.pathProfiles[String(n)].displayName)}</span></a>` : ""; };
   function planScreen(arg) {
     const p = anyPattern(); if (!p) return go("today");
-    let x = expOf(p); if (!x) return go("today");
+    const x = expOf(p); if (!x) return go("today");
     const OPl = OB.plan, mode = arg || "";
     if (x.kind !== "plan") return legacyPlanUpgrade(p, x);
-    const draft = x.planStatus === "draft";
     if (mode === "adjust") return planAdjust(p, x);
-    const editing = !draft && ["moment", "simplify", "action", "edit"].includes(mode);
-    /* Правка принятого плана идёт в рабочей копии: новая версия появляется только после «Сохранить». */
-    const w = editing ? JSON.parse(JSON.stringify(x)) : x;
-    if (editing && mode === "simplify") w.simplified = true;
-    if (editing && mode === "moment") w.cueUser = w.cueUser || "";
-    let notFit = false, ownAction = mode === "action", ownCue = mode === "moment";
-    const usedSlots = () => { const cueKeys = w.cueUser ? [] : R.templateSlots(w.cueTemplate), actKeys = w.actionUser ? [] : R.templateSlots(w.simplified && w.smallerVersion ? w.smallerVersion : w.actionTemplate); return (w.setup || []).filter(sl => cueKeys.includes(sl.key) || actKeys.includes(sl.key)); };
+    const setup = x.planStatus === "draft";
+    if (!setup && !["moment", "simplify", "action", "edit", "params"].includes(mode)) return planScreen("edit");
+    const editing = !setup;
+    let w, show = { cue: false, act: false, params: false, goalEdit: false }, restored = false;
+    if (editing) {
+      const d = P.planDraft;
+      if (d && d.patternId === p.id && d.planId !== x.id) return planStale(p, x, d, mode);
+      if (d && d.patternId === p.id && d.planId === x.id) { w = d.w; show = Object.assign(show, d.show || {}); restored = true; }
+      else w = JSON.parse(JSON.stringify(x));
+    } else w = x;
+    if (!restored) {
+      if (mode === "moment") show.cue = true;
+      if (mode === "action") show.act = true;
+      if (mode === "params") show.params = true;
+      if (mode === "simplify" && !w.simplified) w.simplified = true;
+    }
+    const saveDraft = () => { if (editing) { P.planDraft = { patternId: p.id, planId: x.id, baseVersion: x.version, mode, w, show, at: nowTs() }; return saveProfile(true); } return saveExp(x); };
+    let timer = null; const later = () => { clearTimeout(timer); timer = setTimeout(saveDraft, 300); };
+    let dirty = restored || (editing && mode === "simplify");
+    const changed = () => { dirty = true; later(); };
+    planFlush = () => { clearTimeout(timer); if (dirty && app.dataset.flow === "plan") saveDraft(); };
+    if (restored) setTimeout(() => toast(OPl.restored), 50);
+    if (editing && mode === "simplify" && !restored) saveDraft();
+    const usedSlots = () => { const cueKeys = w.cueUser ? [] : R.templateSlots(w.cueTemplate), actKeys = w.actionUser ? [] : R.templateSlots(w.actionTemplate + " " + (w.simplified && !w.smallerUser && w.smallerVersion ? w.smallerVersion : "")); return (w.setup || []).filter(sl => cueKeys.includes(sl.key) || actKeys.includes(sl.key)); };
     const hl = txt => esc(txt).replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (m, k) => `<mark>${esc(((w.setup || []).find(s => s.key === k) || {}).question || k)}</mark>`);
-    const persist = async () => { if (!editing) { Object.assign(x, w); await saveExp(x); } };
-    let timer = null; const later = () => { clearTimeout(timer); timer = setTimeout(persist, 400); };
+    const toObserve = () => { const tpl = templateFor({ id: X.lessonObserve.id, skillId: "pause" }, null); const f = R.planFromTemplate({ template: tpl.template, kind: "fallback", patternId: p.id, lessonId: w.lessonId, skillId: "pause", basisIds: w.userBasisIds || [], painText: w.painText || "", mode: "observation" }); Object.assign(w, f, { id: w.id, version: w.version, createdAt: w.createdAt, planStatus: w.planStatus, lineageId: w.lineageId, goalConfirmed: true, goalOrigin: "observe", desiredChange: OPl.observeGoal, cueUser: "", actionUser: "", smallerUser: "" }); };
+    let notFit = false, saving = false;
     const render = () => {
+      app.dataset.flow = "plan";
       const v = R.planView(w), rd = R.planReady(w), slots = usedSlots();
       const lessonTitle = p.lesson ? lc1(p.lesson.title) : "";
-      const bridge = p.lesson ? OPl.bridge.replace("{lesson}", lessonTitle).replace("{action}", R.hasUnfilled(v.action) ? "выбранный шаг" : lc1(v.action.split(/[.;]/)[0])).replace("{purpose}", lc1(v.purpose).replace(/[.!]+$/, "")) + "." : "";
-      const noted = p.scenario && p.scenario.caseText && p.scenario.confirmed === "yes" ? `<p class="small muted" style="margin:0 0 6px">${esc(OPl.noted)} ${esc(lc1(p.scenario.caseText))}.</p>` : "";
-      app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(editing ? OPl.editTitle : OPl.title)}${w.mode === "observation" ? " · наблюдение" : w.mode === "experiment" ? " · проверка ожидания" : ""}</p>
-        <h1 class="q">${esc(draft ? OPl.intro.replace("{lesson}", lessonTitle || lc1(v.action)) : (p.lesson ? uc1(p.lesson.title) : OPl.title))}</h1>
-        ${noted}${bridge ? `<p class="small" style="margin:0 0 8px" id="bridge">${esc(bridge)}</p>` : ""}
+      const goalOk = !!w.goalConfirmed || !w.lessonId;
+      const obs = w.mode === "observation";
+      const goalHtml = !w.lessonId ? "" : show.goalEdit
+        ? `<div class="card tight"><label for="goalOwn">${esc(OPl.goalOwnLead)}</label><textarea id="goalOwn" placeholder="${esc(OPl.goalOwnPh)}">${esc(w.goalOrigin === "user_written" ? w.desiredChange : "")}</textarea><div class="row tight"><button class="btn secondary sm" id="goalSave">${esc(OPl.goalSave)}</button><button class="btn ghost sm" id="goalBack">Назад</button></div></div>`
+        : !w.goalConfirmed
+        ? `<div class="card tight" id="goalBox">${w.painText ? `<p class="small" style="margin:0 0 4px">${esc(OPl.goalPain)} ${esc(lc1(w.painText))}.</p>` : ""}<p style="margin:0 0 4px"><b>${esc(OPl.goalQ.replace("{lesson}", lessonTitle))}</b></p>${w.fitQuestion ? `<p class="tiny" style="margin:0 0 6px">${esc(OPl.goalFit)} ${esc(lc1(w.fitQuestion).replace(/\?$/, ""))}.</p>` : ""}<div class="chips col"><button class="chip" id="goalYes">${esc(OPl.goalYes)}</button><button class="chip" id="goalEdit">${esc(OPl.goalEdit)}</button><button class="chip dim" id="goalObs">${esc(OPl.goalObserve)}</button></div></div>`
+        : `<p class="small" style="margin:0 0 8px"><b>${esc(OPl.learn)}:</b> ${esc(lc1(w.desiredChange || lessonTitle))}. <button class="linkbtn" id="goalChange">изменить</button></p>`;
+      app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(editing ? OPl.editTitle : OPl.title)}${obs ? " · наблюдение" : w.mode === "experiment" ? " · проверка ожидания" : ""} · v${w.version || 1}</p>
+        <h1 class="q">${esc(editing ? OPl.editTitle : OPl.title)}</h1>
+        ${goalHtml}
         <div class="card mark"><div class="plines">
-          <div><span>${esc(OPl.why)}:</span> ${esc(v.purpose)}</div>
-          <div><span>${esc(OPl.when)}:</span> ${ownCue ? `<textarea id="cueOwn" placeholder="свой момент, одной фразой">${esc(w.cueUser || "")}</textarea>` : `<i id="cueTxt" style="font-style:normal">${hl(uc1(v.cue))}</i>`}</div>
-          <div><span>${esc(OPl.what)}:</span> ${ownAction ? `<textarea id="actOwn" placeholder="${esc(OPl.ownActionLead)}">${esc(w.actionUser || "")}</textarea>` : `<i id="actTxt" style="font-style:normal">${hl(uc1(v.action))}</i>`}${v.simplified ? ` <span class="tiny">· ${esc(OPl.simplified)}</span>` : ""}</div>
-          ${v.effort ? `<div><span>${esc(OPl.effort)}:</span> ${esc(v.effort)}</div>` : ""}
-          ${v.after ? `<div><span>${esc(OPl.after)}:</span> ${esc(v.after)}</div>` : ""}
-        </div>${v.limits ? `<p class="tiny" style="margin:6px 0 0">${esc(OPl.limits)}: ${esc(v.limits)}</p>` : ""}</div>
-        ${slots.length ? `<p class="small muted" style="margin:8px 0 2px">${esc(OPl.fill)}</p>${slots.map(sl => `<label for="sl-${esc(sl.key)}">${esc(sl.question)}</label><input type="${/minutes/i.test(sl.key) ? "number" : "text"}" ${/minutes/i.test(sl.key) ? 'min="1" step="1" inputmode="numeric"' : ""} id="sl-${esc(sl.key)}" data-slot="${esc(sl.key)}" placeholder="${esc(OPl.example + sl.example)}" value="${esc((w.slots || {})[sl.key] || "")}">${rd.errors[sl.key] && (w.slots || {})[sl.key] ? `<p class="tiny" style="margin:0 0 4px;color:#B3261E">${esc(rd.errors[sl.key])}</p>` : ""}`).join("")}` : ""}
-        <p class="tiny" id="needFill" style="margin:6px 0 0;${rd.ready ? "display:none" : ""}">${esc(OPl.needFill)}</p>
-        <div class="row"><button class="btn block" id="ok" ${rd.ready ? "" : "disabled"}>${esc(editing ? "Сохранить" : OPl.tryIt)}</button></div>
-        <div class="row tight">${w.smallerVersion ? `<button class="btn ghost" id="simpler">${esc(w.simplified ? OPl.full : OPl.simpler)}</button>` : ""}${editing ? `<a class="btn ghost" href="#today">Отмена</a>` : `<button class="btn ghost" id="notfit">${esc(OPl.notFit)}</button>`}</div>
+          <div><span>${esc(OPl.whenL)}:</span> ${show.cue ? `<textarea id="cueOwn" placeholder="свой момент, одной фразой">${esc(w.cueUser || "")}</textarea>` : `<i id="cueTxt" style="font-style:normal">${hl(uc1(v.cue))}</i>`}</div>
+          <div><span>${esc(obs ? OPl.whatObs : OPl.whatL)}:</span> ${show.act ? `<textarea id="actOwn" placeholder="${esc(OPl.ownActionLead)}">${esc(w.actionUser || "")}</textarea>` : `<i id="actTxt" style="font-style:normal">${hl(uc1(v.action || "—"))}</i>`}${v.simplified ? ` <span class="tiny">· ${esc(OPl.simplified)}</span>` : ""}</div>
+          ${v.needsSmall ? `<div><label for="smallOwn" style="margin-top:4px">${esc(OPl.smallQ)}</label><textarea id="smallOwn" placeholder="${esc(OPl.smallPh)}">${esc(w.smallerUser || "")}</textarea></div>` : ""}
+          ${v.after ? `<div><span>${esc(OPl.afterL)}:</span> ${esc(v.after)}</div>` : ""}
+        </div><details class="plain"><summary>${esc(OPl.why)}</summary><p class="small" style="margin:0 0 4px">${esc(v.purpose)}</p>${v.effort ? `<p class="tiny" style="margin:0">${esc(OPl.effort)}: ${esc(v.effort)}</p>` : ""}${v.limits ? `<p class="tiny" style="margin:0">${esc(OPl.limits)}: ${esc(v.limits)}</p>` : ""}</details></div>
+        ${slots.length && (setup || show.params || !rd.ready) ? `<p class="small muted" style="margin:8px 0 2px">${esc(OPl.fill)}</p>${slots.map(sl => `<label for="sl-${esc(sl.key)}">${esc(sl.question)}</label><input type="${/minutes/i.test(sl.key) ? "number" : "text"}" ${/minutes/i.test(sl.key) ? 'min="1" step="1" inputmode="numeric"' : ""} id="sl-${esc(sl.key)}" data-slot="${esc(sl.key)}" placeholder="${esc(OPl.example + sl.example)}" value="${esc((w.slots || {})[sl.key] || "")}">${rd.errors[sl.key] && (w.slots || {})[sl.key] ? `<p class="tiny slerr" style="margin:0 0 4px;color:#B3261E">${esc(rd.errors[sl.key])}</p>` : ""}`).join("")}` : ""}
+        <p class="tiny" id="needFill" style="margin:6px 0 0;${rd.ready ? "display:none" : ""}">${esc(v.needsSmall ? OPl.smallNeed : OPl.needFill)}</p>
+        ${editing ? `<div class="chips" style="margin-top:8px"><button class="chip" id="edMoment">${esc(OPl.edMoment)}</button><button class="chip" id="edAction">${esc(OPl.edAction)}</button>${(w.setup || []).length ? `<button class="chip" id="edParams">${esc(OPl.edParams)}</button>` : ""}${v.canSimplify || w.simplified ? `<button class="chip" id="simpler">${esc(w.simplified ? OPl.full : OPl.simpler)}</button>` : ""}</div>` : ""}
+        <div class="row"><button class="btn block" id="ok" ${rd.ready && (goalOk || editing) ? "" : "disabled"}>${esc(editing ? OPl.save : OPl.tryIt)}</button></div>
+        <div class="row tight">${!editing && (v.canSimplify || w.simplified) ? `<button class="btn ghost" id="simpler">${esc(w.simplified ? OPl.full : OPl.simpler)}</button>` : ""}${editing ? `<button class="btn ghost" id="cancelEdit">${esc(OPl.cancel)}</button>` : `<button class="btn ghost" id="notfit">${esc(OPl.notFit)}</button>`}</div>
         <div id="nf">${notFit ? `<div class="card tight"><p class="small muted" style="margin:0 0 6px">${esc(OPl.notFitWhat)}</p><div class="chips col"><button class="chip" id="nfGoal">${esc(OPl.notFitGoal)}</button><button class="chip" id="nfAction">${esc(OPl.notFitAction)}</button></div><div id="nfa"></div></div>` : ""}</div>`;
-      /* Ввод обновляет момент, действие и мост на месте, без перерисовки: фокус и набранный текст не теряются. */
-      const refresh = () => { const v2 = R.planView(w), ct = $("#cueTxt"), at = $("#actTxt"), br = $("#bridge"); if (ct) ct.innerHTML = hl(uc1(v2.cue)); if (at) at.innerHTML = hl(uc1(v2.action)); if (br && p.lesson) br.textContent = OPl.bridge.replace("{lesson}", lessonTitle).replace("{action}", R.hasUnfilled(v2.action) ? "выбранный шаг" : lc1(v2.action.split(/[.;]/)[0])).replace("{purpose}", lc1(v2.purpose).replace(/[.!]+$/, "")) + "."; const ready = R.planReady(w).ready; $("#ok").disabled = !ready; const nf = $("#needFill"); if (nf) nf.style.display = ready ? "none" : ""; };
-      $$("[data-slot]").forEach(inp => inp.oninput = () => { w.slots = w.slots || {}; w.slots[inp.dataset.slot] = inp.value; later(); refresh(); });
-      $$("[data-slot]").forEach(inp => inp.onchange = () => { persist(); const rd2 = R.planReady(w); const err = rd2.errors[inp.dataset.slot]; let el = inp.nextElementSibling; if (!(el && el.classList && el.classList.contains("slerr"))) { el = document.createElement("p"); el.className = "tiny slerr"; el.style.cssText = "margin:0 0 4px;color:#B3261E"; inp.insertAdjacentElement("afterend", el); } el.textContent = err && inp.value ? err : ""; });
-      const co = $("#cueOwn"); if (co) co.oninput = () => { w.cueUser = co.value.trim(); $("#ok").disabled = !R.planReady(w).ready; later(); };
-      const ao = $("#actOwn"); if (ao) ao.oninput = () => { w.actionUser = ao.value.trim(); $("#ok").disabled = !R.planReady(w).ready; later(); };
-      const sm = $("#simpler"); if (sm) sm.onclick = async () => { w.simplified = !w.simplified; await persist(); render(); };
+      /* Ввод обновляет момент и действие на месте, без перерисовки: фокус и набранный текст не теряются. */
+      const refresh = () => { const v2 = R.planView(w), ct = $("#cueTxt"), at = $("#actTxt"); if (ct) ct.innerHTML = hl(uc1(v2.cue)); if (at) at.innerHTML = hl(uc1(v2.action || "—")); const ready = R.planReady(w).ready && (!!w.goalConfirmed || !w.lessonId || editing); $("#ok").disabled = !ready; const nf = $("#needFill"); if (nf) nf.style.display = R.planReady(w).ready ? "none" : ""; };
+      $$("[data-slot]").forEach(inp => inp.oninput = () => { w.slots = w.slots || {}; w.slots[inp.dataset.slot] = inp.value; changed(); refresh(); });
+      $$("[data-slot]").forEach(inp => inp.onchange = () => { saveDraft(); const err = R.planReady(w).errors[inp.dataset.slot]; let el = inp.nextElementSibling; if (!(el && el.classList && el.classList.contains("slerr"))) { el = document.createElement("p"); el.className = "tiny slerr"; el.style.cssText = "margin:0 0 4px;color:#B3261E"; inp.insertAdjacentElement("afterend", el); } el.textContent = err && inp.value ? err : ""; });
+      const co = $("#cueOwn"); if (co) co.oninput = () => { w.cueUser = co.value.trim(); changed(); refresh(); };
+      const ao = $("#actOwn"); if (ao) ao.oninput = () => { w.actionUser = ao.value.trim(); changed(); refresh(); };
+      const so = $("#smallOwn"); if (so) so.oninput = () => { w.smallerUser = so.value.trim(); changed(); refresh(); };
+      const em = $("#edMoment"); if (em) em.onclick = () => { show.cue = !show.cue; if (show.cue && !w.cueUser) w.cueUser = R.planView(w).cue; changed(); render(); const t = $("#cueOwn"); if (t) t.focus(); };
+      const ea = $("#edAction"); if (ea) ea.onclick = () => { show.act = !show.act; if (show.act && !w.actionUser) { w.actionUser = R.planView(w).full; if (w.simplified && !w.smallerUser) w.smallerUser = R.planView(Object.assign({}, w, { actionUser: "" })).small; } changed(); render(); const t = $("#actOwn"); if (t) t.focus(); };
+      const ep = $("#edParams"); if (ep) ep.onclick = () => { show.params = !show.params; render(); };
+      const sm = $("#simpler"); if (sm) sm.onclick = () => { w.simplified = !w.simplified; changed(); saveDraft(); render(); };
+      const gy = $("#goalYes"); if (gy) gy.onclick = () => { w.goalConfirmed = true; w.goalOrigin = "user_confirmed"; w.desiredChange = uc1(p.lesson ? p.lesson.title : ""); w.goalAt = nowTs(); changed(); saveDraft(); render(); };
+      const ge = $("#goalEdit"); if (ge) ge.onclick = () => { show.goalEdit = true; render(); const t = $("#goalOwn"); if (t) t.focus(); };
+      const gc = $("#goalChange"); if (gc) gc.onclick = () => { show.goalEdit = true; render(); };
+      const gb = $("#goalBack"); if (gb) gb.onclick = () => { show.goalEdit = false; render(); };
+      const gs = $("#goalSave"); if (gs) gs.onclick = () => { const t = $("#goalOwn").value.trim(); if (!t) return toast("Напиши пару слов"); w.goalConfirmed = true; w.goalOrigin = "user_written"; w.desiredChange = uc1(t); w.goalAt = nowTs(); show.goalEdit = false; changed(); saveDraft(); render(); };
+      const go2 = $("#goalObs"); if (go2) go2.onclick = () => { toObserve(); changed(); saveDraft(); render(); };
       const nf = $("#notfit"); if (nf) nf.onclick = () => { notFit = !notFit; render(); };
-      const ng = $("#nfGoal"); if (ng) ng.onclick = () => { /* цель не подходит — меняем направление, а не действие */ if (P.onb === null || !P.onb) { editField(p, "lesson"); } };
-      const na = $("#nfAction"); if (na) na.onclick = () => { $("#nfa").innerHTML = `<div class="chips col" style="margin-top:6px"><button class="chip" id="nfOwn">${esc(OPl.ownAction)}</button>${w.smallerVersion ? `<button class="chip" id="nfSmall">${esc(OPl.simpler)}</button>` : ""}<button class="chip dim" id="nfObs">${esc(OPl.observeInstead)}</button></div>`;
-        $("#nfOwn").onclick = () => { ownAction = true; notFit = false; render(); const a = $("#actOwn"); if (a) a.focus(); };
-        const ns = $("#nfSmall"); if (ns) ns.onclick = async () => { w.simplified = true; notFit = false; await persist(); render(); };
-        $("#nfObs").onclick = async () => { const tpl = templateFor({ id: X.lessonObserve.id, skillId: "pause" }, null); const f = R.planFromTemplate({ template: tpl.template, kind: "fallback", patternId: p.id, lessonId: w.lessonId, skillId: "pause", basisIds: w.userBasisIds || [], desiredChange: w.desiredChange || "", mode: "observation" }); Object.assign(w, f, { id: w.id, version: w.version, createdAt: w.createdAt, planStatus: "draft" }); notFit = false; await persist(); render(); }; };
+      const ng = $("#nfGoal"); if (ng) ng.onclick = () => { editField(p, "lesson"); };
+      const na = $("#nfAction"); if (na) na.onclick = () => { $("#nfa").innerHTML = `<div class="chips col" style="margin-top:6px"><button class="chip" id="nfOwn">${esc(OPl.ownAction)}</button>${R.planView(w).canSimplify ? `<button class="chip" id="nfSmall">${esc(OPl.simpler)}</button>` : ""}<button class="chip dim" id="nfObs">${esc(OPl.observeInstead)}</button></div>`;
+        $("#nfOwn").onclick = () => { show.act = true; notFit = false; render(); const a = $("#actOwn"); if (a) a.focus(); };
+        const ns = $("#nfSmall"); if (ns) ns.onclick = () => { w.simplified = true; notFit = false; changed(); saveDraft(); render(); };
+        $("#nfObs").onclick = () => { toObserve(); notFit = false; changed(); saveDraft(); render(); }; };
+      const ce = $("#cancelEdit"); if (ce) ce.onclick = async () => { clearTimeout(timer); dirty = false; planFlush = null; delete P.planDraft; await saveProfile(true); toast(OPl.dropped); go("today"); };
       $("#ok").onclick = async () => {
-        const rd2 = R.planReady(w); if (!rd2.ready) return toast(OPl.needFill);
+        if (saving) return;
+        const rd2 = R.planReady(w); if (!rd2.ready) return toast(R.planView(w).needsSmall ? OPl.smallNeed : OPl.needFill);
+        if (!editing && w.lessonId && !w.goalConfirmed) return toast(OPl.goalNeed);
+        saving = true; clearTimeout(timer); dirty = false; planFlush = null;
         const v2 = R.planView(w);
         if (editing) {
-          const patch = Object.assign({}, w, { planStatus: "accepted", acceptedAt: nowTs(), reason: mode, cue: v2.cue, action: v2.action, ifThen: { signal: v2.cue, action: v2.action } }); delete patch.id; delete patch.version; delete patch.status; delete patch.results; delete patch.createdAt;
-          await newExperimentVersion(p, patch); toast(OPl.accepted); return go("today");
+          const patch = Object.assign({}, w, { planStatus: "accepted", acceptedAt: nowTs(), reason: mode, cue: v2.cue, action: v2.action, ifThen: { signal: v2.cue, action: v2.action } }); ["id", "version", "status", "results", "createdAt", "lineageId", "baseVersion"].forEach(k => delete patch[k]);
+          delete P.planDraft; await newExperimentVersion(p, patch); await saveProfile(true); toast(OPl.accepted); return go("today");
         }
         Object.assign(x, w, { planStatus: "accepted", acceptedAt: nowTs(), cue: v2.cue, action: v2.action, ifThen: { signal: v2.cue, action: v2.action }, status: "active" });
+        if (!x.lineageId) x.lineageId = x.id;
         await saveExp(x); if (x.skillId) p.skillId = x.skillId;
         /* Старт практики — момент принятия шага: если настройка закончилась уже в другой части суток или после полуночи, день 1 пересчитывается честно. */
         if (p.status === "active" && p.practiceStartOrigin === "user" && !D.episodes.some(e => e.patternId === p.id && e.newResponse)) { const ns = R.practiceStartFor({ todayKey: today(), hour: hour(), times: P.times, actedToday: false }); if (ns !== p.practiceStartDate) { p.practiceStartDate = ns; p.startDate = ns; } p.firstDay = Object.assign({}, p.firstDay, { kind: phase(), date: today(), at: nowTs() }); }
@@ -738,6 +819,13 @@
       };
     };
     render();
+  }
+  /* Правка прежней версии: действующий шаг уже другой — не перезаписываем молча. */
+  function planStale(p, x, d, mode) {
+    const OPl = OB.plan;
+    app.innerHTML = `<h1 class="q">${esc(OPl.staleTitle)}</h1><p class="small muted">${esc(OPl.staleText)}</p><div class="row"><button class="btn block" id="stOpen">${esc(OPl.staleOpen)}</button></div><div class="row tight"><button class="btn ghost" id="stDrop">${esc(OPl.staleDrop)}</button></div>`;
+    $("#stOpen").onclick = async () => { const w = JSON.parse(JSON.stringify(x)); ["cueUser", "actionUser", "smallerUser", "simplified", "slots", "desiredChange", "goalConfirmed", "goalOrigin"].forEach(k => { if (d.w && d.w[k] !== undefined) w[k] = d.w[k]; }); P.planDraft = { patternId: p.id, planId: x.id, baseVersion: x.version, mode, w, show: d.show || {}, at: nowTs(), reviewedStale: true }; await saveProfile(true); planScreen(mode || "edit"); };
+    $("#stDrop").onclick = async () => { delete P.planDraft; await saveProfile(true); toast(OPl.dropped); planScreen(mode || "edit"); };
   }
   /* Сегодня не подходит: момент, меньшая версия или пауза на день. Смена момента не меняет навык и объяснение. */
   function planAdjust(p, x) {
@@ -786,7 +874,7 @@
     const title = p ? (p.status === "observe" ? "Наблюдаю" : (p.lesson ? uc1(p.lesson.title) : p.title)) : "Начало";
     const rd = p ? planReady(p) : { ready: false };
     let sub = "";
-    if (p && ps && dps >= 0) { const d = dps + 1, w = R.weekIndex(ps, k) + 1; const h = hypOf(p); const elig = eligibility(p); sub = `день ${d} · неделя ${w} · ${R.workPhase({ hypothesis: h, experiment: expOf(p), confirmedActionDays: R.confirmedActionDays({ episodes: D.episodes, checkins: D.checkins, patternId: p.id, skillId: skillOfPattern(p) }).size, eligible: elig.eligible })}`; }
+    if (p && ps && dps >= 0) { const d = dps + 1, w = R.weekIndex(ps, k) + 1; const h = hypOf(p); const elig = eligibility(p); sub = `день ${d} · неделя ${w} · ${R.workPhase({ hypothesis: h, experiment: expOf(p), confirmedActionDays: R.confirmedActionDays({ episodes: D.episodes, checkins: D.checkins, patternId: p.id, skillId: skillOfPattern(p), lineageId: lineageOf(p) }).size, eligible: elig.eligible })}`; }
     else if (prep) sub = `начало · практика с ${R.human(ps)}`;
     else if (p) sub = "режим наблюдения";
     hero.innerHTML = `<div class="hero"><div class="hl">${ic(phaseIc(), "")}${R.fmtTime(nowTs())} · ${PHASE_TXT[ph]}${p && p.lesson && p.status !== "observe" ? ` · ${esc(OB.levels.lessonLead)}` : ""}</div><div class="hd">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ""}</div>`;
@@ -820,7 +908,7 @@
       const cy = checkinOf(yesterday(), p);
       const yOpen = R.eveningCloseable(yesterday(), k) && cy && !cy.evening && R.diffDays(ps, yesterday()) >= 0;
       const yAny = R.diffDays(ps, yesterday()) >= 0 && !(cy && cy.evening);
-      const stepCard = (title, text, cta) => `<div class="card mark"><div class="k">${ic("sunrise")}${esc(title)}</div>${text ? `<p class="small" style="margin:2px 0 6px">${esc(text)}</p>` : ""}${stepHTML(p)}<div class="row tight" style="margin-top:8px"><a class="btn block" href="#morning">${esc(cta)}</a></div><div class="row tight"><a class="btn ghost sm" href="#plan/adjust">${esc(OB.plan.notToday)}</a></div></div>`;
+      const stepCard = (title, text, cta) => `<div class="card mark"><div class="k">${ic("sunrise")}${esc(title)}</div>${text ? `<p class="small" style="margin:2px 0 6px">${esc(text)}</p>` : ""}${companionHTML(p)}${stepHTML(p)}<div class="row tight" style="margin-top:8px"><a class="btn block" href="#morning">${esc(cta)}</a></div><div class="row tight"><a class="btn ghost sm" href="#plan/adjust">${esc(OB.plan.notToday)}</a></div></div>`;
       const pausedToday = !!(c.day && c.day.paused);
       if (!rd.ready) main = `<div class="card mark"><div class="k">${ic("key")}${esc(OB.home.notReady)}</div><p class="small" style="margin:2px 0 8px">${esc(rd.legacy ? OB.plan.legacy : OB.home.notReadyText)}</p><a class="btn block" href="#plan">${esc(OB.home.refine)}</a></div>`;
       else if (elig.eligible && !hasFlag(p)) main = `<div class="card mark"><div class="k">${ic("flag")}Проверка навыка</div><p style="margin:2px 0 8px">Две недели подряд записи показывают устойчивый ответ. Проверим вместе, что это выбранный навык, а не терпение.</p><a class="btn block" href="#flag">Проверить</a></div>`;
@@ -841,7 +929,7 @@
     /* Смысл на сейчас: учитель, урок; шаг — если его не показывает основная карточка. Рядом — «Как пользоваться». */
     /* Три уровня: тема пути (число, компактно), текущий урок (подтверждённый), сегодняшний шаг (принятый план). Они не конкурируют. */
     const sym = pathOf(), pv = planView(p), showStep = pv && rd.ready && !/plines/.test(main);
-    const pathCard = p && p.lesson ? `<div class="card"><div class="k">${ic("eye")}${esc(OB.home.title)}<a href="#guide" class="klink">${esc(OB.buttons.guide)}</a></div><div class="plines">${sym ? `<div><span>${esc(OB.levels.theme)}:</span> ${esc(sym.name)}</div>` : ""}<div><span>${esc(OB.levels.lesson)}:</span> ${esc(lc1(p.lesson.title))}</div><div><span>${esc(OB.levels.teacher)}:</span> ${esc(p.teacher ? p.teacher.label : (p.contexts || []).join(", ") || "—")}</div>${showStep ? `<div><span>${esc(OB.levels.step)}:</span> ${esc(lc1(pv.cue) || "")}${pv.cue ? " — " : ""}${esc(lc1(pv.action))}</div>` : ""}</div></div>` : (p ? `<p class="tiny" style="margin:0 0 6px;text-align:right"><a href="#guide">${esc(OB.buttons.guide)}</a></p>` : "");
+    const pathCard = p && p.lesson ? `<div class="card"><div class="k">${ic("eye")}${esc(OB.home.title)}<a href="#guide" class="klink">${esc(OB.buttons.guide)}</a></div>${pathLineHTML()}<div class="plines"><div><span>${esc(OB.levels.lesson)}:</span> ${esc(learningText(p))}</div><div><span>${esc(OB.levels.teacher)}:</span> ${esc(p.teacher ? p.teacher.label : (p.contexts || []).join(", ") || "—")}</div>${showStep ? `<div><span>${esc(OB.levels.step)}:</span> ${esc(lc1(pv.cue) || "")}${pv.cue ? " — " : ""}${esc(lc1(pv.action))}</div>` : ""}</div></div>` : (p ? `${pathLineHTML()}<p class="tiny" style="margin:0 0 6px;text-align:right"><a href="#guide">${esc(OB.buttons.guide)}</a></p>` : "");
     /* Кнопки дня: прямые названия; подписи-обучение до первого закрытого вечера или открытия «Как пользоваться». Нажатие само по себе успехом не считается. */
     const B = OB.buttons, learn = p && !P.seen.buttons;
     const tap = (href, icon, b) => `<a class="tap ${learn ? "learn" : ""}" href="${href}">${ic(icon, "")}<span>${esc(b.label)}</span>${learn ? `<em>${esc(b.caption)}</em>` : ""}</a>`;
@@ -879,8 +967,8 @@
     const k = today(), c = checkin(k, p);
     if (c.morning) { app.innerHTML = `<h1>Шаг уже с тобой</h1>${stepHTML(p)}<div class="row"><a class="btn block" href="#today">На главную</a></div><div class="row tight"><a class="btn ghost" href="#plan/adjust">${esc(OB.plan.notToday)}</a></div>`; return; }
     const v = planView(p);
-    app.innerHTML = `<p class="tiny" style="margin:0 0 4px">Утро · ${esc(R.human(k))}${p.lesson ? ` · ${esc(OB.levels.lessonLead)}: ${esc(lc1(p.lesson.title))}` : ""}</p><h1 class="q">${esc(OB.levels.step)}</h1>
-      <div class="card mark">${permissionText(p) ? `<p class="quote" style="margin:0 0 6px">${esc(permissionText(p))}</p>` : ""}${stepHTML(p)}</div>
+    app.innerHTML = `<p class="tiny" style="margin:0 0 4px">Утро · ${esc(R.human(k))}${learningText(p) ? ` · ${esc(OB.levels.lesson)}: ${esc(learningText(p))}` : ""}</p><h1 class="q">${esc(OB.levels.step)}</h1>
+      <div class="card mark">${companionHTML(p)}${permissionText(p) ? `<p class="quote" style="margin:0 0 6px">${esc(permissionText(p))}</p>` : ""}${stepHTML(p)}</div>
       <label for="sc">Как сейчас? <span class="muted small">необязательно</span></label>
       <div class="range-val" id="scv">—</div><input type="range" id="sc" min="0" max="10" step="1" value="3" aria-label="Как сейчас, 0–10"><div class="range-hint"><span>0, спокойно</span><span>10, очень тяжело</span></div>
       <div class="row"><button class="btn block" id="take">${esc(OB.plan.take)}</button></div>
@@ -894,7 +982,7 @@
     const base = old && old.kind === "plan" ? JSON.parse(JSON.stringify(old)) : {};
     delete base.id; delete base.results; delete base.keptFor;
     const x = Object.assign(base, { id: R.uuid(), patternId: p.id, hypothesisVersionId: p.hypothesisVersionId, version: (old ? old.version : 0) + 1, permission: old ? old.permission : "", prediction: old ? old.prediction : "", action: old ? old.action : "", skillId: old ? old.skillId : p.skillId, ifThen: old ? old.ifThen : null, criterion: old ? old.criterion : "", status: "active", results: [], createdAt: nowTs(), kind: old && old.kind === "plan" ? "plan" : "experiment" }, patch);
-    if (x.kind === "plan") { if (patch.action && !patch.actionUser && !patch.actionTemplate) x.actionUser = patch.action; const v = R.planView(x); x.cue = v.cue; x.action = v.action; x.ifThen = { signal: v.cue, action: v.action }; if (!patch.planStatus) x.planStatus = old && old.planStatus ? old.planStatus : "accepted"; }
+    if (x.kind === "plan") { if (patch.action && !patch.actionUser && !patch.actionTemplate) x.actionUser = patch.action; const v = R.planView(x); x.cue = v.cue; x.action = v.action; x.ifThen = { signal: v.cue, action: v.action }; if (!patch.planStatus) x.planStatus = old && old.planStatus ? old.planStatus : "accepted"; x.lineageId = R.planLineage(old, x); x.baseVersion = old ? old.version : null; }
     else if (x.ifThen && patch.action && !patch.ifThen) x.ifThen = { signal: x.ifThen.signal, action: patch.action };
     await saveExp(x); p.experimentId = x.id; if (x.skillId) p.skillId = x.skillId; await savePattern(p); return x;
   }
@@ -1016,7 +1104,7 @@
         const ts = nowTs(), st = ans.st;
         if (st === "none") { if (p) { const c = checkin(k, p); c.patternId = p.id; c.day = Object.assign({}, c.day, { noOpportunity: true, at: ts }); await saveCheckin(c); } app.innerHTML = `<h1>Записано</h1><p>${esc(A.result.none)}</p><div class="row"><a class="btn block" href="#today">На главную</a></div>`; return; }
         const planAction = st === "done" || st === "partial" || st === "rehearsal";
-        const nr = { status: st, opportunity: st === "rehearsal" ? "rehearsal" : "real", didPlanAction: st === "done", planId: x ? x.id : null, planVersion: x ? x.version : null, experimentId: x ? x.id : null, skillId: planAction ? ((x && x.skillId) || (p && p.skillId) || null) : null, action: planAction && v ? v.action : "", otherAction: st === "other" ? (ans.other || "") : "", type: st === "other" ? (ans.tag || "other") : null, chosen: null, afterAnswer: ans.after || "", note: st === "other" ? (ans.other || "") : (ans.after || ""), at: ts };
+        const nr = { status: st, opportunity: st === "rehearsal" ? "rehearsal" : "real", didPlanAction: st === "done", planId: x ? x.id : null, planVersion: x ? x.version : null, experimentId: x ? x.id : null, lineageId: planAction ? lineageOf(p) : null, patternId: p ? p.id : null, dateKey: k, skillId: planAction ? ((x && x.skillId) || (p && p.skillId) || null) : null, action: planAction && v ? v.action : "", otherAction: st === "other" ? (ans.other || "") : "", type: st === "other" ? (ans.tag || "other") : null, chosen: null, afterAnswer: ans.after || "", note: st === "other" ? (ans.other || "") : (ans.after || ""), at: ts };
         let e = ans.link && ans.link !== "new" ? D.episodes.find(q => q.id === ans.link) : null;
         if (!e) e = { id: R.uuid(), patternId: p ? p.id : null, linkStatus: p ? "confirmed" : "none", occurredAt: ts, loggedAt: ts, dateKey: k, tz: R.tz(), event: "", emotion: null, intensity: null, verificationStatus: "quick", legacy: false };
         e.newResponse = nr; e.isRehearsal = st === "rehearsal";
@@ -1041,16 +1129,19 @@
     const c = checkin(k, p), late = R.isLate(k, today());
     if (c.evening) { app.innerHTML = `<h1>Вечер ${esc(R.human(k))} закрыт</h1><div class="row"><a class="btn block" href="#today">На главную</a></div>`; return; }
     if (R.practiceStart(p) && R.diffDays(R.practiceStart(p), k) < 0) { app.innerHTML = `<h1>${esc(OB.firstDay.prepTitle)}</h1><p>${esc(OB.firstDay.prepText)}</p><div class="row"><a class="btn block" href="#today">На главную</a></div><div class="row tight"><a class="btn ghost" href="#action">${esc(OB.buttons.action.label)}</a></div>`; return; }
-    const F = R.eveningFacts({ episodes: D.episodes, dateKey: k, patternId: p.id }), eps = F.episodes, x = expOf(p), v = planView(p), rs = R.researchState(researchOf(p), today(), deepToday);
+    const x = expOf(p), F = R.eveningFacts({ episodes: D.episodes, dateKey: k, patternId: p.id, planId: x ? x.id : null, lineageId: lineageOf(p) }), eps = F.episodes, v = planView(p), rs = R.researchState(researchOf(p), today(), deepToday);
     const best = F.best, noOpp = !!(c.day && c.day.noOpportunity);
     const attemptTxt = best ? `${R.attemptStatusLabel(best.status)}${best.status === "other" && best.otherAction ? `: ${best.otherAction}` : ""}` : "";
-    const dayHint = eps.length || noOpp ? `Сегодня записано: ${F.opportunities ? `${F.opportunities} ${R.plural(F.opportunities, "повод", "повода", "поводов")}` : noOpp ? "повода не было" : "репетиция"}${best ? `; попытка — ${attemptTxt}` : ""}. Подтверди или поправь.` : "";
+    /* Попытка прежнего шага — факт дня, не выполнение нового. О новом шаге — отдельный вопрос. */
+    const otherTxt = F.otherBest ? OB.eveningOut.already.replace("{action}", lc1(F.otherBest.status === "other" ? F.otherBest.otherAction || "другое действие" : F.otherBest.action || R.attemptStatusLabel(F.otherBest.status)).replace(/[.!]+$/, "")) : "";
+    const changedOnly = !!F.otherBest && !best;
+    const dayHint = (eps.length || noOpp ? `Сегодня записано: ${F.opportunities ? `${F.opportunities} ${R.plural(F.opportunities, "повод", "повода", "поводов")}` : noOpp ? "повода не было" : "репетиция"}${best ? `; попытка — ${attemptTxt}` : ""}. Подтверди или поправь.` : "") + (otherTxt ? " " + otherTxt : "");
     const titleTxt = `${late ? "Поздний вечер" : "Вечер"} · ${R.human(k)}`;
     const derived = best && best.status !== "rehearsal" ? { done: "done", partial: "partial", other: "other" }[best.status] : null;
     P.drafts = P.drafts || {};
-    const seed = (id) => { const key = draftKey(id, p.id); if (!P.drafts[key] && (eps.length || noOpp)) P.drafts[key] = { i: 0, ans: { opp: noOpp && !F.opportunities ? "no" : (F.opportunities ? "yes" : undefined), oa: derived ? derived : (noOpp ? "none" : undefined) }, at: nowTs() }; };
+    const seed = (id) => { const key = draftKey(id, p.id); if (!P.drafts[key] && (eps.length || noOpp) && !changedOnly) P.drafts[key] = { i: 0, ans: { opp: noOpp && !F.opportunities ? "no" : (F.opportunities ? "yes" : undefined), oa: derived ? derived : (noOpp ? "none" : undefined) }, at: nowTs() }; };
     const stepsFull = [
-      { k: "opp", q: "Был сегодня повод потренироваться?", lead: late ? `Вечер за ${R.human(k)} — запись помечена как поздняя.` : dayHint, type: "choice", opts: [["yes", C.daily.opportunity[0]], ["no", C.daily.opportunity[1]], ["unsure", C.daily.opportunity[2]]] },
+      { k: "opp", q: changedOnly ? OB.eveningOut.afterChange : "Был сегодня повод потренироваться?", lead: late ? `Вечер за ${R.human(k)} — запись помечена как поздняя.` : dayHint, type: "choice", opts: [["yes", C.daily.opportunity[0]], ["no", C.daily.opportunity[1]], ["unsure", C.daily.opportunity[2]]] },
       { k: "act", q: "Выбранное действие получилось?", lead: v ? `Твой шаг: ${lc1(v.action)}.` : "", type: "choice", opts: [["done", C.daily.actionResult[0]], ["partial", C.daily.actionResult[1]], ["not", C.daily.actionResult[2]], ["other", C.daily.actionResult[3]]], skip: a => a.opp !== "yes" || !!derived },
       { k: "outcome", q: "Что случилось на самом деле?", lead: a => `Ты ожидал: «${x.prediction}».`, type: "choice", opts: [["confirmed", "Ожидание подтвердилось"], ["partial", "Отчасти"], ["not", "Не подтвердилось"], ["insufficient", "Данных мало"]], skip: a => a.opp !== "yes" || !(x && x.prediction) || a.act === "not" },
       { k: "fit", q: "Объяснение подходило к сегодняшнему случаю?", lead: a => { const h = hypOf(p); return h ? `«${h.text}»` : ""; }, type: "choice", opts: [["yes", "Да, узнаю"], ["no", "Нет, здесь было другое"], ["unknown", "Не знаю"]], optional: true, skip: a => a.opp !== "yes" || !hypOf(p) || hypOf(p).branch === "unknown" },
@@ -1058,14 +1149,17 @@
       { k: "change", q: "Что заметил за день?", type: "choice", opts: [["better", C.daily.changeObservation[0]], ["same", C.daily.changeObservation[1]], ["worse", C.daily.changeObservation[2]], ["unknown", C.daily.changeObservation[3]]], optional: true },
     ];
     const stepsQuick = [
-      { k: "oa", q: "Был повод и что получилось?", lead: dayHint || (v ? `Твой шаг: ${lc1(v.action)}.` : ""), type: "choice", opts: R.QUICK_EVENING.map(([vv, l]) => [vv, l]) },
+      { k: "oa", q: changedOnly ? OB.eveningOut.afterChange : "Был повод и что получилось?", lead: dayHint || (v ? `Твой шаг: ${lc1(v.action)}.` : ""), type: "choice", opts: R.QUICK_EVENING.map(([vv, l]) => [vv, l]) },
       { k: "impact", q: C.daily.eveningImpactScale.label, lead: "Не сила эмоции, а насколько она мешает сейчас.", type: "scale", lo: "0, легко", hi: "10, очень трудно", def: 3 },
     ];
     const run = quick => { seed((quick ? "evening-quick-" : "evening-") + k); flow({ id: (quick ? "evening-quick-" : "evening-") + k, scope: p.id, steps: quick ? stepsQuick : stepsFull, title: titleTxt, onCancel: () => go("today"),
       onDone: async ans => {
         const q = quick ? R.quickEvening(ans.oa) : { hadOpportunity: ans.opp || null, actionStatus: ans.act || (ans.opp === "yes" ? derived : null) };
         if (quick && derived && q.hadOpportunity === "yes" && !ans.oa) q.actionStatus = derived;
-        c.patternId = p.id; c.evening = Object.assign({ at: nowTs(), late, quick, hadOpportunity: q.hadOpportunity, actionStatus: q.actionStatus, currentImpact: ans.impact, change: ans.change || null, tz: R.tz(), enteredDate: today(), fromEpisodeId: derived && best ? (eps.find(e => e.newResponse === best) || {}).id || null : null, planId: x ? x.id : null }, evidenceTag(p));
+        /* Производный статус наследует принадлежность исходной попытки (план, версия, навык, линия), а не текущего плана. */
+        const useBest = !!(derived && best && q.actionStatus === derived);
+        const prov = useBest ? { skillId: best.skillId || null, experimentId: best.experimentId || best.planId || null, planId: best.planId || null, planVersion: best.planVersion || null, lineageId: best.lineageId || null } : evidenceTag(p);
+        c.patternId = p.id; c.evening = Object.assign({ at: nowTs(), late, quick, hadOpportunity: q.hadOpportunity, actionStatus: q.actionStatus, currentImpact: ans.impact, change: ans.change || null, tz: R.tz(), enteredDate: today(), fromEpisodeId: useBest ? best.episodeId : null, otherAttemptIds: F.other.map(a => a.episodeId), provenanceChecked: true }, prov);
         if (ans.fit && ans.fit !== "unknown") { const h = hypOf(p); const ep = eps[eps.length - 1]; if (h) { const key = ans.fit === "yes" ? "supportingEpisodeIds" : "contradictingEpisodeIds"; h[key] = [...new Set([...(h[key] || []), ep ? ep.id : "day-" + k])]; await saveHyp(h); } }
         if (ans.outcome && x) { x.results = x.results || []; const ep = eps.filter(e => e.newResponse)[0] || eps[eps.length - 1]; x.results.push({ episodeId: ep ? ep.id : null, dateKey: k, outcome: ans.outcome, at: nowTs() }); await saveExp(x); }
         await saveCheckin(c);
@@ -1088,12 +1182,14 @@
     if (st && st !== "not") lines.push(E.attempt.replace("{label}", R.attemptStatusLabel(st) + (st === "other" && best && best.otherAction ? `: ${best.otherAction}` : "")));
     if (st === "not") lines.push("Повод был, выбранный шаг не получился — это наблюдение, не провал.");
     if (best && best.afterAnswer) lines.push(E.noted.replace("{text}", best.afterAnswer));
-    const bridge = (st === "done" || st === "partial") && p.lesson ? E.bridge.replace("{lesson}", lessonT || "твой урок").replace("{action}", v ? lc1(v.action).replace(/[.!]+$/, "") : "выбранный ответ") : (ev.hadOpportunity === "yes" && !st ? E.noAttempt : "");
+    if (F && F.otherBest) lines.push(E.already.replace("{action}", lc1(F.otherBest.status === "other" ? F.otherBest.otherAction || "другое действие" : F.otherBest.action || R.attemptStatusLabel(F.otherBest.status)).replace(/[.!]+$/, "")));
+    const triedAction = best && best.action ? best.action : (v ? v.action : "");
+    const bridge = (st === "done" || st === "partial") && p.lesson && triedAction ? E.bridge.replace("{lesson}", lessonT || "твой урок").replace("{action}", lc1(triedAction).replace(/[.!]+$/, "")) : (ev.hadOpportunity === "yes" && !st ? E.noAttempt : "");
     const tool = R.nextTool({ pattern: p, plan: expOf(p), hypothesis: hypOf(p), research: researchOf(p), episodes: D.episodes, runsToday: toolRunsOn(today()).length + (rs.doneToday ? 1 : 0) });
     const toolHtml = tool && !c.evening.quick ? toolOfferHTML(tool) : "";
     app.innerHTML = `<h1>${esc(E.title)}</h1><div class="trail" style="height:110px"><img src="${IMG("traveler")}" alt=""><i class="veil" style="opacity:.25"></i><div class="pop">+1 шаг</div></div>
       <div class="card"><div class="k">${ic("moon")}${esc(E.facts)}</div><p class="small" style="margin:2px 0 4px">${lines.map(esc).join("<br>")}</p>${bridge ? `<p class="small" style="margin:0"><b>${esc(bridge)}</b></p>` : ""}${v ? `<p class="small muted" style="margin:6px 0 0">${esc(E.tomorrow.replace("{cue}", lc1(v.cue)).replace("{action}", lc1(v.action).replace(/[.!]+$/, "")))}</p>` : ""}</div>
-      <div class="row tight"><a class="btn secondary sm" href="#today">${esc(E.keep)}</a>${expOf(p) && expOf(p).smallerVersion && !expOf(p).simplified ? `<a class="btn ghost sm" href="#plan/simplify">${esc(E.simpler)}</a>` : ""}<a class="btn ghost sm" href="#plan/moment">${esc(E.moment)}</a></div>
+      <div class="row tight"><a class="btn secondary sm" href="#today">${esc(E.keep)}</a>${v && v.canSimplify && !v.simplified ? `<a class="btn ghost sm" href="#plan/simplify">${esc(E.simpler)}</a>` : ""}<a class="btn ghost sm" href="#plan/moment">${esc(E.moment)}</a></div>
       ${toolHtml}${!toolHtml ? `<div class="row"><a class="btn block" href="#today">На главную</a></div>` : ""}`;
   }
   const TOOL_ROUTE = { need_module: "module/need", rule_permission: "module/rule", behavior_experiment: "module/experiment" };
@@ -1289,7 +1385,8 @@
     const sym = pathOf();
     app.innerHTML = `${note}
       <div class="card">
-        ${sym ? `<div class="prow"><div class="k"><span>Символический путь</span><a href="#symbol">открыть</a></div>${esc(sym.name)} <span class="muted small">· ${esc(sym.theme)}</span></div>` : ""}
+        ${pathNum() ? `<div class="prow"><div class="k"><span>${esc(OB.levels.theme)}</span><a href="#symbol">открыть</a></div>${pathNum()} · ${esc(X.pathProfiles[String(pathNum())].displayName)}<div class="tiny">${esc(X.pathProfiles[String(pathNum())].shortIntro)}</div></div>` : ""}
+        ${learningText(p) ? `<div class="prow"><div class="k"><span>${esc(OB.levels.lesson)}</span></div>${esc(uc1(learningText(p)))}${expOf(p) && expOf(p).goalConfirmed ? "" : ` <span class="tiny">· цель не подтверждена — уточни в шаге</span>`}</div>` : ""}
         ${p.scenario ? field("Знакомый сценарий", (p.scenario.own || p.scenario.recognition) + (p.scenario.meaningText ? ` — задевает: ${lc1(p.scenario.meaningText)}` : "") + (p.scenario.repeat === "repeat" ? " (повторяется)" : p.scenario.repeat === "once" ? " (пока один случай)" : ""), "scenario", "что повторяется") : field("Сюжет", p.title, "title", "как назвать")}
         ${p.teacher ? field("Учитель", `${p.teacher.label}${p.teacher.what ? ` — ${lc1(p.teacher.what)}` : ""}`, "teacher", "кто или что возвращает в сюжет") : field("Кто или что", (p.contexts || []).join(", "), "contexts", "коллега, партнёр, ситуация")}
         ${p.lesson ? field("Урок", uc1(p.lesson.title) + (p.lesson.status === "preliminary" ? " (предварительный)" : ""), "lesson", "направление урока") : ""}
@@ -1317,10 +1414,12 @@
       <div class="card tight"><div class="k">${ic("star")}${esc(OB.signs.title)}</div><p class="tiny" style="margin:2px 0 6px">${esc(OB.signs.lead)}</p>${(p.signs || []).length ? `<ul class="list">${p.signs.slice(-6).reverse().map(sg => `<li class="small"><div class="date">${esc(R.human(R.dateKey(sg.at)))}</div>${esc(sg.text)}</li>`).join("")}</ul>` : ""}<div class="row tight"><input type="text" id="signTxt" placeholder="${esc(OB.signs.ph)}"><button class="btn secondary sm" id="signAdd">${esc(OB.signs.add)}</button></div></div>
       ${queueCard()}
       ${savedHtml}
-      <div class="card tight"><div class="k">${ic("star")}Символическая тема</div>${P.symbolic && P.symbolic.num ? `<p class="small" style="margin:2px 0 4px"><b>${esc(X.paths[P.symbolic.chosen || P.symbolic.num].name)}</b> · ${esc(X.paths[P.symbolic.chosen || P.symbolic.num].prompt)}</p>` : `<p class="small" style="margin:2px 0 4px">По желанию: число пути по дате рождения — тема для размышления.</p>`}<div class="row tight"><a class="btn ghost sm" href="#symbol">${P.symbolic && P.symbolic.num ? "Открыть астролябию" : "Добавить"}</a></div></div>
+      <div class="card tight"><div class="k">${ic("star")}Мой путь</div>${pathNum() ? `<p class="small" style="margin:2px 0 4px"><b>${pathNum()} · ${esc(X.pathProfiles[String(pathNum())].displayName)}</b></p><p class="small" style="margin:0 0 4px">${esc(X.pathProfiles[String(pathNum())].shortIntro)}</p>` : `<p class="small" style="margin:2px 0 4px">По желанию: число пути по дате рождения.</p>`}<div class="row tight"><a class="btn ghost sm" href="#symbol">${pathNum() ? "Подробнее о пути" : "Добавить"}</a><button class="btn ghost sm" id="compToggle">${esc(P.companionOff ? OB.companion.show : OB.companion.hide)}</button></div></div>
+      ${(() => { const done = D.patterns.filter(q => q.status === "done" && q.lesson && !q.legacy); return `<details class="plain"><summary>${esc(OB.completed.title)} · ${done.length}</summary>${done.length ? `<ul class="list">${done.map(q => { const fl = flagsReal().filter(f => f.patternId === q.id); const n = D.episodes.filter(e => e.patternId === q.id && R.isConfirmedAction(e)).length; return `<li class="small"><b>${esc(uc1(q.lesson.title))}</b>${fl.length ? ` · флаг: ${fl.map(f => esc(skillLabel(f.skillId))).join(", ")}` : ""} · применений: ${n}</li>`; }).join("")}</ul>` : `<p class="tiny">${esc(OB.completed.none)}</p>`}</details>`; })()}
       <details class="plain"><summary>Версии гипотез и экспериментов</summary><ul class="list">${D.hypotheses.filter(v => v.patternId === p.id).map(v => `<li><div class="date">гипотеза v${v.version || 1} · ${esc(statusLabel(v.status))} · ${esc(R.human(R.dateKey(v.createdAt)))}</div>${esc(v.text)}</li>`).join("")}${D.experiments.filter(v => v.patternId === p.id).map(v => `<li><div class="date">шаг v${v.version} · ${v.status === "active" ? "действует" : "заменён"} · ${esc(R.human(R.dateKey(v.createdAt)))}</div>${esc(v.action)}${v.prediction ? ` — ожидание: ${esc(v.prediction)}` : ""}</li>`).join("") || "<li class='muted'>пока пусто</li>"}</ul></details>
       <div class="row tight">${p.status === "paused" ? `<button class="btn secondary" id="resume">Вернуться к сюжету</button>` : `<button class="btn ghost" id="pauseP">Пауза по сюжету</button>`}<button class="btn ghost" id="newP">Другой сюжет</button></div>`;
     $$("[data-edit]").forEach(b => b.onclick = () => b.dataset.edit === "plan" ? go(x && x.kind === "plan" && x.planStatus !== "draft" ? "plan/edit" : "plan") : editField(p, b.dataset.edit, b.dataset.ph));
+    const ct = $("#compToggle"); if (ct) ct.onclick = async () => { P.companionOff = !P.companionOff; await saveProfile(true); story(); };
     const sa = $("#signAdd"); if (sa) sa.onclick = async () => { const v = $("#signTxt").value.trim(); if (!v) return toast("Напиши наблюдение"); p.signs = [...(p.signs || []), { at: nowTs(), text: v }]; await savePattern(p); story(); };
     const kl = $("#keepLesson"); if (kl) kl.onclick = async () => { p.lesson.keptForExperimentId = x.id; p.lesson.status = "confirmed"; await savePattern(p); toast("Формулировка сохранена"); story(); };
     const rl = $("#refineLesson"); if (rl) rl.onclick = () => editField(p, "lesson");
@@ -1362,7 +1461,7 @@
         if (drift.drift) { p.lesson = { id: L.id, title: L.title, inner: L.inner, action: p.lesson.action, skillId: curSkill, hypothesisId: L.hypothesisId || null, signal: L.signal, status: "confirmed", chosenAt: nowTs(), rejected: prevRejected(), keptForExperimentId: x ? x.id : null, origin: "pack" }; await savePattern(p); toast("Урок уточнён"); return story(); }
         p.lesson = { id: L.id, title: L.title, inner: L.inner, action: L.action, skillId: L.skillId, hypothesisId: L.hypothesisId || null, signal: L.signal, status: "preliminary", chosenAt: nowTs(), rejected: prevRejected(), origin: "pack" };
         /* Новый урок — новый черновик личного плана из шаблона каталога; прежняя версия и записи остаются. */
-        const tpl = templateFor(L, null), patch = Object.assign(R.planFromTemplate({ template: tpl.template, kind: tpl.kind, patternId: p.id, lessonId: L.id, skillId: L.skillId, basisIds: [], desiredChange: p.scenario ? p.scenario.meaningText || "" : "", mode: tpl.mode, once: tpl.once }), { planStatus: "draft", reason: "lesson-changed", lessonId: L.id, permission: L.inner || "" });
+        const tpl = templateFor(L, null), patch = Object.assign(R.planFromTemplate({ template: tpl.template, kind: tpl.kind, patternId: p.id, lessonId: L.id, skillId: L.skillId, basisIds: [], painText: p.scenario ? p.scenario.meaningText || "" : "", mode: tpl.mode, once: tpl.once }), { planStatus: "draft", reason: "lesson-changed", lessonId: L.id, permission: L.inner || "" });
         delete patch.id; delete patch.version; delete patch.status; delete patch.results; delete patch.createdAt; patch.kind = "plan"; patch.actionUser = ""; patch.cueUser = "";
         await newExperimentVersion(p, patch); setPermissionFromPack(p, L.inner, p.hypothesisVersionId); await savePattern(p); toast("Урок изменён — настрой шаг"); go("plan");
       });
@@ -1392,14 +1491,16 @@
     const p = activePattern(); if (!p || !p.startDate) return go("today");
     const due = R.reviewDue(R.practiceStart(p), today(), D.reviews.filter(r => r.patternId === p.id));
     if (!due) { const last = D.reviews.filter(r => r.patternId === p.id).slice(-1)[0]; app.innerHTML = `<h1>Итог недели</h1><p class="muted">${last ? `Последний итог: ${esc(R.human(last.windowStart))} — ${esc(R.human(last.windowEnd))}, решение: ${esc((X.reviewDecisions.find(d => d.id === last.decision) || {}).label || last.decision)}.` : "Первый итог откроется на 7-й день недели."}</p><div class="row"><a class="btn block" href="#today">На главную</a></div>`; return; }
-    const x = expOf(p), h = hypOf(p), W = OB.week, s = R.windowSummary({ checkins: D.checkins, episodes: D.episodes, window: due, patternId: p.id, skillId: skillOfPattern(p), experiment: x });
+    const x = expOf(p), h = hypOf(p), W = OB.week, s = R.windowSummary({ checkins: D.checkins, episodes: D.episodes, window: due, patternId: p.id, skillId: skillOfPattern(p), experiment: x, lineageId: lineageOf(p) });
     const little = s.eveningCount < 3 || (s.opportunities + s.realEpisodes) === 0;
     const prevR = D.reviews.filter(r => r.patternId === p.id && !r.legacy).slice(-1)[0], prevBad = !!(prevR && prevR.decision !== "continue" && prevR.decision !== "observe");
     const resStr = s.results.length ? s.results.map(r => outcomeLabel(r.outcome)).join(", ") : "результатов не записано";
     const nar = R.weekNarrative({ pattern: p, summary: s, episodes: D.episodes }), a = s.attempts || {};
     const gaps = s.totalDays - s.eveningCount;
     const sup = h ? (h.supportingEpisodeIds || []).length : 0, con = h ? (h.contradictingEpisodeIds || []).length : 0;
-    const factsHtml = `<div class="stats"><div><b>${s.opportunities}</b><span>${esc(W.opps)}</span></div><div><b>${a.done || 0}${a.partial ? `<span style="font-size:14px">+${a.partial}</span>` : ""}</b><span>${esc(W.attempts)}${a.partial ? ` (${a.partial} ${esc(W.partial)})` : ""}</span></div><div><b>${s.impactRatings.length}<span style="font-size:14px">/${s.totalDays}</span></b><span>${esc(W.ratings)}</span></div></div>
+    const exs = D.episodes.filter(e => e.patternId === p.id && !e.legacy && e.dateKey && R.inWindow(e.dateKey, due) && e.newResponse && e.newResponse.status && e.newResponse.status !== "rehearsal" && (e.newResponse.afterAnswer || e.newResponse.action || e.newResponse.otherAction)).slice(-3);
+    const learnHtml = `${pathLineHTML()}${learningText(p) ? `<p class="small" style="margin:0 0 4px"><b>${esc(W.learning.replace("{lesson}", learningText(p)).replace(/\.$/, ""))}.</b></p>` : ""}${exs.length ? `<p class="small" style="margin:0 0 2px">${esc(W.examples)}</p><ul class="list">${exs.map(e => `<li class="small"><div class="date">${esc(R.humanShort(e.dateKey))} · ${esc(R.attemptStatusLabel(e.newResponse.status))}</div>${esc(e.newResponse.status === "other" ? e.newResponse.otherAction : e.newResponse.action)}${e.newResponse.afterAnswer ? ` — ${esc(e.newResponse.afterAnswer)}` : ""}</li>`).join("")}</ul>` : ""}${((s.attempts || {}).done || 0) + ((s.attempts || {}).partial || 0) < 2 ? `<p class="tiny" style="margin:0 0 6px">${esc(W.few)}</p>` : ""}`;
+    const factsHtml = learnHtml + `<div class="stats"><div><b>${s.opportunities}</b><span>${esc(W.opps)}</span></div><div><b>${a.done || 0}${a.partial ? `<span style="font-size:14px">+${a.partial}</span>` : ""}</b><span>${esc(W.attempts)}${a.partial ? ` (${a.partial} ${esc(W.partial)})` : ""}</span></div><div><b>${s.impactRatings.length}<span style="font-size:14px">/${s.totalDays}</span></b><span>${esc(W.ratings)}</span></div></div>
       <p class="small">Вечерних записей: ${s.eveningCount} из ${s.totalDays}. ${s.episodeDates.length ? `Поводы: ${s.episodeDates.map(d => R.humanShort(d)).join(", ")}. ` : ""}${a.other ? `${a.other} — ${esc(W.other)}. ` : ""}${a.rehearsal ? `${a.rehearsal} ${R.plural(a.rehearsal, "репетиция", "репетиции", "репетиций")} (поводом не считается). ` : ""}Трудность по вечерам: ${s.impactRatings.length ? s.impactRatings.map(r => r.value).join(", ") : "оценок нет"}; ${gaps} ${esc(W.gaps)}.${s.notSure ? ` Не уверен: ${s.notSure}.` : ""}</p>
       ${nar.before ? `<p class="small" style="margin:0 0 4px">${esc(W.before.replace("{reaction}", lc1(nar.before)))}</p>` : ""}${nar.now.length ? `<p class="small" style="margin:0 0 4px"><b>${esc(W.now.replace("{facts}", nar.now.join(", ")))}</b></p>` : `<p class="small muted" style="margin:0 0 4px">${esc(W.noData)}</p>`}
       ${x && x.prediction ? `<div class="card tight"><div class="k">Ожидание и факт</div><p class="small" style="margin:2px 0 0">Ожидал: «${esc(x.prediction)}». На деле: ${esc(resStr)}.</p></div>` : ""}
@@ -1446,13 +1547,13 @@
     $$("#cf .chip").forEach(b => b.onclick = () => { const i = b.dataset.i; if (checks.has(i)) checks.delete(i); else checks.add(i); b.classList.toggle("on"); upd(); });
     $$("#sk .chip").forEach(b => b.onclick = () => { sk = b.dataset.v; $$("#sk .chip").forEach(x => x.classList.toggle("on", x === b)); upd(); });
     $("#ok").onclick = async () => {
-      const f = { id: R.uuid(), skillId: sk, patternId: p.id, awardedAt: nowTs(), windowStart: el.windows[0].window.start, windowEnd: el.windows[1].window.end, evidenceDays: el.actionDays, evidenceIds: D.episodes.filter(e => e.patternId === p.id && R.isConfirmedAction(e, sk)).map(e => e.id), legacy: false };
+      const f = { id: R.uuid(), skillId: sk, patternId: p.id, awardedAt: nowTs(), windowStart: el.windows[0].window.start, windowEnd: el.windows[1].window.end, evidenceDays: el.actionDays, evidenceIds: D.episodes.filter(e => e.patternId === p.id && R.isConfirmedAction(e, sk, lineageOf(p))).map(e => e.id), legacy: false };
       await saveFlag(f); if (!p.skillId) { p.skillId = sk; await savePattern(p); }
       const cl = R.clarity(D.flags, TOTAL_SKILLS), cols = ["#FBE7A8", "#E2B65A", "#B9822A", "#C9BFFF", "#8C84C8", "#F2C4B0"];
       app.innerHTML = `${reduce() ? "" : `<div class="confetti" aria-hidden="true">${Array.from({ length: 50 }, (_, k) => `<i style="left:${(k * 37) % 100}%;background:${cols[k % 6]};animation-delay:${(k % 12) * 0.12}s"></i>`).join("")}</div>`}
         <p class="fanfare">Флаг твой</p><div class="trail" style="height:130px"><img src="${IMG("traveler")}" alt=""><i class="glow"></i></div>
         <h2>${esc(p.lesson && p.lesson.skillId === sk ? OB.complete.title.replace("{lesson}", lc1(p.lesson.title)) : `Ты научился отвечать иначе: ${lc1(skillLabel(sk))}`)}</h2>
-        ${(() => { const cases = D.episodes.filter(e => e.patternId === p.id && !e.legacy && R.isConfirmedAction(e, sk)).slice(-5); return `<p class="small" style="margin:0 0 4px"><b>${esc(cases.length ? OB.complete.cases : OB.complete.noCases)}</b></p>${cases.length ? `<ul class="list">${cases.map(e => `<li class="small"><div class="date">${esc(R.human(e.dateKey))}</div>${esc(e.newResponse.action || e.newResponse.note || actionLabel(e.newResponse))}${e.newResponse.afterAnswer ? ` — ${esc(e.newResponse.afterAnswer)}` : ""}</li>`).join("")}</ul>` : ""}`; })()}
+        ${(() => { const cases = D.episodes.filter(e => e.patternId === p.id && !e.legacy && R.isConfirmedAction(e, sk, lineageOf(p))).slice(-5); return `<p class="small" style="margin:0 0 4px"><b>${esc(cases.length ? OB.complete.cases : OB.complete.noCases)}</b></p>${cases.length ? `<ul class="list">${cases.map(e => `<li class="small"><div class="date">${esc(R.human(e.dateKey))}</div>${esc(e.newResponse.action || e.newResponse.note || actionLabel(e.newResponse))}${e.newResponse.afterAnswer ? ` — ${esc(e.newResponse.afterAnswer)}` : ""}</li>`).join("")}</ul>` : ""}`; })()}
         <p class="small">${(() => { const w = el.windows; const opp = w.reduce((a, s) => a + s.opportunities, 0); const ratings = w.map(s => s.impactRatings.map(r => r.value).join("·")).join(" | "); return `За две недели: реальных поводов ${opp}, применений в разные дни ${el.actionDays.length}, оценки трудности ${esc(ratings)}.`; })()}</p>
         <p class="small" style="margin:8px 0 4px"><b>${esc(OB.complete.continue)}</b></p><div class="chips col" id="cont">${OB.complete.opts.map(([v, l]) => `<button class="chip" data-c="${v}">${esc(l)}</button>`).join("")}</div><div id="contOwn"></div>
         <p class="small muted">${esc(OB.complete.note)} Небо: освоено ${cl.count} из ${cl.total} навыков.</p>
@@ -1545,51 +1646,42 @@
 
   /* =================== СИМВОЛИЧЕСКАЯ ТЕМА =================== */
   /* Шаг 3 входа. Открытие числа: астролябия, золотая цифра, название пути. Анимацию можно пропустить; при reduced motion — статично. */
+  /* Экран числа v6.3: число и название пути, краткий смысл, переходный вопрос, «Найти свой первый урок». Расчёт и подробности — по раскрытию. */
+  const pathProfileHTML = (n, open) => { const pr = X.pathProfiles[String(n)]; return `<details class="plain"${open ? " open" : ""}><summary>${esc(OB.reveal2.more)}</summary>${pr.expandedSections.map(([h, t]) => `<p class="small" style="margin:0 0 6px"><b>${esc(h)}.</b> ${esc(t)}</p>`).join("")}<p class="tiny">${esc(OPth.note)}</p></details>`; };
   function reveal(n) {
-    const S = P.symbolic, t = X.paths[n], r = R.calcNum(S.birth) || { digits: [], chain: [n] }, red = reduce() || !!(P.onb && P.onb.revealed);
-    /* Коротко: цифра и интрига. Без черт характера — толкование темы будет после подтверждённой ситуации. */
-    const finalHtml = () => `<h1 style="margin-top:6px">${esc(OB.number.lead)} ${n}</h1><p>${esc(OB.number.text)}</p>
-      <div class="row"><button class="btn block" id="go">${esc(OB.number.cta)}</button></div>
-      <p class="tiny" style="margin-top:8px">${esc(OB.reveal.note)}</p><div class="row tight"><a class="btn ghost sm" href="#birth">Другая дата</a></div>`;
-    app.innerHTML = `<div class="astro"><img src="${IMG("astrolabe")}" alt=""><div class="orb ${red ? "shown" : "calc"}" id="orb"><div class="core"><i class="fl"></i><img class="num" src="${IMG("num-" + n)}" alt="Число ${n}"></div></div></div>
-      <div class="digits" id="digits">${r.digits.map(d => `<span class="d">${d}</span>`).join("<span class='d'> + </span>")}<span class="sum d" id="sum"></span></div>
-      <div id="after">${red ? "" : `<div class="row tight"><button class="btn ghost sm" id="skipAnim">Пропустить</button></div>`}</div>`;
-    const done = () => { if (P.onb) { P.onb.revealed = true; saveProfile(true); } $("#after").innerHTML = finalHtml(); $("#go").onclick = async () => { onb().step = "area"; await saveProfile(true); go("area"); }; };
-    const spans = $$("#digits .d"); let i = 0, stopped = false;
-    const finishNow = () => { stopped = true; spans.forEach(x => x.style.opacity = 1); $("#sum").textContent = r.chain.length ? "= " + r.chain.join(" → ") : ""; $("#sum").style.opacity = 1; const orb = $("#orb"); orb.classList.remove("calc"); orb.classList.add("shown"); done(); };
-    if (red) return finishNow();
-    const tick = () => { if (stopped) return; if (i < spans.length - 1) { spans[i++].style.opacity = 1; setTimeout(tick, 90); return; } $("#sum").textContent = "= " + r.chain.join(" → "); $("#sum").style.opacity = 1; const orb = $("#orb"); orb.classList.remove("calc"); orb.classList.add("shown", "reveal"); setTimeout(() => { if (!stopped) done(); }, 900); };
-    spans.forEach(x => x.style.opacity = 0); tick();
-    const sk = $("#skipAnim"); if (sk) sk.onclick = finishNow;
+    const S = P.symbolic, pr = X.pathProfiles[String(n)], R2 = OB.reveal2, r = R.calcNum(S.birth) || { digits: [], chain: [n] }, red = reduce() || !!(P.onb && P.onb.revealed);
+    app.innerHTML = `<div class="astro compact"><img src="${IMG("astrolabe")}" alt=""><div class="orb ${red ? "shown" : "calc"}" id="orb"><div class="core"><i class="fl"></i><img class="num" src="${IMG("num-" + n)}" alt="Число ${n}"></div></div></div>
+      ${red ? "" : `<div class="row tight" id="skipRow" style="justify-content:flex-end;margin:0"><button class="btn ghost sm" id="skipAnim">Пропустить</button></div>`}
+      <h1 style="margin-top:4px">${esc(R2.lead)} ${n}</h1><p style="margin:0 0 6px"><b>${esc(pr.displayName)}</b></p><p>${esc(pr.shortIntro)}</p>
+      <p class="small muted">${esc(R2.question)}</p>
+      <div class="row"><button class="btn block" id="go">${esc(R2.cta)}</button></div>
+      ${pathProfileHTML(n, false)}
+      <details class="plain"><summary>${esc(R2.calc)}</summary><p class="small">${esc(r.digits.join(" + "))}${r.chain.length ? " = " + esc(r.chain.join(" → ")) : ""}</p></details>
+      <div class="row tight"><a class="btn ghost sm" href="#birth">${esc(R2.date)}</a></div>`;
+    let stopped = false;
+    const finish = () => { stopped = true; const orb = $("#orb"); if (orb) { orb.classList.remove("calc", "reveal"); orb.classList.add("shown"); } const sr = $("#skipRow"); if (sr) sr.remove(); if (P.onb) { P.onb.revealed = true; saveProfile(true); } };
+    if (red) finish(); else { const orb = $("#orb"); setTimeout(() => { if (orb.isConnected && !stopped) { orb.classList.remove("calc"); orb.classList.add("shown", "reveal"); setTimeout(() => { if (orb.isConnected && !stopped) { const sr = $("#skipRow"); if (sr) sr.remove(); stopped = true; if (P.onb) { P.onb.revealed = true; saveProfile(true); } } }, 1100); } }, 500); $("#skipAnim").onclick = finish; }
+    $("#go").onclick = async () => { finish(); onb().step = "area"; await saveProfile(true); go("area"); };
   }
   function symbol() {
     const S = P.symbolic || {};
-    const topicHtml = n => { const t = X.paths[n]; return `<div class="card mark"><div class="k">${ic("star")}${esc(t.name)}</div><p class="small" style="margin:2px 0 4px">${esc(t.theme)}</p><p class="quote" style="margin:0">${esc(t.prompt)}</p></div><p class="tiny">${esc(C.entryCopy.symbolicNote)}</p>`; };
     if (S.num) {
-      const n = S.chosen || S.num;
+      const n = S.chosen || S.num, pr = X.pathProfiles[String(n)];
       if (P.onb && !anyPattern()) return reveal(n);
-      app.innerHTML = `<div class="astro"><img src="${IMG("astrolabe")}" alt=""><div class="orb shown"><div class="core"><i class="fl"></i><img class="num" src="${IMG("num-" + n)}" alt="Число ${n}"></div></div></div>
-        ${topicHtml(n)}
-        <p class="small muted">Узнаёшь это в своей жизни?</p><div class="sw3"><button class="btn secondary sm" data-r="yes">Да</button><button class="btn secondary sm" data-r="part">Отчасти</button><button class="btn secondary sm" data-r="no">Нет</button></div>
-        <details class="plain"><summary>Выбрать другую тему</summary><div class="chips">${Object.entries(X.paths).map(([k, t]) => `<button class="chip ${String(n) === k ? "on" : ""}" data-t="${k}">${k} · ${esc(t.name)}</button>`).join("")}</div></details>
+      const recog = (P.pathRecognition || []).filter(r => pr.recognitionItems.some(i => i.id === r.itemId));
+      app.innerHTML = `<div class="astro compact"><img src="${IMG("astrolabe")}" alt=""><div class="orb shown"><div class="core"><i class="fl"></i><img class="num" src="${IMG("num-" + n)}" alt="Число ${n}"></div></div></div>
+        <h1 style="margin-top:4px">${n} · ${esc(pr.displayName)}</h1><p>${esc(pr.shortIntro)}</p>
+        ${recog.length ? `<p class="small muted" style="margin:0 0 6px">Ты отмечал знакомым: ${recog.map(r => esc(lc1((pr.recognitionItems.find(i => i.id === r.itemId) || {}).text || ""))).join("; ")}.</p>` : ""}
+        ${pathProfileHTML(n, true)}
+        <details class="plain"><summary>Выбрать другую тему</summary><div class="chips">${Object.keys(X.paths).map(k => `<button class="chip ${String(n) === k ? "on" : ""}" data-t="${k}">${k} · ${esc(X.pathProfiles[k].displayName)}</button>`).join("")}</div></details>
         <div class="row tight"><button class="btn ghost" id="rm">Убрать число</button><a class="btn ghost" href="#story">Назад</a></div>`;
-      $$("[data-r]").forEach(b => b.onclick = async () => { P.symbolic.recog = b.dataset.r; await saveProfile(); toast(b.dataset.r === "no" ? "Хорошо. Ниже можно выбрать другую тему — или не выбирать." : "Записано"); });
-      $$("[data-t]").forEach(b => b.onclick = async () => { P.symbolic.chosen = Number(b.dataset.t); await saveProfile(); symbol(); });
-      $("#rm").onclick = async () => { P.symbolic = null; await saveProfile(); go("story"); };
+      $$("[data-t]").forEach(b => b.onclick = async () => { P.symbolic.chosen = Number(b.dataset.t); P.companion = null; await saveProfile(); symbol(); });
+      $("#rm").onclick = async () => { P.symbolic = null; P.companion = null; await saveProfile(); go("story"); };
       return;
     }
-    app.innerHTML = `<h1>Число пути</h1><p class="small muted">По желанию. Сумма цифр даты рождения даёт число 1–9 и тему твоего пути для размышления. Подробнее — в «О подходе».</p>
+    app.innerHTML = `<h1>Число пути</h1><p class="small muted">По желанию. Сумма цифр даты рождения даёт число 1–9 и тему твоего пути. Подробнее — в «О подходе».</p>
       <label for="b">Дата рождения</label><input type="date" id="b" min="1920-01-01" max="${today()}"><div class="row"><button class="btn block" id="go">Посчитать</button></div><div class="row tight"><a class="btn ghost" href="#story">Не нужно</a></div>`;
-    $("#go").onclick = async () => {
-      const v = $("#b").value; const r = R.calcNum(v); if (!r) return toast("Укажи дату");
-      P.symbolic = { birth: v, num: r.num, chosen: null }; await saveProfile();
-      const red = reduce();
-      app.innerHTML = `<div class="astro"><img src="${IMG("astrolabe")}" alt=""><div class="orb ${red ? "shown" : "calc"}" id="orb"><div class="core"><i class="fl"></i><img class="num" src="${IMG("num-" + r.num)}" alt="Число ${r.num}"></div></div></div>
-        <div class="digits" id="digits">${r.digits.map(d => `<span class="d">${d}</span>`).join("<span class='d'> + </span>")}<span class="sum d" id="sum"></span></div><div id="after"></div>`;
-      const spans = $$("#digits .d"); let i = 0;
-      const tick = () => { if (i < spans.length - 1) { spans[i++].style.opacity = 1; setTimeout(tick, red ? 0 : 90); return; } $("#sum").textContent = "= " + r.chain.join(" → "); $("#sum").style.opacity = 1; const orb = $("#orb"); if (!red) { orb.classList.remove("calc"); orb.classList.add("shown", "reveal"); } setTimeout(() => { $("#after").innerHTML = `${topicHtml(r.num)}<div class="row"><a class="btn block" href="#symbol">Дальше</a></div>`; }, red ? 0 : 900); };
-      spans.forEach(s => s.style.opacity = 0); tick();
-    };
+    $("#go").onclick = async () => { const v = $("#b").value; const r = R.calcNum(v); if (!r) return toast("Укажи дату"); P.symbolic = { birth: v, num: r.num, chosen: null }; P.companion = null; await saveProfile(); symbol(); };
   }
 
   /* =================== О МЕТОДЕ =================== */
@@ -1699,6 +1791,8 @@
       }
       /* Схема 6: прежние планы помечаются legacy и предлагаются к уточнению; выдуманные условия не добавляются. */
       if (sv < 6) R.migrateV6(D);
+      /* Схема 7: цель отделена от жалобы, линии планов, проверка принадлежности вечеров. Повторный запуск безопасен. */
+      if (sv < 7) R.migrateV63(D);
       D.meta.schemaVersion = R.SCHEMA_VERSION; D.meta.upgradedAt = Date.now();
       try { await ST.replaceAll(Object.assign(D, { profile: P })); } catch (e) { saveError(e); }
     }
