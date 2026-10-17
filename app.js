@@ -637,6 +637,7 @@
      Колода примеров остаётся необязательной — диалог и колода не идут друг за другом. Резюме — только из ответов. */
   const dialogFor = S => S && S.area === "work" && S.ctx === "boss" ? (X.dialogs || {})["work:boss"] || null : null;
   const lessonTitleFor = (id, vid) => { const l = lessonView(id, vid); return l ? l.title : id; };
+  const lessonActionFor = (id, vid) => { const l = lessonView(id, vid); return l ? uc1(l.action) : id; };
   function sparkHTML(state) {
     const D = OB.dialog;
     if (P.sparkOff) return `<div class="spark off"><button class="linkbtn tiny" id="sparkTgl">${esc(D.show)}</button></div>`;
@@ -655,22 +656,25 @@
         <div class="row tight"><a class="btn ghost sm" href="#workctx">Другой контекст</a></div>`;
       bindSpark(); $("#dStart").onclick = async () => { st.status = "asking"; await persistOnb(); dialog(); }; return;
     }
-    const res = R.dialogNext(B, st, { variants: X.variants, lessonOf: lessonTitleFor }), q = res.next, f = res.fields;
+    const res = R.dialogNext(B, st, { variants: X.variants, lessonOf: lessonTitleFor, actionOf: lessonActionFor }), q = res.next, f = res.fields;
     const answer = async (qid, v, text) => { R.dialogAnswer(st, qid, v, text); st.status = "asking"; const ok = await persistOnb(); dialog(); return ok !== false; };
     const back = async () => { if (st.status === "summary" || st.status === "step") st.status = "asking"; R.dialogUndo(st); await persistOnb(); dialog(); };
-    const head = sparkState => `${sparkHTML(sparkState)}<div class="row tight" style="justify-content:space-between;margin:0 0 4px"><span class="tiny" id="dQn">${res.done ? `Вопросов: ${res.asked}` : esc(D.qn.replace("{n}", res.asked + 1))}</span>${st.order.length ? `<button class="linkbtn tiny" id="dBack">${esc(D.back)}</button>` : `<a class="linkbtn tiny" href="#workctx">${esc(D.back)}</a>`}</div>`;
+    const head = sparkState => `${sparkHTML(sparkState)}<div class="row tight" style="justify-content:space-between;margin:0 0 4px"><span class="tiny" id="dQn">${res.done || q.kind === "noEvent" || q.kind === "unsupported" ? `Вопросов: ${res.asked}` : esc(D.qn.replace("{n}", res.asked + 1))}</span>${st.order.length ? `<button class="linkbtn tiny" id="dBack">${esc(D.back)}</button>` : `<a class="linkbtn tiny" href="#workctx">${esc(D.back)}</a>`}</div>`;
     const bindHead = () => { bindSpark(); const b = $("#dBack"); if (b) b.onclick = back; };
     const lbl = v => v === "__unknown" ? (q.id === "type" ? D.typeUnknown : D.unknown) : v === "__unsure" ? D.unsureMeaning : v === "__observe" ? D.observe : null;
     if (q.kind === "choice" || q.kind === "when") {
-      const opts = q.kind === "when" ? X.lastTime : q.options.map(([v, t]) => [v, (String(t).startsWith("__") ? lbl(t) : null) || (q.id === "desire" && v.startsWith("L:") ? "Учиться " + t : t)]);
-      const title = { type: D.qType, meaning: D.qMeaning, reaction: D.qReaction, desire: D.qDesire, when: D.qWhen }[q.id] || "";
-      const lead = q.id === "meaning" || q.id === "reaction" || q.id === "desire" ? `«${f.eventText}»` : "";
+      /* ownStep: своя цель показана дословно; «своё действие» — отдельное поле ввода, не вариант */
+      const isOS = q.id === "ownStep";
+      const opts = q.kind === "when" ? X.lastTime : q.options.filter(([v]) => v !== "__ownAction").map(([v, t]) => [v, (String(t).startsWith("__") ? lbl(t) : null) || (q.id === "desire" && v.startsWith("L:") ? "Учиться " + t : t)]);
+      if (isOS) q.own = true;
+      const title = { type: D.qType, meaning: D.qMeaning, reaction: D.qReaction, desire: D.qDesire, when: D.qWhen, ownStep: D.qOwnStep }[q.id] || "";
+      const lead = isOS ? D.ownGoalLead.replace("{g}", R.trimEnd(q.goal)) : q.id === "meaning" || q.id === "reaction" || q.id === "desire" ? `«${f.eventText}»` : "";
       app.innerHTML = `${head("listen")}${lead ? `<p class="tiny" style="margin:0 0 4px">${esc(lead)}</p>` : ""}<h1 class="q">${esc(title)}</h1>
-        <div class="chips col" id="dOpts">${opts.map(([v, t]) => `<button class="chip ${(st.answers[q.id] || {}).v === v ? "on" : ""}" data-v="${esc(v)}">${esc(t)}</button>`).join("")}${q.own ? `<button class="chip dim" id="dOwn">${esc(D.own)}</button>` : ""}</div>
-        <div id="dOwnBox"></div>`;
+        <div class="chips col" id="dOpts">${opts.map(([v, t]) => `<button class="chip ${(st.answers[q.id] || {}).v === v ? "on" : ""}" data-v="${esc(v)}">${esc(t)}</button>`).join("")}${q.own ? `<button class="chip dim" id="dOwn">${esc(isOS ? D.ownAction : D.own)}</button>` : ""}</div>
+        ${isOS ? `<p class="tiny muted" style="margin:6px 0 0">${esc(D.ownStepNote)}</p>` : ""}<div id="dOwnBox"></div>`;
       bindHead();
       $$("#dOpts [data-v]").forEach(b => b.onclick = () => answer(q.id, b.dataset.v));
-      const ow = $("#dOwn"); if (ow) ow.onclick = () => { $("#dOwnBox").innerHTML = `<textarea id="dOwnT" placeholder="${esc(D.ownPh)}"></textarea><div class="row tight"><button class="btn secondary sm" id="dOwnOk">Готово</button></div>`; $("#dOwnT").focus(); $("#dOwnOk").onclick = () => { const t = $("#dOwnT").value.trim(); if (!t) return toast("Напиши пару слов"); answer(q.id, "__own", t); }; };
+      const ow = $("#dOwn"); if (ow) ow.onclick = () => { $("#dOwnBox").innerHTML = `<textarea id="dOwnT" placeholder="${esc(isOS ? D.ownActionPh : D.ownPh)}"></textarea><div class="row tight"><button class="btn secondary sm" id="dOwnOk">Готово</button></div>`; $("#dOwnT").focus(); $("#dOwnOk").onclick = () => { const t = $("#dOwnT").value.trim(); if (!t) return toast("Напиши пару слов"); answer(q.id, isOS ? "__ownAction" : "__own", t); }; };
       return;
     }
     if (q.kind === "yn") {
@@ -715,15 +719,15 @@
       return;
     }
     /* подтверждённая история → предложение шага: подтверждение истории ≠ согласие с методом */
-    const vid = f.variantId, L = f.desire.kind === "lesson" ? lessonView(f.desire.lessonId, vid) : null;
-    const tpl = L ? templateFor(L, { event: vid, sting: {} }) : null, card = tpl ? tpl.template : null;
-    const firstStep = L ? uc1(L.action) : (f.meaning && f.meaning.observe ? uc1(f.meaning.observe.action) : uc1(X.lessonObserve.action));
+    const vid = f.variantId, ownG = f.desire.kind === "own", L = (f.desire.kind === "lesson" || (ownG && f.desire.lessonId && !f.desire.observeStep)) ? lessonView(f.desire.lessonId, vid) : null;
+    const tpl = L ? templateFor(L, { event: vid, sting: {} }) : null, card = tpl && !(ownG && f.desire.ownAction) ? tpl.template : null;
+    const firstStep = ownG && f.desire.ownAction ? uc1(f.desire.ownAction) : L ? uc1(L.action) : (f.meaning && f.meaning.observe ? uc1(f.meaning.observe.action) : uc1(X.lessonObserve.action));
     app.innerHTML = `${head("support")}<h1 class="q">${esc(D.stepTitle)}</h1>
       <div class="card mark" id="dStep"><div class="plines">
         <div><span>${esc(D.stepTeacher)}:</span> руководитель</div>
-        <div><span>${esc(D.stepLesson)}:</span> ${esc(L ? L.title : (f.desire.kind === "own" ? lc1(f.desire.text) : X.lessonObserve.headline))}</div>
+        <div><span>${esc(ownG ? D.stepGoal : D.stepLesson)}:</span> ${esc(ownG ? `«${R.trimEnd(f.desire.text)}»` : L ? L.title : X.lessonObserve.headline)}</div>
         <div><span>${esc(D.stepFirst)}:</span> ${esc(firstStep)}</div>
-        ${card && card.afterQuestion ? `<div><span>${esc(D.stepCheck)}:</span> ${esc(card.afterQuestion)}</div>` : ""}
+        ${card && card.afterQuestion ? `<div><span>${esc(D.stepCheck)}:</span> ${esc(card.afterQuestion)}</div>` : ownG && f.desire.ownAction ? `<div><span>${esc(D.stepCheck)}:</span> ${esc(D.ownCheck)}</div>` : ""}
       </div></div>
       <div class="row"><button class="btn block" id="dOk">${esc(D.stepOk)}</button></div>
       <div class="row tight"><button class="btn ghost" id="dChange">${esc(D.stepChange)}</button><button class="btn ghost" id="dObs3">${esc(D.stepObserve)}</button></div>`;
@@ -733,7 +737,8 @@
       S.teacher = { kind: "boss", label: X.teacherLabels.boss, ownName: "", area: "work" };
       S.case = { text: f.eventText, when: f.whenCase, date: null, repeat: null, origin: "dialog_selected" };
       S.sting = { meaningId: f.meaning.id, text: f.meaning.text || "", lessonId: f.meaning.lessonId || null, observe: f.meaning.observe || null, origin: f.meaning.origin, repeat: null, reaction: f.reaction || null };
-      S.want = observe || f.desire.kind === "observe" ? { kind: "observe", text: OB.plan.observeGoal, origin: "user_selected", lessonId: null } : f.desire.kind === "lesson" ? { kind: "lesson", key: "L:" + f.desire.lessonId, lessonId: f.desire.lessonId, text: uc1(L.title), origin: "user_selected" } : { kind: "own", text: uc1(f.desire.text), origin: "user_written", lessonId: null };
+      const obsW = observe || f.desire.kind === "observe" || (ownG && f.desire.observeStep);
+      S.want = obsW ? { kind: "observe", text: OB.plan.observeGoal, origin: "user_selected", lessonId: null, goalText: ownG ? R.trimEnd(f.desire.text) : undefined } : f.desire.kind === "lesson" ? { kind: "lesson", key: "L:" + f.desire.lessonId, lessonId: f.desire.lessonId, text: uc1(L.title), origin: "user_selected" } : { kind: "own", text: uc1(R.trimEnd(f.desire.text)), origin: "user_written", lessonId: f.desire.lessonId || null, ownAction: f.desire.ownAction || null };
       S.confirmed = true; S.lesson = null; S.rejected = [];
       S.dialogResult = { bank: B.id, bankVersion: B.version, answers: JSON.parse(JSON.stringify(st.answers)), order: [...st.order], summary: R.dialogSummary(f, D), asked: res.asked, confirmedAt: st.confirmedAt || nowTs(), misses: st.misses || 0 };
       const LL = S.want.kind === "observe" ? X.lessonObserve : (lessonByWant(S) || X.lessonObserve);
@@ -743,16 +748,20 @@
     $("#dObs3").onclick = () => handoff(true);
     $("#dChange").onclick = async () => { R.dialogFix(st, "desire"); st.status = "asking"; await persistOnb(); dialog(); };
   }
+  /* v6.7.1: из диалога руководителя уже известны сфера, контекст и учитель — не спрашиваем их заново */
+  const fromBossDialog = S => !!(S.dialog && S.area === "work" && S.ctx === "boss");
   function ownScenario() {
-    const S = onb();
+    const S = onb(), fromD = fromBossDialog(S);
     flow({ id: "onb-own", scope: "onb", title: "Свой случай", cancelLabel: "Назад", onCancel: () => go(S.area && S.area !== "own" ? (S.area === "work" && !S.ctx ? "workctx" : "cards") : "area"),
       steps: [
-        { k: "own", q: "Что произошло?", lead: "Одно событие, как запись камеры: без оценок и выводов.", type: "text", ph: "Например: коллега попросил подменить в выходной", req: "Напиши пару слов: что именно произошло" },
+        { k: "own", q: "Что произошло?", lead: (fromD ? OB.dialog.ownCarry + " " : "") + "Одно событие, как запись камеры: без оценок и выводов.", type: "text", ph: "Например: коллега попросил подменить в выходной", req: "Напиши пару слов: что именно произошло" },
         { k: "pack", q: OB.own.theme, lead: OB.own.themeLead, type: "choice", opts: [...C.packs.map(pk => [pk.id, pk.title]), ["__unclear", OB.own.unclear]] },
       ],
       onDone: async ans => {
         S.event = null; S.own = { text: ans.own, packId: ans.pack === "__unclear" ? null : ans.pack, version: C.contentVersion, area: S.area && S.area !== "own" ? S.area : null }; S.case = null; S.sting = null; S.want = null; S.confirmed = false; S.step = "teacher";
-        dropDraft("onb-sting-own", "onb"); dropDraft("onb-case-own", "onb"); dropDraft("onb-want-own", "onb"); await persistOnb(); go("teacher");
+        dropDraft("onb-sting-own", "onb"); dropDraft("onb-case-own", "onb"); dropDraft("onb-want-own", "onb");
+        if (fromD) { S.teacher = { kind: "boss", label: X.teacherLabels.boss, ownName: "", area: "work", origin: "dialog_context" }; S.step = "case"; await persistOnb(); return go("case"); }
+        await persistOnb(); go("teacher");
       } });
   }
   const suggestTeacher = S => S.area === "work" && S.ctx ? (X.workTeacher || {})[S.ctx] || null : null;
@@ -808,7 +817,10 @@
     const S = onb(); const ev = S.event ? variantById(S.event) : null;
     if (!ev && !S.own) return go("cards"); if (!S.case) return go("case");
     const evText = S.case.text || (ev ? ev.text : S.own.text);
-    const meanings = ev ? ev.meanings : X.ownMeanings;
+    /* свой случай после диалога: выбранное там «что задевает» предлагается первым (подтверждает человек) */
+    const dm = !ev && fromBossDialog(S) && S.dialog.answers && S.dialog.answers.meaning ? S.dialog.answers.meaning : null;
+    const dmText = dm ? (dm.v === "__own" ? dm.text : ((variantById((B0 => { const e = Object.keys(S.dialog.answers).find(k => k.startsWith("e:") && S.dialog.answers[k].v === "yes"); return e && B0 ? B0.events[e.slice(2)].variantId : null; })(dialogFor(S))) || { meanings: [] }).meanings.find(m => m.id === dm.v) || {}).text) : null;
+    const meanings = ev ? ev.meanings : (dmText ? [{ id: "dlg", text: R.trimEnd(dmText) }, ...X.ownMeanings.filter(m => m.text !== dmText)] : X.ownMeanings);
     const sid = ev ? "onb-sting-" + ev.id : "onb-sting-own";
     if (S.sting) seedDraft(sid, { m: S.sting.meaningId === "own" ? "__own" : S.sting.meaningId === "other" ? "__other" : S.sting.meaningId === "unsure" ? "__unsure" : S.sting.meaningId, m_own: S.sting.meaningId === "own" ? S.sting.text : undefined });
     const steps = [{ k: "m", q: OSg.title, lead: `«${evText}»`, type: "choice", opts: [...meanings.map(m => [m.id, m.text]), ...X.meaningExtra], own: true, ownPh: "Своими словами" }];
@@ -888,7 +900,7 @@
   /* Урок по значению: глобальный id (направление может быть из другого пакета). Наблюдение по значению — предметный шаг без причины. */
   const lessonByMeaning = S => { const st = S.sting || {}; if (st.lessonId) return lessonView(st.lessonId, S.event || null); if (st.observe) return Object.assign({}, X.lessonObserve, { id: "observe:" + (S.event || "own") + ":" + (st.meaningId || ""), title: st.observe.title, action: st.observe.action, signal: st.observe.signal, headline: "Первый шаг — " + st.observe.title }); return null; };
   /* Урок по выбранному направлению «что хочу иначе»; свои слова — урок по «что задело», если он есть, иначе наблюдение и выбор направления. */
-  const lessonByWant = S => { const w = S.want; if (!w) return lessonByMeaning(S); if (w.kind === "lesson") return lessonView(w.lessonId, S.event || null); if (w.kind === "observe") return w.meaningId && S.sting && S.sting.observe ? lessonByMeaning(S) : null; return lessonByMeaning(S); };
+  const lessonByWant = S => { const w = S.want; if (!w) return lessonByMeaning(S); if (w.kind === "lesson") return lessonView(w.lessonId, S.event || null); if (w.kind === "observe") return w.meaningId && S.sting && S.sting.observe ? lessonByMeaning(S) : null; if (w.kind === "own" && w.lessonId) return lessonView(w.lessonId, S.event || null); return lessonByMeaning(S); };
   function lessonsFor(S) {
     const vv = S.event ? variantById(S.event) : null;
     if (vv) { const seen = new Set(); return vv.meanings.filter(m => m.lessonId && !seen.has(m.lessonId) && seen.add(m.lessonId)).map(m => lessonView(m.lessonId, vv.variantId)); }
@@ -957,6 +969,8 @@
     const desired = wantMatches ? (W.kind === "lesson" ? uc1(L.title) : W.text) : "";
     const x = Object.assign(R.planFromTemplate({ template: tpl.template, kind: tpl.kind, patternId: p.id, lessonId: L.id, skillId: L.skillId, basisIds: basis, painText: S.sting.text || "", desiredChange: desired, createdAt: ts, mode: tpl.mode, once: tpl.once }), { id: R.uuid(), hypothesisVersionId: null, lessonId: L.id }); x.lineageId = x.id;
     if (desired) { x.goalOrigin = W.kind === "own" ? "user_written" : W.kind === "observe" ? "observe" : "user_confirmed"; x.goalAt = ts; }
+    /* v6.7.1: своё действие из диалога — слова человека, шаблон только задаёт рамку момента */
+    if (W.kind === "own" && W.ownAction && wantMatches) x.actionUser = uc1(W.ownAction);
     p.experimentId = x.id; await saveExp(x); await savePattern(p);
     if (hasCase) {
       const e = { id: R.uuid(), patternId: p.id, linkStatus: "confirmed", occurredAt: ts, loggedAt: ts, dateKey: caseDate, dateApprox: cs.date || cs.when === "today" ? null : cs.when, tz: R.tz(), event: caseText, person: tl, emotion: null, intensity: null, response: null, verificationStatus: "onboarding", isRehearsal: false, legacy: false, meaning: S.sting.text || null };

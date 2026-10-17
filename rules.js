@@ -402,7 +402,8 @@
      Поэтому правка одного поля не сбрасывает остальные, а смена события снимает только зависимые ответы.
      «Не знаю» не равно «нет». Число пути во входных данных не участвует. */
   R.YES = v => v === "yes" || v === "probably";
-  R.dialogNext = function (bank, st, { variants = [], lessonOf = null } = {}) {
+  R.trimEnd = t => String(t || "").trim().replace(/[\s.!…;,]+$/u, "");
+  R.dialogNext = function (bank, st, { variants = [], lessonOf = null, actionOf = null } = {}) {
     const A = (st && st.answers) || {}, rejected = new Set((st && st.rejected) || []), f = {}, basis = [];
     let asked = 0;
     const get = q => A[q];
@@ -463,17 +464,33 @@
       f.clarify = { id: ev.clarify, v: ca.v }; if (key) prefer = c.prefer[key] || [];
       basis.push({ q: c.text, a: ca.v });
     }
-    /* 6. желаемое изменение: направления этого варианта; первым — урок выбранного «что задевает», затем по уточнению */
+    /* 6. желаемое изменение (v6.7.1): только направления, связанные с выбранным «что задевает» (редакторская карта банка);
+       если смысл не выбран — все направления варианта. Первым — урок смысла, затем по уточнению. */
     const lids = [...new Set((variant ? variant.meanings : []).map(m => m.lessonId).filter(Boolean))];
-    const first = [f.meaning.lessonId, ...prefer].filter(id => id && lids.includes(id));
-    const ordered = [...new Set([...first, ...lids])];
+    const curated = mm && ev.desire && ev.desire[mm.id] ? ev.desire[mm.id].filter(id => lids.includes(id)) : null;
+    const allowed = curated && curated.length ? curated : mm && mm.lessonId ? [mm.lessonId] : lids;
+    const first = [f.meaning.lessonId, ...prefer].filter(id => id && allowed.includes(id));
+    const ordered = [...new Set([...first, ...allowed])];
     const dOpts = ordered.map(id => ["L:" + id, lessonOf ? lessonOf(id, ev.variantId) : id]).concat([["__observe", "__observe"]]);
     const da = get("desire");
     const dValid = da && (dOpts.some(o => o[0] === da.v) || (da.v === "__own" && da.text));
     if (!dValid) return ask({ id: "desire", kind: "choice", options: dOpts, own: true, preferred: ordered[0] || null });
     asked++;
-    f.desire = da.v.startsWith("L:") ? { kind: "lesson", lessonId: da.v.slice(2), text: lessonOf ? lessonOf(da.v.slice(2), ev.variantId) : da.v.slice(2) } : da.v === "__own" ? { kind: "own", lessonId: null, text: da.text } : { kind: "observe", lessonId: null, text: "" };
+    f.desire = da.v.startsWith("L:") ? { kind: "lesson", lessonId: da.v.slice(2), text: lessonOf ? lessonOf(da.v.slice(2), ev.variantId) : da.v.slice(2) } : da.v === "__own" ? { kind: "own", lessonId: null, text: R.trimEnd(da.text) } : { kind: "observe", lessonId: null, text: "" };
     basis.push({ q: "desire", a: f.desire.text || "наблюдение" });
+    /* 6а. своя цель сохраняется дословно; смысл свободного текста не угадывается — человек сам выбирает ближайший шаг,
+       своё действие или наблюдение. Молчаливой подстановки наблюдения нет. */
+    if (f.desire.kind === "own") {
+      const sOpts = ordered.map(id => ["L:" + id, actionOf ? actionOf(id, ev.variantId) : id]).concat([["__ownAction", "__ownAction"], ["__observe", "__observe"]]);
+      const sa = get("ownStep");
+      const sValid = sa && (sOpts.some(o => o[0] === sa.v && o[0] !== "__ownAction") || (sa.v === "__ownAction" && sa.text));
+      if (!sValid) return ask({ id: "ownStep", kind: "choice", options: sOpts, goal: f.desire.text });
+      asked++;
+      if (sa.v.startsWith("L:")) { f.desire.lessonId = sa.v.slice(2); f.desire.step = actionOf ? actionOf(f.desire.lessonId, ev.variantId) : f.desire.lessonId; }
+      else if (sa.v === "__ownAction") { f.desire.lessonId = f.meaning.lessonId && allowed.includes(f.meaning.lessonId) ? f.meaning.lessonId : (ordered[0] || null); f.desire.ownAction = R.trimEnd(sa.text); f.desire.step = f.desire.ownAction; }
+      else f.desire.observeStep = true;
+      basis.push({ q: "ownStep", a: f.desire.step || "наблюдение" });
+    }
     /* 7. когда — для честной даты случая */
     const wa = get("when");
     if (!wa || !wa.v) return ask({ id: "when", kind: "when" });
@@ -486,19 +503,20 @@
   /* Поправить часть: снимаются только ответы этого поля (и для события — выбор примера). */
   R.dialogFix = function (st, part, bankEvents) {
     const drop = q => { delete st.answers[q]; st.order = (st.order || []).filter(x => x !== q); };
-    if (part === "event") { Object.keys(st.answers).filter(q => q.startsWith("e:")).forEach(q => { if (st.answers[q].v === "yes") { st.rejected = [...new Set([...(st.rejected || []), q.slice(2)])]; } drop(q); }); drop("meaning"); drop("desire"); Object.keys(st.answers).filter(q => q.startsWith("c:")).forEach(drop); }
-    if (part === "meaning") { drop("meaning"); drop("desire"); } /* желаемое изменение зависит от того, что задевает */
+    if (part === "event") { Object.keys(st.answers).filter(q => q.startsWith("e:")).forEach(q => { if (st.answers[q].v === "yes") { st.rejected = [...new Set([...(st.rejected || []), q.slice(2)])]; } drop(q); }); drop("meaning"); drop("desire"); drop("ownStep"); Object.keys(st.answers).filter(q => q.startsWith("c:")).forEach(drop); }
+    if (part === "meaning") { drop("meaning"); drop("desire"); drop("ownStep"); } /* желаемое изменение зависит от того, что задевает */
     if (part === "reaction") drop("reaction");
-    if (part === "desire") drop("desire");
+    if (part === "desire") { drop("desire"); drop("ownStep"); }
     if (part === "all") { st.misses = (st.misses || 0) + 1; const keep = {}; st.answers = keep; st.order = []; st.rejected = []; }
     return st;
   };
   /* Резюме только из ответов; неизвестное остаётся неизвестным. */
   R.dialogSummary = function (f, T) {
     const parts = [];
-    parts.push(`${f.when[0].toUpperCase()}${f.when.slice(1)}${f.meaning && f.meaning.text ? `, тебя задевает: «${f.meaning.text}».` : `, ${T.meaningUnknown}.`}`);
-    parts.push(f.reaction ? `Обычно: «${f.reaction}».` : `${T.reactionUnknown[0].toUpperCase()}${T.reactionUnknown.slice(1)}.`);
-    if (f.desire && f.desire.kind !== "observe" && f.desire.text) parts.push(`Хочется: ${f.desire.text}.`);
+    /* собственная завершающая точка не склеивается с точкой шаблона */
+    parts.push(`${f.when[0].toUpperCase()}${f.when.slice(1)}${f.meaning && f.meaning.text ? `, тебя задевает: «${R.trimEnd(f.meaning.text)}».` : `, ${T.meaningUnknown}.`}`);
+    parts.push(f.reaction ? `Обычно: «${R.trimEnd(f.reaction)}».` : `${T.reactionUnknown[0].toUpperCase()}${T.reactionUnknown.slice(1)}.`);
+    if (f.desire && f.desire.kind !== "observe" && f.desire.text) parts.push(f.desire.kind === "own" ? `Хочется: «${R.trimEnd(f.desire.text)}».` : `Хочется: ${R.trimEnd(f.desire.text)}.`);
     else if (f.desire && f.desire.kind === "observe") parts.push("Направление пока не выбрано — начнём с наблюдения.");
     return parts.join(" ");
   };

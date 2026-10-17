@@ -1,7 +1,7 @@
 /* Путь кармы v2 — редакционный контент. Правки текстов — здесь. */
 window.KARMA_CONTENT = {
  "schemaVersion": 1,
- "contentVersion": "2026-10-17-v6.7-proto",
+ "contentVersion": "2026-10-17-v6.7.1-proto",
  "locale": "ru",
  "audience": "adults",
  "status": "original editorial seed content; review and pilot before public claims",
@@ -351,7 +351,7 @@ window.KARMA_CONTENT = {
      "branch": "rule",
      "text": "Ошибка для меня означает, что я недостаточно хорош.",
      "question": "Что я заключаю о себе из одной ошибки?",
-     "innerPermission": "Я могу ошибаться и оставаться достойным уважения.",
+     "innerPermission": "Я могу ошибаться и сохранять уважение к себе.",
      "outerActionExample": "Показать достаточно готовый результат в малорисковой задаче.",
      "exerciseId": "rule_permission",
      "status": "candidate",
@@ -411,8 +411,8 @@ window.KARMA_CONTENT = {
    "lessons": [
     {
      "id": "criticism-l1",
-     "title": "оставаться достойным уважения, когда ошибся",
-     "inner": "Я могу ошибаться и оставаться достойным уважения",
+     "title": "сохранять уважение к себе, даже когда ошибся",
+     "inner": "Я могу ошибаться и сохранять уважение к себе",
      "action": "показать достаточно готовый результат в малорисковой задаче",
      "skillId": "goodenough",
      "hypothesisId": "criticism-h1",
@@ -2877,6 +2877,14 @@ window.KARMA_CONTENT = {
     "stepObserve": "Сначала понаблюдать",
     "back": "Назад",
     "qn": "Вопрос {n}",
+    "qOwnStep": "Какой первый шаг ближе к этому?",
+    "ownGoalLead": "Ты хочешь: «{g}»",
+    "ownAction": "Своё действие",
+    "ownActionPh": "что именно попробуешь, одной фразой",
+    "ownStepNote": "Я не угадываю смысл свободного текста: выбери шаг сам или опиши своё действие.",
+    "stepGoal": "Твоя цель",
+    "ownCheck": "Удалось ли сделать задуманное? Что произошло?",
+    "ownCarry": "Сфера и учитель уже известны: работа, руководитель.",
     "missTwice": "Похоже, мои догадки не подходят. Давай иначе: опиши случай своими словами — или начни с наблюдения."
    },
    "swipe": {
@@ -4754,9 +4762,9 @@ window.KARMA_CONTENT = {
     "criticism-l1": {
      "id": "criticism-l1",
      "packId": "criticism",
-     "title": "оставаться достойным уважения, когда ошибся",
+     "title": "сохранять уважение к себе, даже когда ошибся",
      "skillId": "goodenough",
-     "permissionCandidate": "Я могу ошибаться и оставаться достойным уважения",
+     "permissionCandidate": "Я могу ошибаться и сохранять уважение к себе",
      "permissionRequiresConfirmation": true,
      "fitQuestion": "Ты боишься показать малорисковую работу, пока она не идеальна?",
      "purpose": "Проверить конкретное ожидание о небольшом несовершенстве.",
@@ -6820,7 +6828,7 @@ window.KARMA_CONTENT = {
      ],
      "evidenceStatus": "author_adaptation_for_product_pilot",
      "clinicalReviewRequired": true,
-     "permissionCandidate": "Я могу ошибаться и оставаться достойным уважения",
+     "permissionCandidate": "Я могу ошибаться и сохранять уважение к себе",
      "permissionRequiresConfirmation": true,
      "id": "criticism-l1@ev-double@work",
      "lessonId": "criticism-l1",
@@ -6860,7 +6868,7 @@ window.KARMA_CONTENT = {
      ],
      "evidenceStatus": "author_adaptation_for_product_pilot",
      "clinicalReviewRequired": true,
-     "permissionCandidate": "Я могу ошибаться и оставаться достойным уважения",
+     "permissionCandidate": "Я могу ошибаться и сохранять уважение к себе",
      "permissionRequiresConfirmation": true,
      "id": "criticism-l1@ev-double@money",
      "lessonId": "criticism-l1",
@@ -6947,13 +6955,13 @@ window.KARMA_CONTENT = {
      ],
      "evidenceStatus": "author_adaptation_for_product_pilot",
      "clinicalReviewRequired": true,
-     "permissionCandidate": "Я могу ошибаться и оставаться достойным уважения",
+     "permissionCandidate": "Я могу ошибаться и сохранять уважение к себе",
      "permissionRequiresConfirmation": true,
      "id": "criticism-l1@ev-compare@close",
      "lessonId": "criticism-l1",
      "variantId": "ev-compare@close",
-     "title": "оставаться достойным уважения, когда меня сравнивают",
-     "lessonTitle": "оставаться достойным уважения, когда меня сравнивают",
+     "title": "сохранять уважение к себе, когда меня сравнивают",
+     "lessonTitle": "сохранять уважение к себе, когда меня сравнивают",
      "lessonAction": "сказать, что сравнение неприятно, и попросить сказать прямо",
      "cueTemplate": "Когда тебя сравнят с другим",
      "actionTemplate": "Сказать: «Мне неприятно сравнение. Скажи прямо, чего ты от меня хочешь».",
@@ -8248,6 +8256,119 @@ window.KARMA_CONTENT = {
      "lessonTitle": "уточнять ожидаемый результат до начала работы",
      "lessonAction": "спросить, какой результат будет считаться готовым",
      "tip": "Сегодня при новой задаче спроси, какой результат будет считаться готовым."
+    },
+    "criticism-l1@ev-correct@work": {
+     "id": "criticism-l1@ev-correct@work",
+     "packId": "criticism",
+     "title": "сохранять уважение к себе, даже когда ошибся",
+     "skillId": "goodenough",
+     "permissionCandidate": "Я могу ошибаться и сохранять уважение к себе",
+     "permissionRequiresConfirmation": true,
+     "fitQuestion": "После замечания одна ошибка начинает казаться выводом о тебе целиком?",
+     "purpose": "Не превращать одну ошибку в вывод о себе.",
+     "cueTemplate": "Когда после замечания появится мысль, что ты несостоятелен",
+     "actionTemplate": "Записать три строки: какая конкретно ошибка, что в работе получилось, какой один шаг её исправит.",
+     "effortLabel": "Одна малорисковая задача",
+     "setup": [],
+     "smallerVersion": "Назвать себе одно, что в работе получилось.",
+     "afterQuestion": "Удалось ли отделить ошибку от оценки себя? Какой шаг исправления выбрал?",
+     "completedWhen": "Записал ошибку, получившееся и шаг исправления; согласие с формой замечания не требуется.",
+     "limits": "Не обязан соглашаться с унизительной оценкой личности.",
+     "methodSources": [
+      "cci_experiment"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "lessonId": "criticism-l1",
+     "variantId": "ev-correct@work",
+     "adapted": true,
+     "lessonTitle": "сохранять уважение к себе, даже когда ошибся",
+     "lessonAction": "отделить конкретную ошибку от оценки себя",
+     "tip": "Сегодня после замечания отдели ошибку от оценки себя."
+    },
+    "criticism-l2@ev-correct@work": {
+     "id": "criticism-l2@ev-correct@work",
+     "packId": "criticism",
+     "title": "уточнять, что именно нужно изменить",
+     "skillId": "uncertainty",
+     "permissionCandidate": "Я могу проверить замечание, не обобщая его на всё",
+     "permissionRequiresConfirmation": true,
+     "fitQuestion": "После замечания непонятно, что именно исправлять?",
+     "purpose": "Получить конкретную обратную связь вместо догадок.",
+     "cueTemplate": "Когда получишь замечание. О чём: {task}",
+     "actionTemplate": "Спросить: «Что именно нужно изменить? Что уже соответствует ожиданию?» Записать один следующий пункт.",
+     "effortLabel": "Два коротких вопроса",
+     "setup": [
+      {
+       "key": "task",
+       "question": "О какой задаче замечание?",
+       "example": "подготовленный отчёт",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "smallerVersion": "Спросить только об одном нужном изменении.",
+     "afterQuestion": "Стало ли понятно, что исправить и какой результат нужен?",
+     "completedWhen": "Запросил конкретику; полезность ответа оценивается отдельно.",
+     "limits": "Не обязан соглашаться с унизительной оценкой личности.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "lessonId": "criticism-l2",
+     "variantId": "ev-correct@work",
+     "adapted": true,
+     "lessonTitle": "уточнять, что именно нужно изменить",
+     "lessonAction": "спросить, что именно нужно изменить и что уже подходит",
+     "tip": "Сегодня после замечания спроси, что именно нужно изменить."
+    },
+    "criticism-l2@ev-double@work": {
+     "id": "criticism-l2@ev-double@work",
+     "packId": "criticism",
+     "title": "уточнять, чего от меня ждут",
+     "skillId": "uncertainty",
+     "permissionCandidate": "Я могу проверить замечание, не обобщая его на всё",
+     "permissionRequiresConfirmation": true,
+     "fitQuestion": "Непонятно, какие требования действуют для тебя?",
+     "purpose": "Получить конкретную обратную связь вместо догадок.",
+     "cueTemplate": "Когда получишь замечание. О чём: {task}",
+     "actionTemplate": "Спросить: «Что именно нужно изменить? Что уже соответствует ожиданию?» Записать один следующий пункт.",
+     "effortLabel": "Два коротких вопроса",
+     "setup": [
+      {
+       "key": "task",
+       "question": "О какой задаче замечание?",
+       "example": "подготовленный отчёт",
+       "exampleIsNotUserAnswer": true
+      }
+     ],
+     "smallerVersion": "Спросить только об одном нужном изменении.",
+     "afterQuestion": "Стало ли понятно, что исправить и какой результат нужен?",
+     "completedWhen": "Запросил конкретику; полезность ответа оценивается отдельно.",
+     "limits": "Не обязан соглашаться с унизительной оценкой личности.",
+     "methodSources": [
+      "cci_assertiveness"
+     ],
+     "productDonors": [
+      "woop_plan",
+      "finch_goals"
+     ],
+     "evidenceStatus": "author_adaptation_for_product_pilot",
+     "clinicalReviewRequired": true,
+     "lessonId": "criticism-l2",
+     "variantId": "ev-double@work",
+     "adapted": true,
+     "lessonTitle": "уточнять, чего от меня ждут",
+     "lessonAction": "спросить, что именно нужно изменить и что уже подходит",
+     "tip": "Сегодня после замечания спроси, что именно нужно изменить."
     }
    }
   },
@@ -13014,12 +13135,46 @@ window.KARMA_CONTENT = {
       "when": "когда руководитель требует согласовывать детали, которые ты мог бы решать сам",
       "variantId": "ev-myway@work",
       "clarify": "c_result",
+      "desire": {
+       "m1": [
+        "control-l3",
+        "control-l2"
+       ],
+       "m2": [
+        "control-l2",
+        "control-l3"
+       ],
+       "m3": [
+        "criticism-l2",
+        "control-l2"
+       ],
+       "m4": [
+        "criticism-l3"
+       ]
+      },
       "type": "method"
      },
      "m_decide": {
       "card": "Решение по моей работе принимают без обсуждения со мной",
       "when": "когда решение по твоей работе принимают без тебя",
       "variantId": "ev-decide@work",
+      "desire": {
+       "m1": [
+        "voice-l1",
+        "voice-l2"
+       ],
+       "m2": [
+        "control-l3",
+        "voice-l1"
+       ],
+       "m3": [
+        "voice-l1"
+       ],
+       "w4": [
+        "voice-l2",
+        "voice-l1"
+       ]
+      },
       "type": "method"
      },
      "r_unclear": {
@@ -13027,12 +13182,47 @@ window.KARMA_CONTENT = {
       "when": "когда задачу ставят, не объясняя, какой результат нужен",
       "variantId": "ev-terms@work",
       "clarify": "c_ask",
+      "desire": {
+       "w1": [
+        "fairness-l1",
+        "control-l2"
+       ],
+       "w2": [
+        "uncertainty-l2",
+        "fairness-l1"
+       ],
+       "w3": [
+        "control-l2",
+        "fairness-l1"
+       ],
+       "w4": [
+        "fairness-l4",
+        "fairness-l1"
+       ]
+      },
       "type": "requirements"
      },
      "r_change": {
       "card": "Уже согласованную задачу потом меняют",
       "when": "когда уже согласованную задачу меняют",
       "variantId": "ev-client-change@work",
+      "desire": {
+       "m1": [
+        "fairness-l1",
+        "refusal-l4"
+       ],
+       "m2": [
+        "control-l4",
+        "voice-l1"
+       ],
+       "m3": [
+        "refusal-l4",
+        "fairness-l1"
+       ],
+       "m4": [
+        "voice-l1"
+       ]
+      },
       "type": "requirements"
      },
      "l_add": {
@@ -13040,6 +13230,23 @@ window.KARMA_CONTENT = {
       "when": "когда тебе добавляют задачи при полной загрузке",
       "variantId": "ev-ask@work",
       "clarify": "c_knows",
+      "desire": {
+       "m1": [
+        "refusal-l1",
+        "refusal-l2"
+       ],
+       "m2": [
+        "refusal-l2",
+        "refusal-l1"
+       ],
+       "m3": [
+        "refusal-l4",
+        "refusal-l2"
+       ],
+       "m4": [
+        "refusal-l3"
+       ]
+      },
       "type": "load"
      },
      "l_deadline": {
@@ -13047,30 +13254,115 @@ window.KARMA_CONTENT = {
       "when": "когда сроки сжимают, а задач не убавляют",
       "variantId": "ev-deadline@work",
       "clarify": "c_knows",
+      "desire": {
+       "m1": [
+        "rest-l3",
+        "rest-l2"
+       ],
+       "m2": [
+        "rest-l2",
+        "rest-l4"
+       ],
+       "w4": [
+        "rest-l4",
+        "rest-l2"
+       ]
+      },
       "type": "load"
      },
      "c_extra": {
       "card": "Дополнительную работу воспринимают как само собой разумеющееся",
       "when": "когда твою дополнительную работу воспринимают как должное",
       "variantId": "ev-contrib@work",
+      "desire": {
+       "m1": [
+        "fairness-l1",
+        "fairness-l2"
+       ],
+       "m2": [
+        "fairness-l3",
+        "fairness-l2"
+       ],
+       "w3": [
+        "fairness-l2",
+        "fairness-l3"
+       ],
+       "m4": [
+        "fairness-l4",
+        "fairness-l1"
+       ]
+      },
       "type": "recognition"
      },
      "c_double": {
       "card": "Коллеге разрешают то, за что меня критикуют",
       "when": "когда коллеге разрешают то, за что критикуют тебя",
       "variantId": "ev-double@work",
+      "desire": {
+       "w1": [
+        "fairness-l3",
+        "voice-l1"
+       ],
+       "w2": [
+        "voice-l1",
+        "fairness-l3"
+       ],
+       "w3": [
+        "criticism-l2",
+        "fairness-l3"
+       ],
+       "m4": [
+        "criticism-l1",
+        "voice-l1"
+       ]
+      },
       "type": "recognition"
      },
      "t_public": {
       "card": "Руководитель делает мне замечание при других или резким тоном",
       "when": "когда руководитель делает замечание при других или резким тоном",
       "variantId": "ev-correct@work",
+      "desire": {
+       "m1": [
+        "criticism-l2"
+       ],
+       "m2": [
+        "criticism-l3",
+        "criticism-l4"
+       ],
+       "m3": [
+        "criticism-l1",
+        "criticism-l4"
+       ],
+       "w4": [
+        "criticism-l4",
+        "criticism-l3"
+       ]
+      },
       "type": "tone"
      },
      "t_interrupt": {
       "card": "Руководитель перебивает меня, не давая закончить мысль",
       "when": "когда руководитель перебивает, не давая закончить мысль",
       "variantId": "ev-interrupt@work",
+      "desire": {
+       "m1": [
+        "voice-l1",
+        "voice-l2"
+       ],
+       "m2": [
+        "voice-l3",
+        "voice-l1"
+       ],
+       "m3": [
+        "voice-l2",
+        "voice-l1"
+       ],
+       "m4": [
+        "voice-l4",
+        "voice-l1"
+       ]
+      },
       "type": "tone"
      }
     },
