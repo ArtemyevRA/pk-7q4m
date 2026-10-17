@@ -50,6 +50,8 @@
   const checkinOf = (k, p) => D.checkins[R.checkinId(k, p ? p.id : null)] || null;
 
   /* ---------- доступ к данным ---------- */
+  /* «Другой сюжет» и старт сохранённого — архив: не прохождение, не флаг и не небо. */
+  const archivePattern = (p, reason) => { p.status = "archived"; p.archivedAt = nowTs(); p.archiveReason = reason; };
   const activePattern = () => D.patterns.find(p => p.status === "active") || D.patterns.find(p => p.status === "observe") || null;
   const anyPattern = () => activePattern() || D.patterns.find(p => p.status === "paused") || null;
   const hypOf = p => p && p.hypothesisVersionId ? D.hypotheses.find(h => h.id === p.hypothesisVersionId) : null;
@@ -79,7 +81,7 @@
   function stepHTML(p, { why = true, lead = "" } = {}) {
     const v = planView(p); if (!v) return "";
     const lt = learningText(p);
-    return `${lead ? `<p class="small" style="margin:2px 0 6px">${esc(lead)}</p>` : ""}<div class="plines"><div><span>${esc(OB.plan.whenL)}:</span> ${esc(uc1(v.cue) || "—")}</div><div><span>${esc(v.mode === "observation" ? OB.plan.whatObs : OB.plan.whatL)}:</span> ${esc(uc1(v.action))}${v.simplified ? ` <span class="tiny">· ${esc(OB.plan.simplified)}</span>` : ""}</div>${v.after ? `<div><span>${esc(OB.plan.afterL)}:</span> ${esc(v.after)}</div>` : ""}</div>${why && v.purpose ? `<details class="plain"><summary>${esc(OB.plan.whyStep)}</summary><p class="small">${lt ? `${esc(OB.plan.learn)}: ${esc(lt)}. ` : ""}${esc(v.purpose)}</p></details>` : ""}`;
+    return `${lead ? `<p class="small" style="margin:2px 0 6px">${esc(lead)}</p>` : ""}<div class="plines">${v.who ? `<div><span>${esc(OB.plan.whoL)}:</span> ${esc(v.who)}</div>` : ""}<div><span>${esc(OB.plan.whenL)}:</span> ${esc(uc1(v.cue) || "—")}</div><div><span>${esc(v.mode === "observation" ? OB.plan.whatObs : OB.plan.whatL)}:</span> ${esc(uc1(v.action))}${v.simplified ? ` <span class="tiny">· ${esc(OB.plan.simplified)}</span>` : ""}</div>${v.after ? `<div><span>${esc(OB.plan.afterL)}:</span> ${esc(v.after)}</div>` : ""}</div>${why && v.purpose ? `<details class="plain"><summary>${esc(OB.plan.whyStep)}</summary><p class="small">${lt ? `${esc(OB.plan.learn)}: ${esc(lt)}. ` : ""}${esc(v.purpose)}</p></details>` : ""}`;
   }
   const bridgeText = p => { const v = planView(p); if (!v || !p.lesson) return ""; return OB.plan.bridge.replace("{lesson}", lc1(p.lesson.title)).replace("{action}", lc1(v.action.split(/[.;]/)[0])).replace("{purpose}", lc1(v.purpose).replace(/[.!]+$/, "")) + "."; };
   /* Разрешение показывается в ежедневном потоке только подтверждённым человеком (свои слова или шаг «Что я себе разрешаю»); кандидат из каталога — по раскрытию. */
@@ -234,7 +236,7 @@
     let [h, arg] = (location.hash || "#today").slice(1).split("/");
     const p = anyPattern();
     /* Новому человеку — вход (проблема → дата → число → сфера → события → фокус → учитель → случай → что задело → резюме → урок → карта дня). Действующий сюжет или записи прошлой версии — сразу свой путь. */
-    const STEPS = ["start", "birth", "symbol", "area", "workctx", "cards", "own", "teacher", "case", "sting", "want", "summary", "path", "lesson"];
+    const STEPS = ["start", "birth", "symbol", "area", "workctx", "cards", "dialog", "own", "teacher", "case", "sting", "want", "summary", "path", "lesson"];
     const ONB = [...STEPS, "plan", "map", "guide", "new", "entry", "help", "about", "settings"];
     const needStart = !p && !D.meta.migratedFromV9 && !(P.seen.start && !P.onb);
     if (needStart && !ONB.includes(h)) h = (P.onb && P.onb.step && ONB.includes(P.onb.step)) ? P.onb.step : "start";
@@ -250,7 +252,7 @@
     nav.innerHTML = `<a class="pill sos" href="#help" aria-label="Сейчас тяжело">${ic("flame", "")}<span>Сейчас тяжело</span></a><a class="pill ${h === "settings" ? "on" : ""}" href="#settings" aria-label="Настройки">${ic("key", "")}</a>`;
     tabs.innerHTML = [["today", "Сегодня", phaseIc()], ["story", "Мой путь", "eye"], ["history", "История", "hourglass"]].map(([k, l, i]) => `<a href="#${k}" class="${h === k ? "on" : ""}">${ic(i, "")}${l}</a>`).join("");
     $("#testbar").innerHTML = P.devMode && P.offsetH ? `<div class="testbar">Тестовое время: ${R.human(today())}, ${R.fmtTime(nowTs())} (сдвиг ${P.offsetH > 0 ? "+" : ""}${P.offsetH} ч) — <a href="#settings">сбросить</a></div>` : "";
-    const V = { start, birth, entry, new: newEpisode, area, workctx, cards, own: ownScenario, teacher, case: caseScreen, sting, want, summary, path: summary, lesson, plan: planScreen, map: mapScreen, guide, tool: toolScreen, help, today: todayScreen, story, history, settings, morning, event, action, evening, module: moduleScreen, review, flag: flagScreen, about, symbol, detail, legacy, episode: episodeView };
+    const V = { start, birth, entry, new: newEpisode, area, workctx, cards, own: ownScenario, teacher, case: caseScreen, sting, want, summary, dialog, path: summary, lesson, plan: planScreen, map: mapScreen, guide, tool: toolScreen, help, today: todayScreen, story, history, settings, morning, event, action, evening, module: moduleScreen, review, flag: flagScreen, about, symbol, detail, legacy, episode: episodeView };
     (V[h] || V.today)(arg);
     window.scrollTo(0, 0);
   }
@@ -387,14 +389,14 @@
       S.area = area; S.ctx = area === "work" ? ctx : null;
       const b = (S.branches || {})[curKey(S)];
       Object.assign(S, b ? { picks: b.picks, shown: b.shown, deck: b.deck, deckKey: b.deckKey, idx: b.idx } : { picks: [], shown: [], deck: null, deckKey: null, idx: 0 });
-      S.undo = null; S.choose = false;
+      S.undo = null; S.choose = false; S.focus = null;
       const ev = S.event ? variantById(S.event) : null;
       if (S.own || (ev && ev.area !== area) || (ev && area === "work" && ctx !== "any" && !(ev.contexts || []).includes(ctx))) { S.event = null; S.own = null; S.case = null; S.sting = null; S.want = null; S.confirmed = false; }
       if (!sameArea && S.teacher && X.teacherArea[S.teacher.kind] && X.teacherArea[S.teacher.kind] !== area) S.teacher = null;
     }
     S.areaExplicit = true; S.routingVersion = RV;
   }
-  function recogStart(S, item) { S.recogMain = item.id; S.preferTopics = item.preferTopics || []; S.recogDone = true; S.deck = null; S.deckKey = null; S.choose = false; }
+  function recogStart(S, item) { S.recogMain = item.id; S.preferSubtypes = item.preferSubtypes || []; S.recogDone = true; S.deck = null; S.deckKey = null; S.choose = false; }
   function area(arg) {
     const S = onb(), num = pathNum(), pr = num ? X.pathProfiles[String(num)] : null, RG = OB.recog;
     S.routingVersion = S.routingVersion || RV;
@@ -450,9 +452,9 @@
     app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(areaLabel("work"))}</p><h1 class="q">${esc(OB.workctx.title)}</h1><p class="muted small">${esc(OB.workctx.sub)}</p>
       <div class="chips col">${X.workContexts.map(([v, l]) => `<button class="chip ${S.ctx === v ? "on" : ""}" data-v="${v}">${esc(l)}</button>`).join("")}</div>
       <div class="row tight"><a class="btn ghost sm" href="#area">Другая сфера</a><a class="btn ghost sm" href="#own">${esc(OE.own)}</a></div>`;
-    $$("[data-v]").forEach(b => b.onclick = async () => { const v = b.dataset.v; if (S.ctx !== v) setBranch(S, "work", v); else { S.areaExplicit = true; S.routingVersion = RV; } S.step = "cards"; await persistOnb(); go("cards"); });
+    $$("[data-v]").forEach(b => b.onclick = async () => { const v = b.dataset.v; if (S.ctx !== v) setBranch(S, "work", v); else { S.areaExplicit = true; S.routingVersion = RV; } S.step = dialogFor(S) ? "dialog" : "cards"; await persistOnb(); go(S.step); });
   }
-  const deckOpts = S => ({ variants: X.variants, area: S.area, context: S.area === "work" ? S.ctx : null, preferredTopics: S.preferTopics || [], seed: S.seed });
+  const deckOpts = S => ({ variants: X.variants, area: S.area, context: S.area === "work" ? S.ctx : null, preferredSubtypes: S.preferSubtypes || [], focus: S.focus || null, excludeSubtypes: S.excludedSubtypes || [], seed: S.seed, subtypes: X.subtypes, mainSubtypes: X.areaMainSubtypes[S.area] || [] });
   /* Новая колода: только допустимые карточки ветки, без уже показанных. Пустой пул — честное исчерпание, без чужих сфер и без сброса показанного. */
   function newDeck(S) {
     if (!S.seed) S.seed = `${P.installId || "x"}:${nowTs()}`;
@@ -473,6 +475,61 @@
   }
   const branchCandidates = S => R.deckCandidates(S).filter(p => { const v = variantById(p.id); return v && v.area === S.area; });
   /* Чекап: шесть событий выбранной сферы, ответ «знакомо / не про меня / не уверен» — первичное узнавание, не триггер и не тест. */
+  /* =================== v6.8 Карточка-свайп: один вопрос «Эта ситуация тебе знакома?» ===================
+     Вправо — «Знакомо», влево — «Не про меня», «Не уверен» — отдельная кнопка. Подсветка и значок на самой карточке во время движения;
+     до порога ответ не принят; кнопки и клавиши ← / → (в фокусе карточки) вызывают тот же обработчик; двойная запись заблокирована. */
+  const SW = () => OB.swipe;
+  const swAns = r => r === "yes" ? SW().ansYes : r === "no" ? SW().ansNo : SW().ansUnsure;
+  function swipeHTML({ text, label, prev, tutorial }) {
+    const W = SW(), red = reduce();
+    return `<p class="swinstr" id="swInstr">${esc(W.instr)}</p>
+      ${tutorial ? `<div class="swtut" id="swTut" aria-hidden="true"><div class="swtut-h"><b>${esc(W.tutTitle)}</b> <span class="tiny">${esc(W.tutSample)}</span></div><div class="swtut-card ${red ? "static" : "play"}"><span class="swtut-badge r">${esc(W.yes)}</span><span class="swtut-badge l">${esc(W.no)}</span><span class="swtut-line"></span><span class="swtut-line short"></span></div><p class="tiny" style="margin:4px 0 0">${esc(W.tutCaption)}</p></div>` : ""}
+      <div class="swwrap"><div class="swcard" id="swc" tabindex="0" role="group" aria-roledescription="карточка" aria-label="${esc(label || text)}"><div class="swband"><span class="swbadge" id="swBadge" aria-hidden="true"></span></div><div class="swtext">${esc(text)}</div></div></div>
+      <div class="sw2"><button class="btn secondary swbtn" id="no" aria-label="Не про меня">${esc(W.no)}</button><button class="btn secondary swbtn" id="yes" aria-label="Знакомо">${esc(W.yes)}</button></div>
+      <div class="row tight" style="justify-content:center"><button class="btn ghost sm" id="unsure">${esc(W.unsure)}</button><button class="linkbtn tiny" id="swReplay">${esc(W.tutReplay)}</button></div>
+      <div class="swstatus" id="swStatus">${prev ? `${esc(W.prev.replace("{a}", swAns(prev)))} · <button class="linkbtn" id="undo">${esc(W.undo)}</button>` : ""}</div>
+      <div class="sr" aria-live="polite" id="swLive"></div>`;
+  }
+  /* onAnswer(r) — асинхронная запись; при ошибке карточка остаётся. onUndo — отмена предыдущего ответа. */
+  function bindSwipe({ onAnswer, onUndo, announce }) {
+    const sw = $("#swc"), badge = $("#swBadge"), W = SW(), red = reduce(); if (!sw) return;
+    let busy = false, sx = null, sy = null, mode = null, dx = 0, pid = null;
+    const th = () => Math.max(64, Math.min(100, 0.25 * sw.getBoundingClientRect().width));
+    /* Образец останавливается сразу при касании (без сдвига карточки под пальцем) и сворачивается после жеста. */
+    const pauseTut = () => { const t = $("#swTut"); if (t) t.classList.add("stopped"); };
+    const stopTut = () => { const t = $("#swTut"); if (t) t.remove(); };
+    const paint = d => {
+      const k = Math.min(1, Math.abs(d) / th()), side = d > 0 ? "r" : d < 0 ? "l" : "";
+      sw.classList.toggle("is-r", side === "r"); sw.classList.toggle("is-l", side === "l"); sw.style.setProperty("--k", k.toFixed(2));
+      const ready = Math.abs(d) >= th(); sw.classList.toggle("ready", ready);
+      badge.textContent = side ? (ready ? (side === "r" ? W.releaseYes : W.releaseNo) : (side === "r" ? W.yes : W.no)) : "";
+      sw.style.transform = red ? "" : `translateX(${d}px) rotate(${Math.max(-6, Math.min(6, d / 20))}deg)`;
+    };
+    const reset = () => { if ($("#swTut") && $("#swTut").classList.contains("stopped")) stopTut(); sx = sy = null; mode = null; dx = 0; pid = null; sw.classList.remove("drag", "is-r", "is-l", "ready"); sw.style.transform = ""; sw.style.removeProperty("--k"); badge.textContent = ""; };
+    const answer = async r => {
+      if (busy) return; busy = true; stopTut();
+      if (r !== "unsure") { sw.classList.add(r === "yes" ? "is-r" : "is-l", "ready"); sw.style.setProperty("--k", "1"); badge.textContent = r === "yes" ? W.yes : W.no; }
+      let ok = true; try { ok = (await onAnswer(r)) !== false; } catch (e) { ok = false; }
+      if (!ok) { busy = false; reset(); const st = $("#swStatus"); if (st) st.textContent = W.saveErr; return; }
+      if (announce) { const lv = $("#swLive"); if (lv) lv.textContent = announce(r); }
+      if (!red && r !== "unsure") sw.classList.add(r === "yes" ? "out-r" : "out-l");
+    };
+    $("#yes").onclick = () => answer("yes"); $("#no").onclick = () => answer("no"); $("#unsure").onclick = () => answer("unsure");
+    const un = $("#undo"); if (un) un.onclick = () => { if (!busy && onUndo) onUndo(); };
+    const rp = $("#swReplay"); if (rp) rp.onclick = () => { stopTut(); $("#swInstr").insertAdjacentHTML("afterend", `<div class="swtut" id="swTut" aria-hidden="true"><div class="swtut-h"><b>${esc(W.tutTitle)}</b> <span class="tiny">${esc(W.tutSample)}</span></div><div class="swtut-card ${red ? "static" : "play"}"><span class="swtut-badge r">${esc(W.yes)}</span><span class="swtut-badge l">${esc(W.no)}</span><span class="swtut-line"></span><span class="swtut-line short"></span></div><p class="tiny" style="margin:4px 0 0">${esc(W.tutCaption)}</p></div>`); };
+    sw.onkeydown = e => { if (e.target !== sw) return; if (e.key === "ArrowRight") { e.preventDefault(); answer("yes"); } if (e.key === "ArrowLeft") { e.preventDefault(); answer("no"); } };
+    sw.onpointerdown = e => { pauseTut(); if (busy || e.button) return; if (pid !== null && e.pointerId !== pid) { reset(); return; } /* второй палец отменяет жест */ pid = e.pointerId; sx = e.clientX; sy = e.clientY; mode = null; dx = 0; };
+    sw.onpointermove = e => {
+      if (sx == null || e.pointerId !== pid) return; const ddx = e.clientX - sx, ddy = e.clientY - sy;
+      if (!mode) { if (Math.abs(ddx) > 10 && Math.abs(ddx) > 1.3 * Math.abs(ddy)) { mode = "h"; sw.classList.add("drag"); try { sw.setPointerCapture(pid); } catch (_) {} } else if (Math.abs(ddy) > 10) { mode = "v"; return; } else return; }
+      if (mode !== "h") return; e.preventDefault(); dx = ddx; paint(dx);
+    };
+    sw.onpointerup = e => { if (e.pointerId !== pid) return; const m = mode, d = dx; try { sw.releasePointerCapture(pid); } catch (_) {} if (m === "h" && Math.abs(d) >= th()) { pid = null; sx = null; mode = null; answer(d > 0 ? "yes" : "no"); } else reset(); };
+    sw.onpointercancel = () => reset();
+    /* отпускание вне карточки (вертикальная прокрутка, уход указателя) — жест без ответа */
+    const offUp = e => { if (pid !== null && e.pointerId === pid && mode !== "h") reset(); }; if (window.__swOff) { window.removeEventListener("pointerup", window.__swOff); window.removeEventListener("pointercancel", window.__swOff); } window.__swOff = offUp; window.addEventListener("pointerup", offUp); window.addEventListener("pointercancel", offUp); sw.onlostpointercapture = () => { if (mode === "h" && !busy && !sw.classList.contains("out-r") && !sw.classList.contains("out-l") && pid !== null) reset(); };
+    const vis = () => { if (document.hidden && !busy) reset(); }; document.addEventListener("visibilitychange", vis, { once: true });
+  }
   function cards() {
     const S = onb(); if (!S.area || !S.areaExplicit || S.area === "own") return go("area"); if (S.area === "work" && !S.ctx) return go("workctx");
     checkDeck(S); if (!S.deck) newDeck(S);
@@ -480,59 +537,75 @@
     const deck = S.deck; let busy = false;
     const answered = () => (S.picks || []).length;
     const cands = () => branchCandidates(S);
-    const canPick = () => answered() >= DECK_MIN && cands().length > 0;
+    const canPick = () => answered() >= Math.min(DECK_MIN, deck.length) && cands().length > 0;
     const render = () => {
       S.offer = null;
       if (S.choose) return choose();
       if (S.idx >= deck.length) return cands().length ? choose() : nothingFits();
       const c = deck[S.idx], tut = !P.seen.swipe, red = reduce(), first = !answered();
       const ctxTxt = areaLabel(S.area) + (S.area === "work" && S.ctx && S.ctx !== "any" ? ` · ${ctxLabel(S.ctx)}` : "");
+      const prev = S.undo ? S.undo.r : null;
       app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${S.idx + 1} из ${deck.length} · ${esc(ctxTxt)}</p>
         <h1 class="q">${esc(OE.title)}</h1><p class="muted small" style="margin:0 0 6px">${first ? esc(OE.intro) : esc(OE.sub)}</p>
-        <div class="swwrap"><div class="swcard ${tut && !red ? "demo" : ""}" id="swc" tabindex="0" role="group" aria-label="${esc(c.text)}" data-variant="${esc(c.id)}">${esc(c.text)}<span class="swlab l" id="labL" aria-hidden="true">${esc(OE.no)}</span><span class="swlab r" id="labR" aria-hidden="true">${esc(OE.yes)}</span></div></div>
-        <div class="swhint"><span>${esc(OE.hintLeft)}</span><span>${esc(OE.hintRight)}</span></div>
-        ${tut ? `<p class="tiny" style="margin:0 0 6px;text-align:center">${esc(OE.tutorial[0])} ${esc(OE.tutorial[1])}</p>` : ""}
-        <div class="sw2"><button class="btn secondary" id="no">${esc(OE.no)}</button><button class="btn" id="yes">${esc(OE.yes)}</button></div>
-        <div class="row tight"><button class="btn ghost sm" id="unsure">${esc(OE.unsure)}</button>${S.undo ? `<button class="btn ghost sm" id="undo">${esc(OE.undo)}</button>` : ""}</div>
-        ${canPick() ? `<div class="row tight"><button class="btn secondary block sm" id="pick">${esc(OE.pick)} (${cands().length})</button></div>` : (cands().length ? `<p class="tiny" style="margin:4px 0 0;text-align:center">${esc(OE.minHint)}</p>` : "")}
-        <div class="row tight"><a class="btn ghost sm" href="#own">${esc(OE.own)}</a><a class="btn ghost sm" href="${S.area === "work" ? "#workctx" : "#area"}">${S.area === "work" ? "Другой контекст" : "Другая сфера"}</a></div>`;
-      const sw = $("#swc"), labL = $("#labL"), labR = $("#labR");
-      /* Один обработчик для свайпа, кнопок и клавиатуры: один ввод — один ответ; во время анимации ввод заблокирован. */
-      const answer = (r) => {
-        if (busy) return; busy = true;
-        if (!R.deckAnswer(S, r)) { busy = false; return; }
-        const last = S.picks[S.picks.length - 1]; if (last) { last.variantId = c.id; last.area = c.area; }
-        if (tut) P.seen.swipe = true;
-        sw.classList.remove("demo"); sw.style.transform = ""; sw.classList.add(r === "yes" ? "out-r" : r === "no" ? "out-l" : "out-d");
-        persistOnb(); setTimeout(() => { busy = false; render(); }, red ? 0 : 220);
-      };
-      $("#yes").onclick = () => answer("yes"); $("#no").onclick = () => answer("no"); $("#unsure").onclick = () => answer("unsure");
-      const un = $("#undo"); if (un) un.onclick = () => { if (busy) return; if (R.deckUndo(S)) { persistOnb(); render(); } };
+        ${swipeHTML({ text: c.text, prev, tutorial: tut })}
+        ${canPick() ? `<div class="row tight"><button class="btn secondary block sm" id="pick">${esc(OE.pick)} (${cands().length})</button></div>` : (cands().length ? `<p class="tiny" style="margin:4px 0 0;text-align:center">${esc(Math.min(DECK_MIN, deck.length) - answered() === 1 && OE.minHint1 ? OE.minHint1 : OE.minHint)}</p>` : "")}
+        ${threeNo() ? `<div class="row tight"><button class="btn secondary block sm" id="refine">${esc(OB.refine.cta)}</button></div>` : ""}
+        <div class="row tight"><a class="btn ghost sm" href="#own">${esc(OE.own)}</a><a class="btn ghost sm" href="${S.area === "work" ? "#workctx" : "#area"}">${S.area === "work" ? "Другой контекст" : "Другая сфера"}</a>${dialogFor(S) ? `<a class="btn ghost sm" href="#dialog">${esc(OB.dialog.start)}</a>` : ""}</div>
+        ${first ? readingCard("karma-scene") : ""}`;
+      $("#swc").dataset.variant = c.id;
+      /* Сначала запись, потом счётчик: ответ сохраняется до перехода к следующей карточке. */
+      bindSwipe({
+        onAnswer: async r => {
+          if (!R.deckAnswer(S, r)) return false;
+          const last = S.picks[S.picks.length - 1]; if (last) { last.variantId = c.id; last.area = c.area; }
+          if (tut) P.seen.swipe = true;
+          const ok = await persistOnb(); if (ok === false) { R.deckUndo(S); return false; }
+          setTimeout(render, red ? 0 : 230); return true;
+        },
+        onUndo: () => { if (R.deckUndo(S)) { persistOnb(); render(); } },
+        announce: r => `${OB.swipe.prev.replace("{a}", swAns(r))}.`,
+      });
       const pk = $("#pick"); if (pk) pk.onclick = () => { S.choose = true; persistOnb(); choose(); };
-      sw.onkeydown = e => { if (e.key === "ArrowRight") { e.preventDefault(); answer("yes"); } if (e.key === "ArrowLeft") { e.preventDefault(); answer("no"); } if (e.key === "ArrowDown") { e.preventDefault(); answer("unsure"); } };
-      let sx = null, sy = null, mode = null, dx = 0;
-      const reset = () => { sw.style.transform = ""; sw.classList.remove("drag"); labL.style.opacity = 0; labR.style.opacity = 0; sx = sy = null; mode = null; dx = 0; };
-      sw.onpointerdown = e => { if (busy || e.button) return; sx = e.clientX; sy = e.clientY; mode = null; dx = 0; try { sw.setPointerCapture(e.pointerId); } catch (_) {} };
-      sw.onpointermove = e => {
-        if (sx == null) return; dx = e.clientX - sx; const dy = e.clientY - sy;
-        if (!mode) { if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { mode = "v"; reset(); return; } if (Math.abs(dx) > 10) { mode = "h"; sw.classList.add("drag"); } else return; }
-        if (mode !== "h") return;
-        e.preventDefault(); sw.style.transform = red ? `translateX(${dx}px)` : `translateX(${dx}px) rotate(${dx / 30}deg)`;
-        const k = Math.min(1, Math.abs(dx) / 70); labR.style.opacity = dx > 0 ? k : 0; labL.style.opacity = dx < 0 ? k : 0;
-      };
-      const up = e => { if (sx == null) return; const d = dx, m = mode; reset(); try { sw.releasePointerCapture(e.pointerId); } catch (_) {} if (m === "h") { if (d > 70) answer("yes"); else if (d < -70) answer("no"); } };
-      sw.onpointerup = up; sw.onpointercancel = () => reset(); sw.onlostpointercapture = () => { if (mode !== "h") reset(); };
+      const rf = $("#refine"); if (rf) rf.onclick = () => refine();
+    };
+    /* Три «не про меня» подряд — необязательное «Уточнить, что искать»: подтипы текущей сферы/контекста, где ещё есть примеры. */
+    const threeNo = () => { const ps = S.picks || []; return ps.length >= 3 && ps.slice(-3).every(x => x.r === "no"); };
+    /* v6.7: «Не про меня» относится к карточке, не к типу. Все типы ветки остаются в «Уточнить, что искать»;
+       тип исключается только явной кнопкой «Тема не про меня». Если примеров типа больше нет — свой случай (для руководителя — вопросы). */
+    const refine = () => {
+      const pool = R.eligibleVariants({ variants: X.variants, area: S.area, context: S.area === "work" ? S.ctx : null });
+      const mainL = X.areaMainSubtypes[S.area] || [], rank = k => { const i = mainL.indexOf(k); return i < 0 ? 100 : i; };
+      const excl = S.excludedSubtypes || [];
+      const subs = [...new Set(pool.map(v => v.subtype))].filter(k => k && !excl.includes(k)).sort((a, b) => rank(a) - rank(b));
+      const left = k => pool.some(v => v.subtype === k && (!(S.shown || []).includes(v.variantId) || deck.slice(S.idx).some(c => c.id === v.variantId)));
+      const row = k => `<div class="strow"><button class="chip" data-st="${k}">${esc(X.subtypes[k].label)}</button><button class="linkbtn tiny" data-nm="${k}" aria-label="${esc(OB.refine.notMine)}: ${esc(X.subtypes[k].label)}">${esc(OB.refine.notMine)}</button></div>`;
+      app.innerHTML = `<h1 class="q">${esc(OB.refine.title)}</h1><p class="muted small">${esc(OB.refine.sub)}</p>
+        <div class="chips col">${subs.slice(0, 6).map(row).join("")}</div>
+        ${subs.length > 6 ? `<details class="plain"><summary>Ещё виды · ${subs.length - 6}</summary><div class="chips col">${subs.slice(6).map(row).join("")}</div></details>` : ""}
+        <div id="rfMsg"></div>
+        <div class="chips col"><a class="chip dim" href="#own">${esc(OB.refine.own)}</a>${dialogFor(S) ? `<a class="chip dim" href="#dialog">${esc(OB.dialog.start)}</a>` : ""}</div>
+        <div class="row tight"><button class="btn ghost" id="rfBack">${esc(OB.refine.cont)}</button></div>`;
+      $$("[data-st]").forEach(b => b.onclick = () => {
+        const k = b.dataset.st;
+        if (!left(k)) { $("#rfMsg").innerHTML = `<p class="small" style="margin:6px 0">${esc(OB.refine.empty)}</p>`; return; }
+        S.focus = k; S.shown = (S.shown || []).filter(id => !deck.slice(S.idx).some(c => c.id === id)); newDeck(S); persistOnb(); cards();
+      });
+      $$("[data-nm]").forEach(b => b.onclick = () => { S.excludedSubtypes = [...new Set([...(S.excludedSubtypes || []), b.dataset.nm])]; persistOnb(); refine(); });
+      $("#rfBack").onclick = () => render();
     };
     const altLinks = () => `<a class="btn block secondary" href="#own">${esc(OE.own)}</a><a class="btn block secondary" href="${S.area === "work" ? "#workctx" : "#area"}">${S.area === "work" ? "Другой контекст" : OB.deck.changeArea}</a>`;
     const reviewList = ns => ns.length ? `<details class="plain"><summary>${esc(OSg.notStung)} · ${ns.length}</summary><div class="chips col">${ns.map(x => `<button class="chip dim" data-rs="${esc(x.id)}">${esc(x.text)} — пересмотреть</button>`).join("")}</div></details>` : "";
     const moreBtn = id => moreLeft(S) ? `<button class="btn block" id="${id}">${esc(OE.moreEvents)}</button>` : "";
     /* Ничего не зацепило — нормальный результат: ещё примеры этой сферы (если есть), свои слова, другая сфера или наблюдение. Найденный триггер не объявляется. */
     const nothingFits = () => {
+      if (S.focus && !moreLeft(S)) { S.focus = null; persistOnb(); }
       const ns = R.deckNotStung(S), left = moreLeft(S);
-      app.innerHTML = `<h1 class="q">${ns.length ? esc(OSg.notStung) : left ? "Ничего не зацепило" : esc(OB.deck.exhausted)}</h1><p>${esc(left ? OE.none : OB.deck.exhaustedText)}</p>
-        <div class="chips col">${moreBtn("more")}${altLinks()}<button class="btn block secondary" id="observe">${esc(OE.observe)}</button></div>
+      const short = left && deck.length < 6;
+      app.innerHTML = `<h1 class="q">${ns.length ? esc(OSg.notStung) : short ? esc(OB.deck.distinctEnd) : left ? "Ничего не зацепило" : esc(OB.deck.exhausted)}</h1><p>${esc(short ? OB.deck.distinctText : left ? OE.none : OB.deck.exhaustedText)}</p>
+        <div class="chips col"><button class="btn block secondary" id="refine2">${esc(OB.refine.cta)}</button>${moreBtn("more")}${altLinks()}${dialogFor(S) ? `<a class="btn block secondary" href="#dialog">${esc(OB.dialog.start)}</a>` : ""}<button class="btn block secondary" id="observe">${esc(OE.observe)}</button></div>
         ${reviewList(ns)}${S.undo ? `<div class="row tight"><button class="btn ghost sm" id="undo">${esc(OE.undo)}</button></div>` : ""}`;
       const m = $("#more"); if (m) m.onclick = () => { newDeck(S); persistOnb(); cards(); };
+      $("#refine2").onclick = () => refine();
       $("#observe").onclick = () => observeMode();
       bindReview();
       const un = $("#undo"); if (un) un.onclick = () => { if (R.deckUndo(S)) { persistOnb(); render(); } };
@@ -559,6 +632,117 @@
     render();
   }
   /* Своя ситуация: текст — полноценный вход, без колоды. Дальше те же уточнения: учитель, когда было, что задело. */
+  /* =================== v6.7 прототип: адаптивный диалог «работа → руководитель» ===================
+     Один вопрос на экране. Ответы сохраняются в onb.dialog и пересчитываются R.dialogNext; «Назад» отменяет последний ответ.
+     Колода примеров остаётся необязательной — диалог и колода не идут друг за другом. Резюме — только из ответов. */
+  const dialogFor = S => S && S.area === "work" && S.ctx === "boss" ? (X.dialogs || {})["work:boss"] || null : null;
+  const lessonTitleFor = (id, vid) => { const l = lessonView(id, vid); return l ? l.title : id; };
+  function sparkHTML(state) {
+    const D = OB.dialog;
+    if (P.sparkOff) return `<div class="spark off"><button class="linkbtn tiny" id="sparkTgl">${esc(D.show)}</button></div>`;
+    return `<div class="spark ${state || "listen"}" aria-label="${esc(D.spark)}"><span class="spark-orb" aria-hidden="true"><i></i></span><div><b>${esc(D.spark)}</b> <span class="tiny">· ${esc(D.sparkRole)}</span><br><span class="small" id="sparkSay">${esc(D.say[state] || D.say.listen)}</span></div><button class="linkbtn tiny" id="sparkTgl">${esc(D.hide)}</button></div>`;
+  }
+  const bindSpark = () => { const t = $("#sparkTgl"); if (t) t.onclick = async () => { P.sparkOff = !P.sparkOff; await saveProfile(true); dialog(); }; };
+  function dialog() {
+    const S = onb(), B = dialogFor(S), D = OB.dialog;
+    if (!B) return go(S.area ? "cards" : "area");
+    if (!S.dialog) S.dialog = { bank: B.id, bankVersion: B.version, answers: {}, order: [], rejected: [], misses: 0, status: "intro", startedAt: nowTs() };
+    const st = S.dialog;
+    if (st.status === "intro") {
+      app.innerHTML = `${sparkHTML("listen")}<p class="tiny" style="margin:0 0 4px">${esc(areaLabel("work"))} · ${esc(ctxLabel("boss"))}</p><h1 class="q">${esc(D.introTitle)}</h1><p>${esc(D.intro)}</p>
+        <div class="row"><button class="btn block" id="dStart">${esc(D.start)}</button></div>
+        <div class="chips col"><a class="chip" href="#own">${esc(D.own)}</a><a class="chip dim" href="#cards" id="dExamples">${esc(D.examples)}</a></div>
+        <div class="row tight"><a class="btn ghost sm" href="#workctx">Другой контекст</a></div>`;
+      bindSpark(); $("#dStart").onclick = async () => { st.status = "asking"; await persistOnb(); dialog(); }; return;
+    }
+    const res = R.dialogNext(B, st, { variants: X.variants, lessonOf: lessonTitleFor }), q = res.next, f = res.fields;
+    const answer = async (qid, v, text) => { R.dialogAnswer(st, qid, v, text); st.status = "asking"; const ok = await persistOnb(); dialog(); return ok !== false; };
+    const back = async () => { if (st.status === "summary" || st.status === "step") st.status = "asking"; R.dialogUndo(st); await persistOnb(); dialog(); };
+    const head = sparkState => `${sparkHTML(sparkState)}<div class="row tight" style="justify-content:space-between;margin:0 0 4px"><span class="tiny" id="dQn">${res.done ? `Вопросов: ${res.asked}` : esc(D.qn.replace("{n}", res.asked + 1))}</span>${st.order.length ? `<button class="linkbtn tiny" id="dBack">${esc(D.back)}</button>` : `<a class="linkbtn tiny" href="#workctx">${esc(D.back)}</a>`}</div>`;
+    const bindHead = () => { bindSpark(); const b = $("#dBack"); if (b) b.onclick = back; };
+    const lbl = v => v === "__unknown" ? (q.id === "type" ? D.typeUnknown : D.unknown) : v === "__unsure" ? D.unsureMeaning : v === "__observe" ? D.observe : null;
+    if (q.kind === "choice" || q.kind === "when") {
+      const opts = q.kind === "when" ? X.lastTime : q.options.map(([v, t]) => [v, (String(t).startsWith("__") ? lbl(t) : null) || (q.id === "desire" && v.startsWith("L:") ? "Учиться " + t : t)]);
+      const title = { type: D.qType, meaning: D.qMeaning, reaction: D.qReaction, desire: D.qDesire, when: D.qWhen }[q.id] || "";
+      const lead = q.id === "meaning" || q.id === "reaction" || q.id === "desire" ? `«${f.eventText}»` : "";
+      app.innerHTML = `${head("listen")}${lead ? `<p class="tiny" style="margin:0 0 4px">${esc(lead)}</p>` : ""}<h1 class="q">${esc(title)}</h1>
+        <div class="chips col" id="dOpts">${opts.map(([v, t]) => `<button class="chip ${(st.answers[q.id] || {}).v === v ? "on" : ""}" data-v="${esc(v)}">${esc(t)}</button>`).join("")}${q.own ? `<button class="chip dim" id="dOwn">${esc(D.own)}</button>` : ""}</div>
+        <div id="dOwnBox"></div>`;
+      bindHead();
+      $$("#dOpts [data-v]").forEach(b => b.onclick = () => answer(q.id, b.dataset.v));
+      const ow = $("#dOwn"); if (ow) ow.onclick = () => { $("#dOwnBox").innerHTML = `<textarea id="dOwnT" placeholder="${esc(D.ownPh)}"></textarea><div class="row tight"><button class="btn secondary sm" id="dOwnOk">Готово</button></div>`; $("#dOwnT").focus(); $("#dOwnOk").onclick = () => { const t = $("#dOwnT").value.trim(); if (!t) return toast("Напиши пару слов"); answer(q.id, "__own", t); }; };
+      return;
+    }
+    if (q.kind === "yn") {
+      app.innerHTML = `${head(q.id.startsWith("n:") ? "think" : "listen")}<h1 class="q">${esc(q.text)}</h1><div class="chips col" id="dYn">${D.yn.map(([v, t]) => `<button class="chip" data-v="${v}">${esc(t)}</button>`).join("")}</div>`;
+      bindHead(); $$("#dYn [data-v]").forEach(b => b.onclick = () => answer(q.id, b.dataset.v)); return;
+    }
+    if (q.kind === "swipe") {
+      const lastQ = st.order[st.order.length - 1], prev = lastQ && lastQ.startsWith("e:") && st.answers[lastQ] ? st.answers[lastQ].v : null;
+      app.innerHTML = `${head("listen")}<h1 class="q">${esc(D.qEvent)}</h1>${swipeHTML({ text: q.text, prev, tutorial: !P.seen.swipe })}`;
+      bindHead();
+      bindSwipe({ onAnswer: async r => { P.seen.swipe = true; R.dialogAnswer(st, q.id, r); const ok = await persistOnb(); if (ok === false) { R.dialogUndo(st); return false; } setTimeout(dialog, reduce() ? 0 : 230); return true; }, onUndo: back, announce: r => OB.swipe.prev.replace("{a}", swAns(r)) });
+      return;
+    }
+    if (q.kind === "noEvent" || q.kind === "unsupported") {
+      const ne = q.kind === "noEvent";
+      app.innerHTML = `${head("think")}<h1 class="q">${esc(ne ? D.noEvent : D.unsupported)}</h1><p>${esc(ne ? D.noEventText : D.unsupportedText)}</p>
+        <div class="chips col">${ne ? `<button class="btn block secondary" id="dOther">${esc(D.otherType)}</button>` : ""}<a class="btn block secondary" href="#own">${esc(D.own)}</a><a class="btn block secondary" href="#cards">${esc(D.examples)}</a><button class="btn block secondary" id="dObs">${esc(D.observe)}</button></div>`;
+      bindHead();
+      const o = $("#dOther"); if (o) o.onclick = async () => { Object.keys(st.answers).filter(k => k === "type" || k.startsWith("e:") || k.startsWith("n:")).forEach(k => { delete st.answers[k]; }); st.order = st.order.filter(k => st.answers[k]); await persistOnb(); dialog(); };
+      $("#dObs").onclick = () => observeMode();
+      return;
+    }
+    /* резюме: «Кажется, я уловил твой сюжет» — только из ответов */
+    if (st.status !== "step") {
+      st.status = "summary";
+      const sum = R.dialogSummary(f, D);
+      const basisTxt = res.basis.filter(x => x.q === "event" || x.q === "meaning" || x.q === "reaction").map(x => x.q === "event" ? `выбрал пример «${x.a}»` : x.q === "meaning" ? `отметил «${x.a}»` : `рассказал: «${x.a}»`);
+      const misses = st.misses || 0;
+      app.innerHTML = `${head("summary")}<div class="card mark" id="dSummary"><p style="margin:0 0 6px"><b>${esc(D.sumTitle)}</b></p><p style="margin:0 0 8px" id="dSumText">${esc(sum)}</p>
+          <details class="plain"><summary>${esc(D.basis)}</summary><p class="small" style="margin:0" id="dBasis">${esc(uc1(basisTxt.join("; ")))}.</p></details></div>
+        <p style="margin:8px 0 4px"><b>${esc(D.sumAsk)}</b></p>
+        <div class="chips col"><button class="chip" id="dYes">${esc(D.yes)}</button><button class="chip" id="dAlmost">${esc(D.almost)}</button><button class="chip dim" id="dMiss">${esc(D.miss)}</button></div><div id="dFix"></div>`;
+      bindHead();
+      const fixChips = all => { $("#dFix").innerHTML = `<p class="small muted" style="margin:6px 0 4px">${esc(D.fixWhat)}</p><div class="chips">${[["event", D.fixEvent], ["meaning", D.fixMeaning], ["reaction", D.fixReaction], ["desire", D.fixDesire]].concat(all ? [["all", D.fixAll]] : []).map(([k, t]) => `<button class="chip" data-fx="${k}">${esc(t)}</button>`).join("")}</div>`;
+        $$("[data-fx]").forEach(b => b.onclick = async () => { R.dialogFix(st, b.dataset.fx); st.status = "asking"; await persistOnb(); toast(D.say.fix); dialog(); }); };
+      $("#dYes").onclick = async () => { st.status = "step"; st.confirmedAt = nowTs(); await persistOnb(); dialog(); };
+      $("#dAlmost").onclick = () => fixChips(false);
+      $("#dMiss").onclick = async () => {
+        if (misses >= 1) { st.misses = misses + 1; await persistOnb(); app.innerHTML = `${sparkHTML("think")}<p id="dMissTwice">${esc(D.missTwice)}</p><div class="chips col"><a class="btn block secondary" href="#own">${esc(D.own)}</a><button class="btn block secondary" id="dObs2">${esc(D.observe)}</button><button class="btn ghost" id="dRetry">${esc(D.fixWhat)}</button></div>`; bindSpark(); $("#dObs2").onclick = () => observeMode(); $("#dRetry").onclick = () => { dialog(); setTimeout(() => { const a = $("#dAlmost"); if (a) a.click(); }, 0); }; return; }
+        st.misses = misses + 1; await persistOnb(); fixChips(true);
+      };
+      return;
+    }
+    /* подтверждённая история → предложение шага: подтверждение истории ≠ согласие с методом */
+    const vid = f.variantId, L = f.desire.kind === "lesson" ? lessonView(f.desire.lessonId, vid) : null;
+    const tpl = L ? templateFor(L, { event: vid, sting: {} }) : null, card = tpl ? tpl.template : null;
+    const firstStep = L ? uc1(L.action) : (f.meaning && f.meaning.observe ? uc1(f.meaning.observe.action) : uc1(X.lessonObserve.action));
+    app.innerHTML = `${head("support")}<h1 class="q">${esc(D.stepTitle)}</h1>
+      <div class="card mark" id="dStep"><div class="plines">
+        <div><span>${esc(D.stepTeacher)}:</span> руководитель</div>
+        <div><span>${esc(D.stepLesson)}:</span> ${esc(L ? L.title : (f.desire.kind === "own" ? lc1(f.desire.text) : X.lessonObserve.headline))}</div>
+        <div><span>${esc(D.stepFirst)}:</span> ${esc(firstStep)}</div>
+        ${card && card.afterQuestion ? `<div><span>${esc(D.stepCheck)}:</span> ${esc(card.afterQuestion)}</div>` : ""}
+      </div></div>
+      <div class="row"><button class="btn block" id="dOk">${esc(D.stepOk)}</button></div>
+      <div class="row tight"><button class="btn ghost" id="dChange">${esc(D.stepChange)}</button><button class="btn ghost" id="dObs3">${esc(D.stepObserve)}</button></div>`;
+    bindHead();
+    const handoff = async observe => {
+      S.event = vid; S.own = null; S.area = "work"; S.ctx = "boss"; S.areaExplicit = true;
+      S.teacher = { kind: "boss", label: X.teacherLabels.boss, ownName: "", area: "work" };
+      S.case = { text: f.eventText, when: f.whenCase, date: null, repeat: null, origin: "dialog_selected" };
+      S.sting = { meaningId: f.meaning.id, text: f.meaning.text || "", lessonId: f.meaning.lessonId || null, observe: f.meaning.observe || null, origin: f.meaning.origin, repeat: null, reaction: f.reaction || null };
+      S.want = observe || f.desire.kind === "observe" ? { kind: "observe", text: OB.plan.observeGoal, origin: "user_selected", lessonId: null } : f.desire.kind === "lesson" ? { kind: "lesson", key: "L:" + f.desire.lessonId, lessonId: f.desire.lessonId, text: uc1(L.title), origin: "user_selected" } : { kind: "own", text: uc1(f.desire.text), origin: "user_written", lessonId: null };
+      S.confirmed = true; S.lesson = null; S.rejected = [];
+      S.dialogResult = { bank: B.id, bankVersion: B.version, answers: JSON.parse(JSON.stringify(st.answers)), order: [...st.order], summary: R.dialogSummary(f, D), asked: res.asked, confirmedAt: st.confirmedAt || nowTs(), misses: st.misses || 0 };
+      const LL = S.want.kind === "observe" ? X.lessonObserve : (lessonByWant(S) || X.lessonObserve);
+      await startLesson(S, LL);
+    };
+    $("#dOk").onclick = () => handoff(false);
+    $("#dObs3").onclick = () => handoff(true);
+    $("#dChange").onclick = async () => { R.dialogFix(st, "desire"); st.status = "asking"; await persistOnb(); dialog(); };
+  }
   function ownScenario() {
     const S = onb();
     flow({ id: "onb-own", scope: "onb", title: "Свой случай", cancelLabel: "Назад", onCancel: () => go(S.area && S.area !== "own" ? (S.area === "work" && !S.ctx ? "workctx" : "cards") : "area"),
@@ -598,6 +782,7 @@
         S.teacher = { kind, label, ownName: ans.who === "__own" ? ans.who_own : "", area: fa };
         S.step = "case"; await persistOnb(); go("case");
       } });
+    { const rc = readingCard("karma-teacher"); if (rc && app.dataset.flow !== "plan") app.insertAdjacentHTML("beforeend", rc); }
   }
   const packIdOf = S => (S.event && variantById(S.event) ? variantById(S.event).packId : (S.own ? S.own.packId : null)) || null;
   /* Последний случай: одна фраза (можно взять текст выбранной карточки), когда было, повторяется ли. Примеры — только выбранного варианта. */
@@ -742,7 +927,8 @@
         ${L.inner ? `<details class="plain"><summary>Возможное внутреннее разрешение — проверим позже</summary><p class="small" style="margin:0 0 4px"><b>${esc(OB.lesson.inner)}</b> ${esc(lc1(L.inner))}. Это кандидат из каталога, не вывод о тебе: подтвердишь или заменишь на шаге «Что я себе разрешаю».</p></details>` : ""}`}
       </div>
       <div class="row"><button class="btn block" id="go">${esc(observe ? "Начать с наблюдения" : "Настроить свой шаг")}</button></div>
-      <div class="row tight"><button class="btn ghost" id="rej">${esc(observe ? "Выбрать направление" : OB.lesson.reject)}</button><a class="btn ghost" href="#summary">Назад</a></div>`;
+      <div class="row tight"><button class="btn ghost" id="rej">${esc(observe ? "Выбрать направление" : OB.lesson.reject)}</button><a class="btn ghost" href="#summary">Назад</a></div>
+      ${readingCard("karma-lesson")}`;
     $("#rej").onclick = async () => { if (!observe && !rejected.includes(L.id)) rejected.push(L.id); S.rejected = rejected; S.lesson = null; S.pickAlt = true; await persistOnb(); lesson(); };
     $("#go").onclick = () => startLesson(S, L);
   }
@@ -757,7 +943,7 @@
     const caseDate = cs.when === "today" ? k : (cs.date && R.isKey(cs.date) ? cs.date : k);
     const practiceStart = hasCase ? R.practiceStartFor({ todayKey: k, hour: hour(), times: P.times, actedToday: false }) : null;
     const tl = T.ownName || T.label, observe = L.id === X.lessonObserve.id || String(L.id).startsWith("observe:");
-    const scenario = { origin: ev ? "event" : "own", eventId: ev ? ev.eventId : null, variantId: ev ? ev.variantId : null, routingVersion: X.routingVersion, areaExplicit: !!S.areaExplicit, wantText: S.want ? S.want.text : "", wantOrigin: S.want ? S.want.origin : null, wantKind: S.want ? S.want.kind : null, eventText: evText, eventOrigin: ev ? "user_selected" : "user_written", caseText, caseOrigin: cs.origin || (ev ? "user_selected" : "user_written"), meaningId: S.sting.meaningId, meaningText: S.sting.text || "", meaningOrigin: S.sting.origin, repeat: cs.repeat || S.sting.repeat || null, reaction: null, reactionOrigin: null, area: ev ? ev.area : (S.own && S.own.area) || null, ctx: ev && ev.area === "work" ? S.ctx || null : null, version: C.contentVersion, recognition: caseText, own: ev ? "" : evText, confirmed: S.confirmed ? "yes" : "no" };
+    const scenario = { origin: ev ? "event" : "own", eventId: ev ? ev.eventId : null, variantId: ev ? ev.variantId : null, routingVersion: X.routingVersion, areaExplicit: !!S.areaExplicit, wantText: S.want ? S.want.text : "", wantOrigin: S.want ? S.want.origin : null, wantKind: S.want ? S.want.kind : null, eventText: evText, eventOrigin: ev ? "user_selected" : "user_written", caseText, caseOrigin: cs.origin || (ev ? "user_selected" : "user_written"), meaningId: S.sting.meaningId, meaningText: S.sting.text || "", meaningOrigin: S.sting.origin, repeat: cs.repeat || S.sting.repeat || null, reaction: null, reactionOrigin: null, area: ev ? ev.area : (S.own && S.own.area) || null, ctx: ev && ev.area === "work" ? S.ctx || null : null, version: C.contentVersion, recognition: caseText, own: ev ? "" : evText, confirmed: S.confirmed ? "yes" : "no", habitualReaction: (S.sting && S.sting.reaction) || null, dialog: S.dialogResult || null };
     const p = { id: R.uuid(), title: pk ? pk.title : shortTitle(caseText), packId: packId || null, contexts: tl ? [tl] : [], status: hasCase ? "active" : "observe", startDate: practiceStart, practiceStartDate: practiceStart, practiceStartOrigin: "user", caseDate: hasCase ? caseDate : null, firstDay: { kind: phase(), date: k, at: ts, taken: false }, createdAt: ts, hypothesisVersionId: null, experimentId: null, queue: [], legacy: false,
       scenario, teacher: { kind: T.kind, label: tl, what: caseText },
       lesson: { id: L.id, title: L.title, inner: L.inner || "", action: L.action, skillId: L.skillId, hypothesisId: L.hypothesisId || null, signal: L.signal, status: "preliminary", chosenAt: ts, rejected: S.rejected || [], origin: "editorial_hypothesis", basis: { eventId: ev ? ev.eventId : null, variantId: ev ? ev.variantId : null, meaningId: S.sting.meaningId } },
@@ -829,6 +1015,8 @@
     P.companion = Object.assign({ date: k, planId: id, ver: x && x.version }, c); saveProfile(true); return P.companion;
   }
   const companionHTML = p => { const c = companionFor(p); return c ? `<p class="small" style="margin:0 0 6px" id="companion"><b>${esc(OB.companion.title)}:</b> ${esc(c.text)}</p>` : ""; };
+  /* Связь подтверждённой истории с темой пути — только редакторская пара «число × вариант карточки». */
+  const pathLinkText = p => { const n = pathNum(), vid = p && p.scenario && p.scenario.variantId; return n && vid && p.scenario.confirmed === "yes" ? (X.pathLinks || {})[`${n}|${vid}`] || "" : ""; };
   const pathLineHTML = () => { const n = pathNum(); return n ? `<a class="pathline" href="#symbol">${ic("star", "")}<span>${n} · ${esc(X.pathProfiles[String(n)].displayName)}</span></a>` : ""; };
   function planScreen(arg) {
     const p = anyPattern(); if (!p) return go("today");
@@ -852,6 +1040,9 @@
       if (mode === "params") show.params = true;
       if (mode === "simplify" && !w.simplified) w.simplified = true;
     }
+    /* «С кем» — отдельная подпись: если учитель известен, он предложен готовым редактируемым ответом. */
+    const TEACH_NOM = { boss: "руководитель", colleague: "коллега", client: "клиент", partner: "партнёр", parent: "родитель", child: "ребёнок", relative: "близкий человек", friend: "друг" };
+    if (setup && (w.setup || []).some(sl => sl.label) && !(w.slots || {}).person && p.teacher) { const t = p.teacher.kind === "other" ? (p.teacher.label || "") : (TEACH_NOM[p.teacher.kind] || ""); if (t) { w.slots = Object.assign({}, w.slots, { person: t }); } }
     const saveDraft = () => { if (editing) { P.planDraft = { patternId: p.id, planId: x.id, baseVersion: x.version, mode, w, show, at: nowTs() }; return saveProfile(true); } return saveExp(x); };
     let timer = null; const later = () => { clearTimeout(timer); timer = setTimeout(saveDraft, 300); };
     let dirty = restored || (editing && mode === "simplify");
@@ -859,7 +1050,7 @@
     planFlush = () => { clearTimeout(timer); if (dirty && app.dataset.flow === "plan") saveDraft(); };
     if (restored) setTimeout(() => toast(OPl.restored), 50);
     if (editing && mode === "simplify" && !restored) saveDraft();
-    const usedSlots = () => { const cueKeys = w.cueUser ? [] : R.templateSlots(w.cueTemplate), actKeys = w.actionUser ? [] : R.templateSlots(w.actionTemplate + " " + (w.simplified && !w.smallerUser && w.smallerVersion ? w.smallerVersion : "")); return (w.setup || []).filter(sl => cueKeys.includes(sl.key) || actKeys.includes(sl.key)); };
+    const usedSlots = () => { const cueKeys = w.cueUser ? [] : R.templateSlots(w.cueTemplate), actKeys = w.actionUser ? [] : R.templateSlots(w.actionTemplate + " " + (w.simplified && !w.smallerUser && w.smallerVersion ? w.smallerVersion : "")); return (w.setup || []).filter(sl => sl.label || cueKeys.includes(sl.key) || actKeys.includes(sl.key)); };
     const hl = txt => esc(txt).replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (m, k) => `<mark>${esc(((w.setup || []).find(s => s.key === k) || {}).question || k)}</mark>`);
     const toObserve = () => { const tpl = templateFor({ id: X.lessonObserve.id, skillId: "pause" }, null); const f = R.planFromTemplate({ template: tpl.template, kind: "fallback", patternId: p.id, lessonId: w.lessonId, skillId: "pause", basisIds: w.userBasisIds || [], painText: w.painText || "", mode: "observation" }); Object.assign(w, f, { id: w.id, version: w.version, createdAt: w.createdAt, planStatus: w.planStatus, lineageId: w.lineageId, goalConfirmed: true, goalOrigin: "observe", desiredChange: OPl.observeGoal, cueUser: "", actionUser: "", smallerUser: "" }); };
     let notFit = false, saving = false;
@@ -883,6 +1074,7 @@
         <h1 class="q">${esc(editing ? OPl.editTitle : OPl.title)}</h1>
         ${goalHtml}
         <div class="card mark"><div class="plines">
+          ${(w.setup || []).some(sl => sl.label) ? `<div><span>${esc(OPl.whoL)}:</span> <i id="whoTxt" style="font-style:normal">${esc((w.slots || {}).person || "—")}</i></div>` : ""}
           <div><span>${esc(OPl.whenL)}:</span> ${show.cue ? `<textarea id="cueOwn" placeholder="свой момент, одной фразой">${esc(w.cueUser || "")}</textarea>` : `<i id="cueTxt" style="font-style:normal">${hl(uc1(v.cue))}</i>`}</div>
           <div><span>${esc(obs ? OPl.whatObs : OPl.whatL)}:</span> ${show.act ? `${actHint()}<textarea id="actOwn" data-target="${actT()}" placeholder="${esc(OPl.ownActionLead)}">${esc((actT() === "small" ? w.smallerUser : w.actionUser) || "")}</textarea>` : `<i id="actTxt" style="font-style:normal">${hl(uc1(v.action || "—"))}</i>`}${v.simplified ? ` <span class="tiny">· ${esc(OPl.simplified)}</span>` : ""}</div>
           ${v.needsSmall ? `<div><label for="smallOwn" style="margin-top:4px">${esc(OPl.smallQ)}</label><textarea id="smallOwn" placeholder="${esc(OPl.smallPh)}">${esc(w.smallerUser || "")}</textarea></div>` : ""}
@@ -895,7 +1087,7 @@
         <div class="row tight">${!editing && (v.canSimplify || w.simplified) ? `<button class="btn ghost" id="simpler">${esc(w.simplified ? OPl.full : OPl.simpler)}</button>` : ""}${editing ? `<button class="btn ghost" id="cancelEdit">${esc(OPl.cancel)}</button>` : `<button class="btn ghost" id="notfit">${esc(OPl.notFit)}</button>`}</div>
         <div id="nf">${notFit ? `<div class="card tight"><p class="small muted" style="margin:0 0 6px">${esc(OPl.notFitWhat)}</p><div class="chips col"><button class="chip" id="nfGoal">${esc(OPl.notFitGoal)}</button><button class="chip" id="nfAction">${esc(OPl.notFitAction)}</button></div><div id="nfa"></div></div>` : ""}</div>`;
       /* Ввод обновляет момент и действие на месте, без перерисовки: фокус и набранный текст не теряются. */
-      const refresh = () => { const v2 = R.planView(w), ct = $("#cueTxt"), at = $("#actTxt"); if (ct) ct.innerHTML = hl(uc1(v2.cue)); if (at) at.innerHTML = hl(uc1(v2.action || "—")); const ready = R.planReady(w).ready && (!!w.goalConfirmed || !w.lessonId || editing); $("#ok").disabled = !ready; const nf = $("#needFill"); if (nf) nf.style.display = R.planReady(w).ready ? "none" : ""; };
+      const refresh = () => { const wt = $("#whoTxt"); if (wt) wt.textContent = (w.slots || {}).person || "—"; const v2 = R.planView(w), ct = $("#cueTxt"), at = $("#actTxt"); if (ct) ct.innerHTML = hl(uc1(v2.cue)); if (at) at.innerHTML = hl(uc1(v2.action || "—")); const ready = R.planReady(w).ready && (!!w.goalConfirmed || !w.lessonId || editing); $("#ok").disabled = !ready; const nf = $("#needFill"); if (nf) nf.style.display = R.planReady(w).ready ? "none" : ""; };
       $$("[data-slot]").forEach(inp => inp.oninput = () => { w.slots = w.slots || {}; w.slots[inp.dataset.slot] = inp.value; changed(); refresh(); });
       $$("[data-slot]").forEach(inp => inp.onchange = () => { saveDraft(); const err = R.planReady(w).errors[inp.dataset.slot]; let el = inp.nextElementSibling; if (!(el && el.classList && el.classList.contains("slerr"))) { el = document.createElement("p"); el.className = "tiny slerr"; el.style.cssText = "margin:0 0 4px;color:#B3261E"; inp.insertAdjacentElement("afterend", el); } el.textContent = err && inp.value ? err : ""; });
       const co = $("#cueOwn"); if (co) co.oninput = () => { w.cueUser = co.value.trim(); changed(); refresh(); };
@@ -1051,7 +1243,7 @@
     /* Смысл на сейчас: учитель, урок; шаг — если его не показывает основная карточка. Рядом — «Как пользоваться». */
     /* Три уровня: тема пути (число, компактно), текущий урок (подтверждённый), сегодняшний шаг (принятый план). Они не конкурируют. */
     const sym = pathOf(), pv = planView(p), showStep = pv && rd.ready && !/plines/.test(main);
-    const pathCard = p && p.lesson ? `<div class="card"><div class="k">${ic("eye")}${esc(OB.home.title)}<a href="#guide" class="klink">${esc(OB.buttons.guide)}</a></div>${pathLineHTML()}<div class="plines"><div><span>${esc(OB.levels.lesson)}:</span> ${esc(learningText(p))}</div><div><span>${esc(OB.levels.teacher)}:</span> ${esc(p.teacher ? p.teacher.label : (p.contexts || []).join(", ") || "—")}</div>${showStep ? `<div><span>${esc(OB.levels.step)}:</span> ${esc(lc1(pv.cue) || "")}${pv.cue ? " — " : ""}${esc(lc1(pv.action))}</div>` : ""}</div></div>` : (p ? `${pathLineHTML()}<p class="tiny" style="margin:0 0 6px;text-align:right"><a href="#guide">${esc(OB.buttons.guide)}</a></p>` : "");
+    const pathCard = p && p.lesson ? `<div class="card"><div class="k">${ic("eye")}${esc(OB.home.title)}<a href="#guide" class="klink">${esc(OB.buttons.guide)}</a></div>${pathLineHTML()}<div class="plines"><div><span>${esc(OB.levels.lesson)}:</span> ${esc(learningText(p))}</div><div><span>${esc(OB.levels.teacher)}:</span> ${esc(p.teacher ? p.teacher.label : (p.contexts || []).join(", ") || "—")}</div>${showStep ? `<div><span>${esc(OB.levels.step)}:</span> ${esc(lc1(pv.cue) || "")}${pv.cue ? " — " : ""}${esc(lc1(pv.action))}</div>` : ""}</div>${pathLinkText(p) ? `<p class="small" id="pathLink" style="margin:6px 0 0"><i>${esc(pathLinkText(p))}</i></p>` : ""}</div>` : (p ? `${pathLineHTML()}<p class="tiny" style="margin:0 0 6px;text-align:right"><a href="#guide">${esc(OB.buttons.guide)}</a></p>` : "");
     /* Кнопки дня: прямые названия; подписи-обучение до первого закрытого вечера или открытия «Как пользоваться». Нажатие само по себе успехом не считается. */
     const B = OB.buttons, learn = p && !P.seen.buttons;
     const tap = (href, icon, b) => `<a class="tap ${learn ? "learn" : ""}" href="${href}">${ic(icon, "")}<span>${esc(b.label)}</span>${learn ? `<em>${esc(b.caption)}</em>` : ""}</a>`;
@@ -1484,6 +1676,32 @@
   const bodySignal = p => { const e = episodesOf(p).filter(x => x.body && (x.body.locations || []).some(l => !/ничего|не хочу/i.test(l))).slice(-1)[0]; return e ? lc1((e.body.locations.find(l => !/ничего|не хочу/i.test(l)) || "") + (e.body.sensation ? ` (${lc1(e.body.sensation)})` : "")) : (p.bodySignal || ""); };
 
   /* =================== МОЙ СЮЖЕТ =================== */
+  /* v6.7: принятый шаг автоматически не переписывается. Если формулировка шаблона обновлена, предлагаем отдельную новую версию
+     (те же ответы человека, «С кем» — отдельной строкой). История и линия подтверждений сохраняются: это правка слов, не новое действие. */
+  function planUpdateFor(p) {
+    const x = expOf(p); if (!x || x.kind !== "plan" || x.planStatus !== "accepted" || !x.templateId || x.templateUpdateDismissed === C.contentVersion) return null;
+    const card = PR.cards[x.templateId] || (PR.adapted || {})[x.templateId]; if (!card) return null;
+    const same = card.cueTemplate === x.cueTemplate && card.actionTemplate === x.actionTemplate && (card.smallerVersion || "") === (x.smallerVersion || "");
+    if (same) return null;
+    const nx = Object.assign(JSON.parse(JSON.stringify(x)), { cueTemplate: card.cueTemplate, actionTemplate: card.actionTemplate, smallerVersion: card.smallerVersion || "", afterQuestion: card.afterQuestion || x.afterQuestion,
+      setup: (card.setup || []).map(sl => Object.assign({ key: sl.key, question: sl.question, example: sl.example || "" }, sl.label ? { label: true } : {})) });
+    const ov = R.planView(x), nv = R.planView(nx);
+    if (!R.planReady(nx).ready || (ov.cue === nv.cue && ov.action === nv.action)) return null;
+    return { x, nx, ov, nv };
+  }
+  function planUpdateHTML(p) {
+    const u = planUpdateFor(p); if (!u) return ""; const U = OB.planUpdate;
+    return `<div class="card tight" id="planUpd"><div class="k">${ic("key")}${esc(U.title)}</div><p class="small" style="margin:2px 0 6px">${esc(U.text)}</p>
+      <p class="small" style="margin:0 0 4px"><b>${esc(U.was)}:</b> ${esc(uc1(u.ov.cue))} — ${esc(lc1(u.ov.action))}</p>
+      <p class="small" style="margin:0 0 6px"><b>${esc(U.will)}:</b> ${u.nv.who ? `${esc(OB.plan.whoL)}: ${esc(u.nv.who)}. ` : ""}${esc(uc1(u.nv.cue))} — ${esc(lc1(u.nv.action))}</p>
+      <div class="row tight"><button class="btn secondary sm" id="updOk">${esc(U.ok)}</button><button class="btn ghost sm" id="updKeep">${esc(U.keep)}</button></div></div>`;
+  }
+  function bindPlanUpdate(p, again) {
+    const ok = $("#updOk"); if (ok) ok.onclick = async () => { const u = planUpdateFor(p); if (!u) return again(); const lin = u.x.lineageId;
+      const patch = { cueTemplate: u.nx.cueTemplate, actionTemplate: u.nx.actionTemplate, smallerVersion: u.nx.smallerVersion, afterQuestion: u.nx.afterQuestion, setup: u.nx.setup, planStatus: "accepted", reason: "wording", acceptedAt: nowTs() };
+      const nxp = await newExperimentVersion(p, patch); nxp.lineageId = lin; nxp.wordingUpdatedFrom = u.x.id; await saveExp(nxp); toast(OB.planUpdate.done); again(); };
+    const kp = $("#updKeep"); if (kp) kp.onclick = async () => { const x = expOf(p); x.templateUpdateDismissed = C.contentVersion; await saveExp(x); again(); };
+  }
   function story() {
     const p = anyPattern();
     if (!p) { app.innerHTML = `<h1>Сюжета пока нет</h1><p class="muted">Начни с одного случая или посмотри карточки.</p><div class="row"><a class="btn block" href="#entry">Начать</a></div>`; return; }
@@ -1505,7 +1723,7 @@
     const sup = h ? (h.supportingEpisodeIds || []).length : 0;
     hero.innerHTML = `<div class="hero"><div class="hl">${ic("eye", "")}Мой путь</div><div class="hd">${esc(p.title)}</div><div class="hs">${p.status === "observe" ? "наблюдение" : p.status === "paused" ? "пауза" : (h ? rec.label : (p.lesson ? "урок предварительный, объяснение уточним" : "объяснение ещё не выбрано"))}</div></div>`;
     const sym = pathOf();
-    app.innerHTML = `${note}
+    app.innerHTML = `${planUpdateHTML(p)}${note}
       <div class="card">
         ${pathNum() ? `<div class="prow"><div class="k"><span>${esc(OB.levels.theme)}</span><a href="#symbol">открыть</a></div>${pathNum()} · ${esc(X.pathProfiles[String(pathNum())].displayName)}<div class="tiny">${esc(X.pathProfiles[String(pathNum())].shortIntro)}</div></div>` : ""}
         ${learningText(p) ? `<div class="prow"><div class="k"><span>${esc(OB.levels.lesson)}</span></div>${esc(uc1(learningText(p)))}${expOf(p) && expOf(p).goalConfirmed ? "" : ` <span class="tiny">· цель не подтверждена — уточни в шаге</span>`}</div>` : ""}
@@ -1536,22 +1754,24 @@
       <div class="card tight"><div class="k">${ic("star")}${esc(OB.signs.title)}</div><p class="tiny" style="margin:2px 0 6px">${esc(OB.signs.lead)}</p>${(p.signs || []).length ? `<ul class="list">${p.signs.slice(-6).reverse().map(sg => `<li class="small"><div class="date">${esc(R.human(R.dateKey(sg.at)))}</div>${esc(sg.text)}</li>`).join("")}</ul>` : ""}<div class="row tight"><input type="text" id="signTxt" placeholder="${esc(OB.signs.ph)}"><button class="btn secondary sm" id="signAdd">${esc(OB.signs.add)}</button></div></div>
       ${queueCard()}
       ${savedHtml}
-      <div class="card tight"><div class="k">${ic("star")}Мой путь</div>${pathNum() ? `<p class="small" style="margin:2px 0 4px"><b>${pathNum()} · ${esc(X.pathProfiles[String(pathNum())].displayName)}</b></p><p class="small" style="margin:0 0 4px">${esc(X.pathProfiles[String(pathNum())].shortIntro)}</p>` : `<p class="small" style="margin:2px 0 4px">По желанию: число пути по дате рождения.</p>`}<div class="row tight"><a class="btn ghost sm" href="#symbol">${pathNum() ? "Подробнее о пути" : "Добавить"}</a><button class="btn ghost sm" id="compToggle">${esc(P.companionOff ? OB.companion.show : OB.companion.hide)}</button></div></div>
-      ${(() => { const done = D.patterns.filter(q => q.status === "done" && q.lesson && !q.legacy); return `<details class="plain"><summary>${esc(OB.completed.title)} · ${done.length}</summary>${done.length ? `<ul class="list">${done.map(q => { const fl = flagsReal().filter(f => f.patternId === q.id); const n = D.episodes.filter(e => e.patternId === q.id && R.isConfirmedAction(e)).length; return `<li class="small"><b>${esc(uc1(q.lesson.title))}</b>${fl.length ? ` · флаг: ${fl.map(f => esc(skillLabel(f.skillId))).join(", ")}` : ""} · применений: ${n}</li>`; }).join("")}</ul>` : `<p class="tiny">${esc(OB.completed.none)}</p>`}</details>`; })()}
+      <div class="card tight"><div class="k">${ic("star")}Мой путь</div>${pathNum() ? `<p class="small" style="margin:2px 0 4px"><b>${pathNum()} · ${esc(X.pathProfiles[String(pathNum())].displayName)}</b></p><p class="small muted" style="margin:0 0 4px">${esc(X.pathProfiles[String(pathNum())].theme)}</p><p class="small" style="margin:0 0 4px">${esc(X.pathProfiles[String(pathNum())].revealParagraphs[0])}</p>${pathLinkText(p) ? `<p class="small" style="margin:0 0 4px"><i>${esc(pathLinkText(p))}</i></p>` : ""}${foundationHTML()}` : `<p class="small" style="margin:2px 0 4px">По желанию: число пути по дате рождения.</p>`}<div class="row tight"><a class="btn ghost sm" href="#symbol">${pathNum() ? "Подробнее о пути" : "Добавить"}</a><button class="btn ghost sm" id="compToggle">${esc(P.companionOff ? OB.companion.show : OB.companion.hide)}</button></div></div>
+      ${(() => { const arch = D.patterns.filter(q => !q.legacy && q.id !== p.id && (q.status === "archived" || q.status === "done")); return `<details class="plain" id="archiveList"><summary>${esc(OB.archive.title)} · ${arch.length}</summary>${arch.length ? `<ul class="list">${arch.map(q => `<li class="small"><b>${esc(uc1(q.lesson ? q.lesson.title : q.title))}</b> · ${esc(R.isCompleted(q) ? OB.archive.done : OB.archive.archived)}${q.archivedAt ? ` · ${esc(R.human(R.dateKey(q.archivedAt)))}` : ""}</li>`).join("")}</ul>` : `<p class="tiny">${esc(OB.archive.none)}</p>`}</details>`; })()}
+      ${(() => { const done = D.patterns.filter(q => R.isCompleted(q) && q.lesson && !q.legacy); return `<details class="plain"><summary>${esc(OB.completed.title)} · ${done.length}</summary>${done.length ? `<ul class="list">${done.map(q => { const fl = flagsReal().filter(f => f.patternId === q.id); const n = D.episodes.filter(e => e.patternId === q.id && R.isConfirmedAction(e)).length; return `<li class="small"><b>${esc(uc1(q.lesson.title))}</b>${fl.length ? ` · ${esc(OB.archive.basis)}: флаг «${fl.map(f => esc(skillLabel(f.skillId))).join(", ")}»` : ""}${q.completedBasis && q.completedBasis.at ? ` · ${esc(R.human(R.dateKey(q.completedBasis.at)))}` : ""} · применений: ${n}</li>`; }).join("")}</ul>` : `<p class="tiny">${esc(OB.completed.none)}</p>`}</details>`; })()}
       <details class="plain"><summary>Версии гипотез и экспериментов</summary><ul class="list">${D.hypotheses.filter(v => v.patternId === p.id).map(v => `<li><div class="date">гипотеза v${v.version || 1} · ${esc(statusLabel(v.status))} · ${esc(R.human(R.dateKey(v.createdAt)))}</div>${esc(v.text)}</li>`).join("")}${D.experiments.filter(v => v.patternId === p.id).map(v => `<li><div class="date">шаг v${v.version} · ${v.status === "active" ? "действует" : "заменён"} · ${esc(R.human(R.dateKey(v.createdAt)))}</div>${esc(v.action)}${v.prediction ? ` — ожидание: ${esc(v.prediction)}` : ""}</li>`).join("") || "<li class='muted'>пока пусто</li>"}</ul></details>
       <div class="row tight">${p.status === "paused" ? `<button class="btn secondary" id="resume">Вернуться к сюжету</button>` : `<button class="btn ghost" id="pauseP">Пауза по сюжету</button>`}<button class="btn ghost" id="newP">Другой сюжет</button></div>`;
     $$("[data-edit]").forEach(b => b.onclick = () => b.dataset.edit === "plan" ? go(x && x.kind === "plan" && x.planStatus !== "draft" ? "plan/edit" : "plan") : editField(p, b.dataset.edit, b.dataset.ph));
     const ct = $("#compToggle"); if (ct) ct.onclick = async () => { P.companionOff = !P.companionOff; await saveProfile(true); story(); };
+    bindPlanUpdate(p, story);
     const sa = $("#signAdd"); if (sa) sa.onclick = async () => { const v = $("#signTxt").value.trim(); if (!v) return toast("Напиши наблюдение"); p.signs = [...(p.signs || []), { at: nowTs(), text: v }]; await savePattern(p); story(); };
     const kl = $("#keepLesson"); if (kl) kl.onclick = async () => { p.lesson.keptForExperimentId = x.id; p.lesson.status = "confirmed"; await savePattern(p); toast("Формулировка сохранена"); story(); };
     const rl = $("#refineLesson"); if (rl) rl.onclick = () => editField(p, "lesson");
     $$("[data-unsave]").forEach(b => b.onclick = async () => { P.savedScenarios.splice(Number(b.dataset.unsave), 1); await saveProfile(); story(); });
-    $$("[data-saved]").forEach(b => b.onclick = async () => { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Текущий сюжет уйдёт в историю. Нажми ещё раз"; return; } const sc = P.savedScenarios[Number(b.dataset.saved)]; P.savedScenarios.splice(Number(b.dataset.saved), 1); p.status = "done"; await savePattern(p); const sv = sc.kind === "event" ? (variantById(sc.id) || (sc.area ? variantById(`${sc.id}@${sc.area}`) : null)) : null; P.onb = sv ? { step: "teacher", event: sv.variantId, picks: [{ id: sv.variantId, variantId: sv.variantId, area: sv.area, packId: sv.packId, text: sv.text, r: "yes" }], shown: [sv.variantId], area: sv.area, ctx: sv.area === "work" ? "any" : null, areaExplicit: true, routingVersion: X.routingVersion } : { step: "teacher", own: { text: sc.recognition || sc.text, packId: sc.packId || null, version: C.contentVersion, area: sc.area || null }, picks: [], routingVersion: X.routingVersion }; ["onb-teacher", "onb-case-" + (sv ? sv.variantId : "own"), "onb-sting-" + (sv ? sv.variantId : "own"), "onb-want-" + (sv ? sv.variantId : "own")].forEach(id => dropDraft(id, "onb")); await saveProfile(true); go("teacher"); });
+    $$("[data-saved]").forEach(b => b.onclick = async () => { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Текущий сюжет уйдёт в историю. Нажми ещё раз"; return; } const sc = P.savedScenarios[Number(b.dataset.saved)]; P.savedScenarios.splice(Number(b.dataset.saved), 1); archivePattern(p, "saved_scenario"); await savePattern(p); const sv = sc.kind === "event" ? (variantById(sc.id) || (sc.area ? variantById(`${sc.id}@${sc.area}`) : null)) : null; P.onb = sv ? { step: "teacher", event: sv.variantId, picks: [{ id: sv.variantId, variantId: sv.variantId, area: sv.area, packId: sv.packId, text: sv.text, r: "yes" }], shown: [sv.variantId], area: sv.area, ctx: sv.area === "work" ? "any" : null, areaExplicit: true, routingVersion: X.routingVersion } : { step: "teacher", own: { text: sc.recognition || sc.text, packId: sc.packId || null, version: C.contentVersion, area: sc.area || null }, picks: [], routingVersion: X.routingVersion }; ["onb-teacher", "onb-case-" + (sv ? sv.variantId : "own"), "onb-sting-" + (sv ? sv.variantId : "own"), "onb-want-" + (sv ? sv.variantId : "own")].forEach(id => dropDraft(id, "onb")); await saveProfile(true); go("teacher"); });
     const kd = $("#keepDep"); if (kd) kd.onclick = async () => { const cur = p.hypothesisVersionId || null; if (dep.permission) { p.permissionSource = Object.assign({}, p.permissionSource, { keptFor: cur }); await savePattern(p); } if (dep.plan) { x.keptFor = cur; await saveExp(x); } toast("Оставлено осознанно"); story(); };
     const rd = $("#redoDep"); if (rd) rd.onclick = async () => { if (dep.permission) { p.permissionSource = null; await savePattern(p); } deepToday = true; go(dep.permission ? "module/rule" : "module/experiment"); };
     const rp = $("#resume"); if (rp) rp.onclick = async () => { p.status = "active"; await savePattern(p); story(); };
     const pp = $("#pauseP"); if (pp) pp.onclick = async () => { if (!pp.dataset.sure) { pp.dataset.sure = 1; pp.textContent = "Точно поставить на паузу? Нажми ещё раз"; return; } p.status = "paused"; await savePattern(p); go("today"); };
-    $("#newP").onclick = async () => { const b = $("#newP"); if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Текущий уйдёт в историю. Нажми ещё раз"; return; } p.status = "done"; await savePattern(p); P.onb = { step: "area" }; await saveProfile(true); go("area"); };
+    $("#newP").onclick = async () => { const b = $("#newP"); if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Текущий уйдёт в историю. Нажми ещё раз"; return; } archivePattern(p, "new_story"); await savePattern(p); P.onb = { step: "area" }; await saveProfile(true); go("area"); };
   }
   const branchLabel = b => ({ rule: "внутреннее правило", boundary: "граница", expectation: "интерпретация", resource: "ресурс", own_behavior: "своё поведение", unknown: "пока неясно" })[b] || b;
   const statusLabel = s => ({ candidate: "версия", selected: "проверяется", supported_by_user: "подтверждена мной", rejected: "отвергнута", revised: "пересмотрена" })[s] || s;
@@ -1631,7 +1851,8 @@
       ${nar.before ? `<p class="small" style="margin:0 0 4px">${esc(W.before.replace("{reaction}", lc1(nar.before)))}</p>` : ""}${nar.now.length ? `<p class="small" style="margin:0 0 4px"><b>${esc(W.now.replace("{facts}", nar.now.join(", ")))}</b></p>` : `<p class="small muted" style="margin:0 0 4px">${esc(W.noData)}</p>`}
       ${x && x.prediction ? `<div class="card tight"><div class="k">Ожидание и факт</div><p class="small" style="margin:2px 0 0">Ожидал: «${esc(x.prediction)}». На деле: ${esc(resStr)}.</p></div>` : ""}
       ${h && (sup || con) ? `<p class="tiny" style="margin:4px 0 0">Объяснение «${esc(h.text)}»: подходило в ${sup} ${R.plural(sup, "случае", "случаях", "случаях")}, не подходило в ${con}.</p>` : ""}
-      ${little ? `<div class="nudge">Сейчас мало случаев для выводов. Это не провал — просто данных пока немного.</div>` : ""}`;
+      ${little ? `<div class="nudge">Сейчас мало случаев для выводов. Это не провал — просто данных пока немного.</div>` : ""}
+      ${readingCard("karma-change")}`;
     const steps = [
       { k: "look", q: W.title.replace("{n}", due.idx + 1), type: "info", nextLabel: "Дальше", html: factsHtml },
       { k: "learn", q: W.ask, type: "text", ph: "коротко; «пока не знаю» — тоже ответ", optional: true, skip: () => !nar.now.length },
@@ -1686,7 +1907,7 @@
         <div class="row"><a class="btn block" href="#today">Продолжить закрепление</a></div>`;
       $$("[data-c]").forEach(b => b.onclick = async () => {
         const v = b.dataset.c;
-        if (v === "next") { p.status = "done"; p.continueChoice = "next"; await savePattern(p); P.onb = { step: "area" }; await saveProfile(true); return go("area"); }
+        if (v === "next") { const fl = flagsReal().filter(f => f.patternId === p.id); p.status = "done"; p.completedBasis = { kind: "flag", flagIds: fl.map(f => f.id), skillIds: fl.map(f => f.skillId), at: nowTs() }; p.continueChoice = "next"; await savePattern(p); P.onb = { step: "area" }; await saveProfile(true); return go("area"); }
         if (v === "keep") { p.continueChoice = "keep"; await savePattern(p); toast("Продолжаем закреплять этот ответ"); return go("today"); }
         $("#contOwn").innerHTML = `<textarea id="cown" placeholder="${esc(OB.complete.ownPh)}"></textarea><div class="row tight"><button class="btn secondary sm" id="cownOk">Сохранить</button></div>`;
         $("#cownOk").onclick = async () => { const t = $("#cown").value.trim(); if (!t) return toast("Напиши пару слов"); p.continueChoice = "own"; p.continueNote = t; p.signs = [...(p.signs || []), { at: nowTs(), text: "Продолжу: " + t }]; await savePattern(p); toast("Записано"); go("today"); };
@@ -1773,15 +1994,23 @@
   /* =================== СИМВОЛИЧЕСКАЯ ТЕМА =================== */
   /* Шаг 3 входа. Открытие числа: астролябия, золотая цифра, название пути. Анимацию можно пропустить; при reduced motion — статично. */
   /* Экран числа v6.3: число и название пути, краткий смысл, переходный вопрос, «Найти свой первый урок». Расчёт и подробности — по раскрытию. */
-  const pathProfileHTML = (n, open) => { const pr = X.pathProfiles[String(n)]; return `<details class="plain"${open ? " open" : ""}><summary>${esc(OB.reveal2.more)}</summary>${pr.expandedSections.map(([h, t]) => `<p class="small" style="margin:0 0 6px"><b>${esc(h)}.</b> ${esc(t)}</p>`).join("")}<p class="tiny">${esc(OPth.note)}</p></details>`; };
+  /* v6.6: раскрытие пути — два содержательных абзаца сразу, глубина по желанию. Тема числа — направление, не вывод о человеке. */
+  const PS = () => X.pathShared;
+  const paras = (arr, cls) => (arr || []).map(t => `<p class="${cls || "small"}" style="margin:0 0 6px">${esc(t)}</p>`).join("");
+  const foundationHTML = () => `<details class="plain" id="foundation"><summary>${esc(PS().foundation.title)}</summary>${paras(PS().foundation.paragraphs)}</details>`;
+  const readingCard = id => { const c = (PS().readingCards || []).find(r => r.id === id); return c ? `<details class="plain reading" data-reading="${id}"><summary>${esc(c.title)}</summary><p class="small" style="margin:0 0 6px">${esc(c.text)}</p></details>` : ""; };
+  const pathProfileHTML = (n, open) => { const pr = X.pathProfiles[String(n)], R2 = OB.reveal2; return `<details class="plain" id="resource"${open ? " open" : ""}><summary>${esc(R2.resource)}</summary><p class="small" style="margin:0 0 6px">${esc(pr.resource)}</p></details>
+    <details class="plain" id="deeper"${open ? " open" : ""}><summary>${esc(R2.more)}</summary>${paras(pr.deeperParagraphs)}<p class="small" style="margin:0 0 6px"><b>${esc(R2.direction)}.</b> ${esc(pr.lessonDirection)}</p><p class="small" style="margin:0 0 6px"><b>${esc(R2.question)}.</b> ${esc(pr.reflectionQuestion)}</p><p class="tiny">${esc(OPth.note)}</p></details>`; };
   function reveal(n) {
     const S = P.symbolic, pr = X.pathProfiles[String(n)], R2 = OB.reveal2, r = R.calcNum(S.birth) || { digits: [], chain: [n] }, red = reduce() || !!(P.onb && P.onb.revealed);
     app.innerHTML = `<div class="astro compact"><img src="${IMG("astrolabe")}" alt=""><div class="orb ${red ? "shown" : "calc"}" id="orb"><div class="core"><i class="fl"></i><img class="num" src="${IMG("num-" + n)}" alt="Число ${n}"></div></div></div>
       ${red ? "" : `<div class="row tight" id="skipRow" style="justify-content:flex-end;margin:0"><button class="btn ghost sm" id="skipAnim">Пропустить</button></div>`}
-      <h1 style="margin-top:4px">${esc(R2.lead)} ${n}</h1><p style="margin:0 0 6px"><b>${esc(pr.displayName)}</b></p><p>${esc(pr.shortIntro)}</p>
-      <p class="small muted">${esc(R2.question)}</p>
-      <div class="row"><button class="btn block" id="go">${esc(R2.cta)}</button></div>
+      <p class="tiny eyebrow" style="margin:4px 0 0">${esc(R2.eyebrow)} · ${n}</p>
+      <h1 style="margin-top:2px">${esc(pr.displayName)}</h1>
+      <div id="revealText">${paras(pr.revealParagraphs, "")}</div>
       ${pathProfileHTML(n, false)}
+      ${foundationHTML()}
+      <div class="row"><button class="btn block" id="go">${esc(R2.cta)}</button></div>
       <details class="plain"><summary>${esc(R2.calc)}</summary><p class="small">${esc(r.digits.join(" + "))}${r.chain.length ? " = " + esc(r.chain.join(" → ")) : ""}</p></details>
       <div class="row tight"><a class="btn ghost sm" href="#birth">${esc(R2.date)}</a></div>`;
     let stopped = false;
@@ -1796,9 +2025,10 @@
       if (P.onb && !anyPattern()) return reveal(n);
       const recog = (P.pathRecognition || []).filter(r => pr.recognitionItems.some(i => i.id === r.itemId));
       app.innerHTML = `<div class="astro compact"><img src="${IMG("astrolabe")}" alt=""><div class="orb shown"><div class="core"><i class="fl"></i><img class="num" src="${IMG("num-" + n)}" alt="Число ${n}"></div></div></div>
-        <h1 style="margin-top:4px">${n} · ${esc(pr.displayName)}</h1><p>${esc(pr.shortIntro)}</p>
+        <p class="tiny eyebrow" style="margin:4px 0 0">${esc(OB.reveal2.eyebrow)} · ${n}</p><h1 style="margin-top:2px">${esc(pr.displayName)}</h1><p class="small muted" style="margin:0 0 6px">${esc(pr.theme)}</p>${paras(pr.revealParagraphs, "")}
         ${recog.length ? `<p class="small muted" style="margin:0 0 6px">Ты отмечал знакомым: ${recog.map(r => esc(lc1((pr.recognitionItems.find(i => i.id === r.itemId) || {}).text || ""))).join("; ")}.</p>` : ""}
-        ${pathProfileHTML(n, true)}
+        ${pathProfileHTML(n, false)}
+        ${foundationHTML()}
         <details class="plain"><summary>Выбрать другую тему</summary><div class="chips">${Object.keys(X.paths).map(k => `<button class="chip ${String(n) === k ? "on" : ""}" data-t="${k}">${k} · ${esc(X.pathProfiles[k].displayName)}</button>`).join("")}</div></details>
         <div class="row tight"><button class="btn ghost" id="rm">Убрать число</button><a class="btn ghost" href="#story">Назад</a></div>`;
       $$("[data-t]").forEach(b => b.onclick = async () => { P.symbolic.chosen = Number(b.dataset.t); P.companion = null; await saveProfile(); symbol(); });
@@ -1919,11 +2149,13 @@
       if (sv < 6) R.migrateV6(D);
       /* Схема 7: цель отделена от жалобы, линии планов, проверка принадлежности вечеров. Повторный запуск безопасен. */
       if (sv < 7) R.migrateV63(D);
+      /* Схема 8: архивированные сюжеты не считаются пройденными уроками. */
+      if (sv < 8) R.migrateV66(D);
       D.meta.schemaVersion = R.SCHEMA_VERSION; D.meta.upgradedAt = Date.now();
       try { await ST.replaceAll(Object.assign(D, { profile: P })); } catch (e) { saveError(e); }
     }
     /* v6.4: незавершённый вход переводится на ветки по сфере; автоматическая сфера из отклика пути не считается выбором. */
-    if (P.onb && R.migrateOnbV64(P.onb, { variants: X.variants, routingVersion: X.routingVersion, recognitionTopics: Object.fromEntries(Object.values(X.pathProfiles).flatMap(pr => pr.recognitionItems.map(i => [i.id, i.preferTopics]))) })) await saveProfile(true);
+    if (P.onb && R.migrateOnbV64(P.onb, { variants: X.variants, routingVersion: X.routingVersion, recognitionTopics: Object.fromEntries(Object.values(X.pathProfiles).flatMap(pr => pr.recognitionItems.map(i => [i.id, i.preferSubtypes]))) })) await saveProfile(true);
     if (!D.profile) await saveProfile();
     lastKey = today(); lastPhase = phase();
     route();

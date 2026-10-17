@@ -325,23 +325,33 @@
   R.QUIZ_AREAS = ["close", "work", "money", "self"];
   R.QUIZ_CONTEXTS = ["boss", "colleagues", "clients", "chat", "load", "any"];
   R.qhash = function (value) { let h = 2166136261; for (const c of String(value)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
-  R.cardOf = v => ({ id: v.variantId, variantId: v.variantId, eventId: v.eventId, familyId: v.familyId, area: v.area, ctx: v.contexts || [], topicTags: v.topicTags || [], text: v.text, packId: v.packId, pathHint: v.pathHint || [] });
-  R.selectDeck = function ({ variants = [], area, context = null, preferredTopics = [], exclude = [], seed = 0, limit = 6 }) {
+  R.cardOf = v => ({ id: v.variantId, variantId: v.variantId, eventId: v.eventId, familyId: v.familyId, area: v.area, subtype: v.subtype || null, ctx: v.contexts || [], topicTags: v.topicTags || [], text: v.text, packId: v.packId, pathHint: v.pathHint || [] });
+  /* v6.6: первая шестёрка покрывает смысловые подтипы. Для сферы (контекста) задан список основных подтипов; из каждого
+     берётся редакторски репрезентативная карточка (порядок reps), seed меняет только порядок подтипов. Отклик пути поднимает
+     до двух подтипов вперёд, но основной подтип им не вытесняется. focus — явный выбор «Уточнить, что искать»: только этот подтип. */
+  R.selectDeck = function ({ variants = [], area, context = null, preferredSubtypes = [], focus = null, exclude = [], excludeSubtypes = [], seed = 0, limit = 6, subtypes = {}, mainSubtypes = [] }) {
     if (!R.QUIZ_AREAS.includes(area)) return { cards: [], reason: "choose_area", exhausted: false };
     if (area === "work" && !R.QUIZ_CONTEXTS.includes(context)) return { cards: [], reason: "choose_work_context", exhausted: false };
-    const ex = new Set(exclude), topics = new Set(preferredTopics || []);
-    const eligible = variants.filter(c => c.area === area && (area !== "work" || context === "any" || (c.contexts || []).includes(context)) && !ex.has(c.variantId) && !ex.has(c.eventId));
-    const ordered = eligible.slice().sort((a, b) => R.qhash(`${seed}|${a.variantId}`) - R.qhash(`${seed}|${b.variantId}`) || a.variantId.localeCompare(b.variantId));
-    const out = [], families = new Set(), counts = new Map();
-    const take = c => { if (!c || families.has(c.familyId)) return false; out.push(c); families.add(c.familyId); const t = (c.topicTags || [])[0] || "other"; counts.set(t, (counts.get(t) || 0) + 1); return true; };
-    for (const c of ordered.filter(c => (c.topicTags || []).some(t => topics.has(t)))) { if (out.length >= Math.min(2, limit)) break; take(c); }
-    while (out.length < limit) {
-      const rest = ordered.filter(c => !families.has(c.familyId)); if (!rest.length) break;
-      rest.sort((a, b) => (counts.get((a.topicTags || [])[0] || "other") || 0) - (counts.get((b.topicTags || [])[0] || "other") || 0));
-      take(rest[0]);
-    }
+    const ex = new Set(exclude), pref = (preferredSubtypes || []).filter(Boolean);
+    const eligible = variants.filter(c => c.area === area && (area !== "work" || context === "any" || (c.contexts || []).includes(context)) && !ex.has(c.variantId) && !ex.has(c.eventId) && !(excludeSubtypes || []).includes(c.subtype) && (!focus || c.subtype === focus));
+    const repIdx = c => { const r = ((subtypes[c.subtype] || {}).reps || []).indexOf(c.eventId); return r < 0 ? 99 : r; };
+    const groups = new Map();
+    eligible.forEach(c => { const k = c.subtype || "other"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); });
+    groups.forEach(g => g.sort((a, b) => repIdx(a) - repIdx(b) || R.qhash(`${seed}|${a.variantId}`) - R.qhash(`${seed}|${b.variantId}`) || a.variantId.localeCompare(b.variantId)));
+    const hs = k => R.qhash(`${seed}|st|${k}`);
+    const present = [...groups.keys()];
+    const main = mainSubtypes.filter(k => groups.has(k)), rest = present.filter(k => !main.includes(k)).sort((a, b) => hs(a) - hs(b) || a.localeCompare(b));
+    const prefMain = main.filter(k => pref.includes(k)).slice(0, 2);
+    const order = [...prefMain, ...main.filter(k => !prefMain.includes(k)).sort((a, b) => hs(a) - hs(b) || a.localeCompare(b)), ...rest];
+    const out = [], families = new Set();
+    const take = c => { if (!c || families.has(c.familyId) || out.length >= limit) return false; out.push(c); families.add(c.familyId); return true; };
+    const nextOf = k => (groups.get(k) || []).find(c => !families.has(c.familyId));
+    for (const k of order) take(nextOf(k));
+    /* v6.7: близкими повторениями не добираем — один пример на тип ситуации. Внутри явно выбранного типа (focus) — все его разные ситуации. */
+    if (focus) { let c; while (out.length < limit && (c = nextOf(focus))) take(c); }
     return { cards: out.map(R.cardOf), reason: out.length ? (out.length < limit ? "short_domain_pool" : "ok") : "domain_exhausted", exhausted: out.length < limit };
   };
+
   /* Допустимые варианты ветки без отбора колоды: несколько вариантов одного семейства (например, для разных ролей) допустимы все. */
   R.eligibleVariants = ({ variants = [], area, context = null }) => R.QUIZ_AREAS.includes(area) ? variants.filter(c => c.area === area && (area !== "work" || !context || context === "any" || (c.contexts || []).includes(context))) : [];
   R.branchKey = ({ area, context, routingVersion }) => `${routingVersion}|${area}|${area === "work" ? context || "-" : "-"}`;
@@ -366,7 +376,7 @@
     const byId = new Map(variants.map(v => [v.variantId, v]));
     const auto = !!S.recogMain && !S.areaExplicit;
     if (auto || S.area === "unclear") { S.area = null; S.ctx = null; }
-    if (S.recogMain) { S.recogDone = true; S.preferTopics = (recognitionTopics && recognitionTopics[S.recogMain]) || []; }
+    if (S.recogMain) { S.recogDone = true; S.preferSubtypes = (recognitionTopics && recognitionTopics[S.recogMain]) || []; }
     const explicit = !!S.area && R.QUIZ_AREAS.includes(S.area);
     S.areaExplicit = explicit || S.area === "own";
     const fits = v => v && explicit && v.area === S.area && (S.area !== "work" || !S.ctx || S.ctx === "any" || (v.contexts || []).includes(S.ctx));
@@ -385,6 +395,113 @@
     S.routingVersion = routingVersion; return true;
   };
 
+
+  /* ---------- v6.7 прототип: адаптивный диалог (локальный редакторский граф) ----------
+     Состояние: answers {qid: {v, text}}, order [qid] — для отмены. Следующий вопрос вычисляется заново из ответов:
+     сохранённый ответ применяется, только если он допустим для текущего вопроса; иначе вопрос задаётся снова.
+     Поэтому правка одного поля не сбрасывает остальные, а смена события снимает только зависимые ответы.
+     «Не знаю» не равно «нет». Число пути во входных данных не участвует. */
+  R.YES = v => v === "yes" || v === "probably";
+  R.dialogNext = function (bank, st, { variants = [], lessonOf = null } = {}) {
+    const A = (st && st.answers) || {}, rejected = new Set((st && st.rejected) || []), f = {}, basis = [];
+    let asked = 0;
+    const get = q => A[q];
+    const vById = id => variants.find(v => v.variantId === id) || null;
+    /* 1. тип события */
+    const types = bank.types.map(t => t.id), ta = get("type");
+    const ask = q => ({ done: false, next: q, fields: f, basis, asked });
+    if (!ta || !(types.includes(ta.v) || ta.v === "unknown")) return ask({ id: "type", kind: "choice", options: bank.types.map(t => [t.id, t.label]).concat([["unknown", "__unknown"]]) });
+    asked++;
+    let type = ta.v;
+    if (type === "unknown") {
+      type = null;
+      for (const n of bank.narrow) {
+        const a = get("n:" + n.id);
+        if (!a || !["yes", "probably", "probablyNot", "no", "unknown"].includes(a.v)) return ask({ id: "n:" + n.id, kind: "yn", text: n.text, type: n.id });
+        asked++;
+        if (R.YES(a.v)) { type = n.id; basis.push({ q: n.text, a: a.v }); break; }
+      }
+      if (!type) return { done: false, next: { id: "unsupported", kind: "unsupported" }, fields: f, basis, asked };
+    } else basis.push({ q: "type", a: type });
+    f.type = type;
+    /* 2. конкретное событие: примеры этого типа по одному, «знакомо / не про меня / не уверен» */
+    const tdef = bank.types.find(t => t.id === type);
+    let event = null;
+    for (const eid of tdef.events) {
+      if (rejected.has(eid)) continue;
+      const a = get("e:" + eid);
+      if (!a || !["yes", "no", "unsure"].includes(a.v)) return ask({ id: "e:" + eid, kind: "swipe", event: eid, text: bank.events[eid].card });
+      asked++;
+      if (a.v === "yes") { event = eid; break; }
+    }
+    if (!event) return { done: false, next: { id: "noEvent", kind: "noEvent", type }, fields: f, basis, asked };
+    const ev = bank.events[event], variant = vById(ev.variantId);
+    f.event = event; f.eventText = ev.card; f.when = ev.when; f.variantId = ev.variantId; basis.push({ q: "event", a: ev.card });
+    /* 3. что задевает: проверенные для этой формулировки варианты + свои слова + «пока не понимаю» */
+    const mOpts = (variant ? variant.meanings : []).map(m => [m.id, m.text]);
+    const ma = get("meaning");
+    const mValid = ma && (mOpts.some(o => o[0] === ma.v) || (ma.v === "__own" && ma.text) || ma.v === "__unsure");
+    if (!mValid) return ask({ id: "meaning", kind: "choice", options: mOpts.concat([["__unsure", "__unsure"]]), own: true });
+    asked++;
+    const mm = variant && variant.meanings.find(m => m.id === ma.v);
+    f.meaning = mm ? { id: mm.id, text: mm.text, lessonId: mm.lessonId || null, observe: mm.observe || null, origin: "user_selected" } : ma.v === "__own" ? { id: "own", text: ma.text, lessonId: null, origin: "user_written" } : { id: "unsure", text: "", lessonId: null, origin: "user_unsure" };
+    if (f.meaning.text) basis.push({ q: "meaning", a: f.meaning.text });
+    /* 4. привычный ответ */
+    const ra = get("reaction");
+    const rValid = ra && (bank.reactions.includes(ra.v) || (ra.v === "__own" && ra.text) || ra.v === "__unknown");
+    if (!rValid) return ask({ id: "reaction", kind: "choice", options: bank.reactions.map(r => [r, r]).concat([["__unknown", "__unknown"]]), own: true });
+    asked++;
+    f.reaction = ra.v === "__own" ? ra.text : ra.v === "__unknown" ? "" : ra.v;
+    if (f.reaction) basis.push({ q: "reaction", a: f.reaction });
+    /* 5. уточнение, если оно различает направления для этого события */
+    let prefer = [];
+    if (ev.clarify) {
+      const c = bank.clarifiers[ev.clarify], ca = get("c:" + ev.clarify);
+      if (!ca || !["yes", "probably", "probablyNot", "no", "unknown"].includes(ca.v)) return ask({ id: "c:" + ev.clarify, kind: "yn", text: c.text });
+      asked++;
+      const key = R.YES(ca.v) ? "yes" : (ca.v === "no" || ca.v === "probablyNot") ? "no" : null;
+      f.clarify = { id: ev.clarify, v: ca.v }; if (key) prefer = c.prefer[key] || [];
+      basis.push({ q: c.text, a: ca.v });
+    }
+    /* 6. желаемое изменение: направления этого варианта; первым — урок выбранного «что задевает», затем по уточнению */
+    const lids = [...new Set((variant ? variant.meanings : []).map(m => m.lessonId).filter(Boolean))];
+    const first = [f.meaning.lessonId, ...prefer].filter(id => id && lids.includes(id));
+    const ordered = [...new Set([...first, ...lids])];
+    const dOpts = ordered.map(id => ["L:" + id, lessonOf ? lessonOf(id, ev.variantId) : id]).concat([["__observe", "__observe"]]);
+    const da = get("desire");
+    const dValid = da && (dOpts.some(o => o[0] === da.v) || (da.v === "__own" && da.text));
+    if (!dValid) return ask({ id: "desire", kind: "choice", options: dOpts, own: true, preferred: ordered[0] || null });
+    asked++;
+    f.desire = da.v.startsWith("L:") ? { kind: "lesson", lessonId: da.v.slice(2), text: lessonOf ? lessonOf(da.v.slice(2), ev.variantId) : da.v.slice(2) } : da.v === "__own" ? { kind: "own", lessonId: null, text: da.text } : { kind: "observe", lessonId: null, text: "" };
+    basis.push({ q: "desire", a: f.desire.text || "наблюдение" });
+    /* 7. когда — для честной даты случая */
+    const wa = get("when");
+    if (!wa || !wa.v) return ask({ id: "when", kind: "when" });
+    asked++;
+    f.whenCase = wa.v;
+    return { done: true, next: { id: "summary", kind: "summary" }, fields: f, basis, asked };
+  };
+  R.dialogAnswer = function (st, qid, v, text) { st.answers = st.answers || {}; st.order = (st.order || []).filter(q => q !== qid); st.answers[qid] = { v, text: text || "", at: Date.now() }; st.order.push(qid); return st; };
+  R.dialogUndo = function (st) { const q = (st.order || []).pop(); if (q) delete st.answers[q]; return q || null; };
+  /* Поправить часть: снимаются только ответы этого поля (и для события — выбор примера). */
+  R.dialogFix = function (st, part, bankEvents) {
+    const drop = q => { delete st.answers[q]; st.order = (st.order || []).filter(x => x !== q); };
+    if (part === "event") { Object.keys(st.answers).filter(q => q.startsWith("e:")).forEach(q => { if (st.answers[q].v === "yes") { st.rejected = [...new Set([...(st.rejected || []), q.slice(2)])]; } drop(q); }); drop("meaning"); drop("desire"); Object.keys(st.answers).filter(q => q.startsWith("c:")).forEach(drop); }
+    if (part === "meaning") { drop("meaning"); drop("desire"); } /* желаемое изменение зависит от того, что задевает */
+    if (part === "reaction") drop("reaction");
+    if (part === "desire") drop("desire");
+    if (part === "all") { st.misses = (st.misses || 0) + 1; const keep = {}; st.answers = keep; st.order = []; st.rejected = []; }
+    return st;
+  };
+  /* Резюме только из ответов; неизвестное остаётся неизвестным. */
+  R.dialogSummary = function (f, T) {
+    const parts = [];
+    parts.push(`${f.when[0].toUpperCase()}${f.when.slice(1)}${f.meaning && f.meaning.text ? `, тебя задевает: «${f.meaning.text}».` : `, ${T.meaningUnknown}.`}`);
+    parts.push(f.reaction ? `Обычно: «${f.reaction}».` : `${T.reactionUnknown[0].toUpperCase()}${T.reactionUnknown.slice(1)}.`);
+    if (f.desire && f.desire.kind !== "observe" && f.desire.text) parts.push(`Хочется: ${f.desire.text}.`);
+    else if (f.desire && f.desire.kind === "observe") parts.push("Направление пока не выбрано — начнём с наблюдения.");
+    return parts.join(" ");
+  };
 
   /* Ответы по колоде: один ответ на карточку; отмена возвращает карточку и прежний ответ; дубликатов нет. */
   R.deckAnswer = function (S, r) {
@@ -476,7 +593,7 @@
   /* ---------- экспорт / импорт ---------- */
   /* Схема 3: записи дня по ключу «дата|сюжет», действия помнят навык. Схема 4: у разрешений есть происхождение.
      Файлы схем 2–4 читаются и приводятся к текущей. Валидатор никогда не бросает исключение: всегда {ok, errors}. */
-  R.SCHEMA_VERSION = 7;
+  R.SCHEMA_VERSION = 8;
   R.MIN_IMPORT_SCHEMA = 2;
   R.COLLECTIONS = ["patterns", "episodes", "hypotheses", "experiments", "reviews", "flags", "tools"];
   R.validateImport = function (obj) {
@@ -524,15 +641,15 @@
     if (iv < 5) R.migrateV5(out.patterns);
     if (iv < 6) R.migrateV6(out);
     if (iv < 7) R.migrateV63(out);
+    if (iv < 8) R.migrateV66(out);
     return { data: out, stats };
   };
 
   /* ---------- v6: личный план — шаблон каталога, заполненный ответами человека ---------- */
   R.PLAN_SLOT_RE = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g;
   R.templateSlots = tpl => { const out = []; String(tpl || "").replace(R.PLAN_SLOT_RE, (m, k) => { if (!out.includes(k)) out.push(k); return m; }); return out; };
-  /* Если пользователь начал ответ с того же предлога, что стоит в шаблоне («с {person}» + «с коллегой»), предлог не удваивается. */
-  R.fillTemplate = (tpl, slots) => String(tpl || "").replace(R.PLAN_SLOT_RE, (m, k) => { const v = slots && slots[k]; return v != null && String(v).trim() ? String(v).trim() : m; })
-    .replace(/(^|[\s(«])(с|со|в|во|о|об|на|к|ко|до|по|у|за|при|для|от|из)\s+\2(?=\s)/giu, "$1$2");
+  /* v6.6: ответ человека подставляется как есть. Шаблоны ставят место вставки после двоеточия или в кавычки, чтобы не зависеть от падежа. */
+  R.fillTemplate = (tpl, slots) => String(tpl || "").replace(R.PLAN_SLOT_RE, (m, k) => { const v = slots && slots[k]; return v != null && String(v).trim() ? String(v).trim() : m; });
   R.hasUnfilled = txt => /\{[a-zA-Z_][a-zA-Z0-9_]*\}/.test(String(txt || ""));
   /* Проверка значения слота по типу: минуты — положительное целое; время/срок — непустая строка (дата или контекст); остальное — непустой текст. */
   R.validateSlot = function (key, value) {
@@ -550,7 +667,7 @@
       templateId: t.id || null, templateKind: kind, templateVersion: t.catalogVersion || "karma-practice-v6-2026-10-15",
       lessonId: lessonId || null, skillId: skillId || t.skillId || null, userBasisIds: basisIds, desiredChange, painText, goalConfirmed: !!desiredChange, goalOrigin: desiredChange ? "user_confirmed" : (lessonId ? "pending" : "none"), smallerUser: "",
       purpose: t.purpose || "", cueTemplate: t.cueTemplate || "", actionTemplate: t.actionTemplate || "", effort: t.effortLabel || "", afterQuestion: t.afterQuestion || "", completedWhen: t.completedWhen || "", smallerVersion: t.smallerVersion || "", limits: t.limits || "", fitQuestion: t.fitQuestion || "",
-      setup: (t.setup || []).map(s => ({ key: s.key, question: s.question, example: s.example || "" })), slots: Object.assign({}, slots), tip: t.tip || "", adapted: !!t.adapted, variantId: t.variantId || null,
+      setup: (t.setup || []).map(s => Object.assign({ key: s.key, question: s.question, example: s.example || "" }, s.label ? { label: true } : {})), slots: Object.assign({}, slots), tip: t.tip || "", adapted: !!t.adapted, variantId: t.variantId || null,
       mode: mode || (t.countsAsBehaviorChange === false ? "observation" : "behavior"), schedule: { kind: once ? "once" : "cue", repeat: !once }, simplified: false,
       cue: "", action: "", ifThen: null, permission: t.permissionCandidate || "", permissionConfirmed: false, prediction: "", criterion: "",
     };
@@ -567,7 +684,8 @@
     /* Вопрос после попытки шаблона описывает шаблонное действие; для своего действия — общий вопрос. */
     const tplFull = R.fillTemplate(x.actionTemplate, x.slots), tplSmall = x.smallerVersion ? R.fillTemplate(x.smallerVersion, x.slots) : "";
     const ownFull = !!x.actionUser && x.actionUser !== tplFull, own = x.simplified ? ownFull || (!!x.smallerUser && x.smallerUser !== tplSmall) : ownFull;
-    return { cue, action, full, small, own, canSimplify: !!small || !!x.actionUser, needsSmall: !!x.simplified && !small, purpose: x.purpose || "", effort: x.effort || "", after: own ? R.OWN_AFTER : (x.afterQuestion || ""), limits: x.limits || "", simplified: !!x.simplified && !!small && small !== full, mode: x.mode || "behavior" };
+    const who = x.slots && x.slots.person && String(x.slots.person).trim() && !R.templateSlots(String(x.cueTemplate) + " " + x.actionTemplate + " " + (x.smallerVersion || "")).includes("person") ? String(x.slots.person).trim() : "";
+    return { cue, action, full, small, own, who, canSimplify: !!small || !!x.actionUser, needsSmall: !!x.simplified && !small, purpose: x.purpose || "", effort: x.effort || "", after: own ? R.OWN_AFTER : (x.afterQuestion || ""), limits: x.limits || "", simplified: !!x.simplified && !!small && small !== full, mode: x.mode || "behavior" };
   };
   /* Готовность: шаблон с незаполненными слотами или без момента/действия не становится активной рекомендацией. */
   R.planReady = function (x) {
@@ -652,6 +770,20 @@
   };
   /* Схема 7 (v6.3), повторяемо: 1) desiredChange без подтверждения не считается целью — исходный текст сохраняется в desiredChangeLegacy;
      2) у планов появляется lineageId; 3) вечер с выведенным статусом без достоверного источника исключается из строгих подтверждений. */
+  /* v6.6: «Другой сюжет» — архив, не прохождение. Прохождение подтверждается флагом навыка этого сюжета.
+     Прежние записи со статусом done без флага становятся archived; доказательство не выдумывается. Повторный запуск безопасен. */
+  R.migrateV66 = function (data) {
+    let n = 0; const flags = (data.flags || []).filter(f => !f.legacy);
+    (data.patterns || []).forEach(p => {
+      if (p.status !== "done" || p.completedBasis) return;
+      const fl = flags.filter(f => f.patternId === p.id);
+      if (fl.length) { p.completedBasis = { kind: "flag", flagIds: fl.map(f => f.id), skillIds: fl.map(f => f.skillId), at: Math.min(...fl.map(f => f.awardedAt || f.at || Date.now())), migrated: true }; }
+      else { p.status = "archived"; p.archivedAt = p.archivedAt || p.updatedAt || null; p.archiveReason = p.archiveReason || "migrated_done_without_flag"; }
+      n++;
+    });
+    return n;
+  };
+  R.isCompleted = p => !!p && p.status === "done" && !!p.completedBasis;
   R.migrateV63 = function (data) {
     let n = 0;
     (data.experiments || []).forEach(x => {
