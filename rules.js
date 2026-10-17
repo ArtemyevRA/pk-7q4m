@@ -183,6 +183,37 @@
       opportunities, notSure, realEpisodes: realEps.length, rehearsals: eps.length - realEps.length, actionDays: [...actionDays], partial, attempts, episodeDates: [...new Set(realEps.map(e => e.dateKey))].sort(), results, change };
   };
 
+  /* v7: зеркало за период — только записи текущего сюжета; версия зеркала хранится в каждой записи */
+  R.mirrorWeek = function ({ checkins = {}, pattern, window: w }) {
+    const pid = pattern && pattern.id, M = (pattern && pattern.mirror) || {};
+    const evs = Object.values(checkins).filter(c => c.patternId === pid && c.evening && !c.legacy && R.inWindow(c.dateKey, w)).sort((a, b) => a.dateKey < b.dateKey ? -1 : 1);
+    const withExp = evs.filter(c => c.evening.experience);
+    const ruleOn = withExp.filter(c => ["yes", "partly"].includes(c.evening.experience.rule)).map(c => ({ dateKey: c.dateKey, rule: c.evening.experience.rule, version: c.evening.experience.mirrorVersion }));
+    const ruleOff = withExp.filter(c => c.evening.experience.rule === "no").map(c => c.dateKey);
+    const exp = withExp.filter(c => c.evening.experience.outcome).map(c => ({ dateKey: c.dateKey, outcome: c.evening.experience.outcome, fact: c.evening.experience.fact || "" }));
+    /* два-три эпизода, включая неудобные: сначала по одному каждого исхода, затем остальные по дате */
+    const pick = []; ["not", "confirmed", "insufficient"].forEach(o => { const e = exp.find(x => x.outcome === o); if (e) pick.push(e); });
+    exp.forEach(e => { if (pick.length < 3 && !pick.includes(e)) pick.push(e); });
+    pick.sort((a, b) => a.dateKey < b.dateKey ? -1 : 1);
+    const concl = {}; withExp.forEach(c => { const v = c.evening.experience.conclusion; if (v) concl[v] = (concl[v] || 0) + 1; });
+    const thoughts = (M.otherThoughts || []).filter(t => R.inWindow(t.dateKey, w));
+    return { evenings: evs.length, withExperience: withExp.length, ruleOn, ruleOff, expected: pick.slice(0, 3), conclusions: concl, otherThoughts: thoughts, allOtherThoughts: (M.otherThoughts || []).filter(t => t.status !== "used") };
+  };
+  /* v7: миграция данных v6.10 — только добавляет поля версии; текст, статус и источник зеркала не трогаются */
+  R.migrateMirrorV7 = function (patterns) {
+    const out = [];
+    (patterns || []).forEach(p => {
+      let ch = false; const M = p.mirror;
+      if ((p.familyResult || p.storyResult) && !p.storyId) { p.storyId = p.id; ch = true; }
+      if (M && M.text && !M.version) { M.version = 1; M.versions = [{ version: 1, text: M.text, at: M.at || p.createdAt || null, source: M.origin || "migrated" }]; M.migratedFrom = "v6.10"; ch = true; }
+      if (M && !M.text && M.version == null) { M.version = 0; M.versions = M.versions || []; ch = true; }
+      if (ch) out.push(p);
+    });
+    return out;
+  };
+  /* v7: текущая неделя практики для промежуточного обзора (не отмечается пройденной) */
+  R.currentWindow = function (startKey, todayKey) { if (!startKey) return null; const i = R.weekIndex(startKey, todayKey); return i < 0 ? null : R.windowOf(startKey, i); };
+
   /* ---------- правило флага (продуктовая эвристика пилота) ---------- */
   R.DEFAULT_POLICY = { minElapsedCalendarDays: 21, stabilityWindowCount: 2, stabilityWindowDays: 7, minImpactRatingsPerWindow: 4, maxEachRecordedImpact: 2, minRealOpportunitiesPerWindow: 1, minConfirmedActionsAcrossWindowsOnDistinctDays: 3, countRehearsalsAsReal: false };
   R.flagEligibility = function ({ pattern, checkins = {}, episodes = [], todayKey, policy, experiment, skillId, lineageId }) {
@@ -663,6 +694,229 @@
     if (part === "goal") { ["perm", "goal", "action"].forEach(drop); }
     if (part === "action") drop("action");
     if (part === "all") { st.misses = (st.misses || 0) + 1; st.answers = {}; st.order = []; st.rejected = []; }
+    return st;
+  };
+  /* ---------- v7 единый маршрут сюжета для всех сфер: учитель → триггер → зеркало → разрешение → первый эксперимент ----------
+     Один граф для готовой сцены и своего случая. Следующий вопрос вычисляется заново из ответов; у каждого — служебное «why».
+     Кандидаты зеркала — только по ответам человека (смысл, реакция, последствия, мысль); число пути не участвует. */
+  R.storyScenes = (B, sphere, role) => Object.values(B.scenes).filter(sc => sc.spheres.includes(sphere) && (role === "__own" || sc.roles.includes(role)));
+  R.storyMirrorScore = function (m, f) {
+    const w = m.when || {}, tags = (f.meaning && f.meaning.tags) || []; let s = 0; const why = [];
+    if (w.roles && !(w.roles.includes(f.role) || f.role === "__own")) return { s: -1, why };
+    const tg = tags.filter(t => (w.tags || []).includes(t)); if (tg.length) { s += 3 * tg.length; why.push(`ты отметил: «${f.meaning.text}»`); }
+    if (f.reaction && (w.reactions || []).includes(f.reaction)) { s += 2; why.push(`обычно: «${f.reaction}»`); }
+    if (f.now && (w.now || []).includes(f.now)) { s += 1; why.push(`сразу это дало: «${f.now}»`); }
+    if (f.scene && (w.scenes || []).includes(f.scene)) { s += 1; }
+    return { s, why };
+  };
+  R.storyCandidates = function (B, f) {
+    const fit = m => ((m.when.groups || []).includes(f.group) || (f.scene && (m.when.scenes || []).includes(f.scene)) || (!m.when.groups && !m.when.scenes && m.when.roles && m.when.roles.includes(f.role)));
+    const all = B.mirrors.filter(fit).map(m => Object.assign({ m }, R.storyMirrorScore(m, f))).filter(x => x.s >= 0);
+    const inner = all.filter(x => x.m.type !== "same" && x.s >= 2).sort((a, b) => b.s - a.s).slice(0, 2);
+    const same = all.filter(x => x.m.type === "same" && (x.s >= 1)).sort((a, b) => b.s - a.s).slice(0, 1);
+    return [...inner, ...same].map(x => ({ id: x.m.id, type: x.m.type, text: x.m.text, why: x.why, permissions: x.m.permissions, check: x.m.check, predictions: x.m.predictions, thought: x.m.thought }));
+  };
+  R.storyNext = function (B, st) {
+    const A = (st && st.answers) || {}, f = {}, trace = []; let asked = 0;
+    const get = q => A[q];
+    const W = { group: "сцена неизвестна; вид ситуации сужает примеры", n: "вид не выбран; вопрос различает один вид и остальные, «не знаю» ≠ «нет»", ownScene: "свой случай: текст сохраняется дословно", ownKind: "свободный текст не толкуем — человек сам выбирает, что важнее",
+      e: "вид известен; проверяем конкретную сцену (двоичный ответ — свайп)", miss2: "два «не про меня» подряд — предлагаем другой способ описать", meaning: "сцена известна; что именно задело — различает направления и гипотезы",
+      reaction: "смысл известен; привычная реакция нужна для цепочки и гипотез", conseq: "реакция известна; что она дала сразу и потом — без назначения мотива", when: "дата случая — для начала практики", confirmA: "учитель, сцена, смысл и реакция собраны — первое подтверждение",
+      mir: "учитель подтверждён; гипотеза зеркала по ответам человека", thought: "гипотеза не подошла — спрашиваем реальную первую мысль вместо новой догадки", ownrule: "человек сам назвал мысль/правило — предлагаем проверить его",
+      check: "зеркало узнано; пример или прогноз делает его проверяемым", perm: "зеркало узнано; разрешение — выбор человека", goal: "зеркала пока нет; помогаем с тем, что важно сейчас", confirmB: "отдельное подтверждение зеркала перед работой",
+      action: "направление выбрано; шаг из сцены и цели, фразу можно поправить", pred: "прогноз, который можно сравнить с опытом", pause: "десять решений за визит — предлагаем продолжить, сохранить или понаблюдать" };
+    /* после десяти решений в одном разборе — обязательно предложить паузу, на каком бы вопросе это ни случилось */
+    const ask = (q) => { if (asked >= 10 && !get("pause") && q.id !== "pause") q = { id: "pause", kind: "pause" }; return { done: false, next: Object.assign(q, { why: W[q.id.split(":")[0]] || "" }), fields: f, asked, trace }; };
+    const ok = (q, a, note) => { asked++; trace.push({ q, a, why: (W[q.split(":")[0]] || "") + (note ? ` (${note})` : "") }); };
+    const pauseGate = () => asked >= 10 && !get("pause") ? ask({ id: "pause", kind: "pause" }) : null;
+    f.sphere = st.sphere; f.role = st.role; f.roleLabel = st.roleLabel || ((B.spheres[st.sphere].roles.find(r => r[0] === st.role) || [])[2]) || "";
+    const scenes = R.storyScenes(B, st.sphere, st.role);
+    const groupIds = Object.keys(B.groups).filter(g => scenes.some(x => x.group === g));
+    /* 1. вид ситуации или свой случай */
+    const ga = get("group");
+    if (!ga || !(groupIds.includes(ga.v) || ["unknown", "__own", "danger"].includes(ga.v))) return ask({ id: "group", kind: "choice", options: groupIds.map(g => [g, B.groups[g]]).concat([["unknown", "__unknown"]]), ownCase: true, danger: st.sphere !== "self" });
+    if (ga.v === "danger") return { done: false, next: { id: "danger", kind: "danger", why: "угроза безопасности — сначала помощь, не поиск своей вины" }, fields: f, asked, trace };
+    ok("group", ga.v);
+    let group = ga.v, own = ga.v === "__own";
+    if (group === "unknown") {
+      group = null;
+      for (const g of groupIds) {
+        const a = get("n:" + g);
+        if (!a || !["yes", "probably", "probablyNot", "no", "unknown"].includes(a.v)) return ask({ id: "n:" + g, kind: "yn", text: `Ближе всего это: «${B.groups[g]}»?`, group: g });
+        ok("n:" + g, a.v);
+        if (R.YES(a.v)) { group = g; break; }
+      }
+      if (!group) return { done: false, next: { id: "unsupported", kind: "unsupported", why: "ни один вид не подтверждён — свой случай или наблюдение" }, fields: f, asked, trace };
+    }
+    /* 2. сцена: готовая (свайп) или свой случай; два «не про меня» подряд — предложить описать своими словами */
+    let scene = null;
+    if (!own) {
+      const gsc = scenes.filter(x => x.group === group); let noRun = 0;
+      let ownByMiss = !!(get("miss2") && get("miss2").v === "own" && !gsc.some(sc => (get("e:" + sc.id) || {}).v === "yes"));
+      if (ownByMiss) ok("miss2", "own");
+      for (const sc of (ownByMiss ? [] : gsc)) {
+        if ((st.rejected || []).includes(sc.id)) continue;
+        if (noRun >= 2) { const m2 = get("miss2"); if (!m2 || !["more", "own"].includes(m2.v)) return ask({ id: "miss2", kind: "miss2" }); if (noRun === 2) ok("miss2", m2.v); if (m2.v === "own") { ownByMiss = true; break; } }
+        const a = get("e:" + sc.id);
+        if (!a || !["yes", "no", "unsure"].includes(a.v)) return ask({ id: "e:" + sc.id, kind: "swipe", scene: sc.id, text: sc.card });
+        ok("e:" + sc.id, a.v);
+        if (a.v === "yes") { scene = sc; break; }
+        noRun = a.v === "no" ? noRun + 1 : 0;
+      }
+      if (!scene && !ownByMiss && noRun >= 2 && get("miss2") && get("miss2").v === "own") ownByMiss = true;
+      if (!scene && ownByMiss) own = true;
+      if (!scene && !own) return { done: false, next: { id: "noEvent", kind: "noEvent", why: "ни одна сцена вида не узнана" }, fields: f, asked, trace };
+    }
+    if (own) {
+      const oa = get("ownScene");
+      if (!oa || !oa.text) return ask({ id: "ownScene", kind: "text" });
+      ok("ownScene", "свой текст");
+      if (ga.v === "__own") {
+        const ka = get("ownKind"), kinds = B.ownKinds.filter(k => k[0] === "other" || groupIds.includes(k[0]));
+        if (!ka || !kinds.some(k => k[0] === ka.v)) return ask({ id: "ownKind", kind: "choice", options: kinds });
+        ok("ownKind", ka.v); group = ka.v;
+      }
+      f.own = true; f.eventText = R.trimEnd(oa.text); f.when = f.eventText;
+    } else { f.scene = scene.id; f.eventText = scene.card; f.when = scene.when; }
+    f.group = group;
+    /* 3. что задело */
+    const gScenes = scenes.filter(x => x.group === group);
+    const meanings = scene ? scene.meanings : [...new Map(gScenes.flatMap(x => x.meanings).map(m => [m.text, m])).values()].slice(0, 5);
+    const ma = get("meaning");
+    if (!ma || !(meanings.some(m => m.id === ma.v) || (ma.v === "__own" && ma.text) || ma.v === "__unsure")) return ask({ id: "meaning", kind: "choice", options: meanings.map(m => [m.id, m.text]).concat([["__unsure", "__unsure"]]), own: true });
+    ok("meaning", ma.v);
+    const mm = meanings.find(m => m.id === ma.v);
+    f.meaning = mm ? { id: mm.id, text: mm.text, tags: mm.tags, origin: "user_selected" } : ma.v === "__own" ? { id: "own", text: R.trimEnd(ma.text), tags: [], origin: "user_written" } : { id: "unsure", text: "", tags: [], origin: "user_unsure" };
+    /* 4. привычная реакция */
+    const rl = st.role === "child" ? B.reactions.child : (B.reactions[group] || B.reactions.default);
+    const ra = get("reaction");
+    if (!ra || !(rl.includes(ra.v) || (ra.v === "__own" && ra.text) || ra.v === "__unknown")) return ask({ id: "reaction", kind: "choice", options: rl.map(r => [r, r]).concat([["__unknown", "__unknown"]]), own: true });
+    ok("reaction", ra.v);
+    f.reaction = ra.v === "__own" ? R.trimEnd(ra.text) : ra.v === "__unknown" ? "" : ra.v; f.reactionOrigin = ra.v === "__own" ? "user_written" : ra.v === "__unknown" ? "unknown" : "user_selected";
+    /* 5. последствия: сразу и потом — один экран */
+    if (f.reaction) {
+      const na = get("now"), la = get("later");
+      const okv = (a, list) => a && (list.includes(a.v) || (a.v === "__own" && a.text) || a.v === "__unknown");
+      if (!okv(na, B.now) || !okv(la, B.later)) return ask({ id: "conseq", kind: "conseq", now: B.now, later: B.later });
+      ok("conseq", `${na.v} / ${la.v}`);
+      f.now = na.v === "__own" ? R.trimEnd(na.text) : na.v === "__unknown" ? "" : na.v; f.later = la.v === "__own" ? R.trimEnd(la.text) : la.v === "__unknown" ? "" : la.v;
+    } else { f.now = ""; f.later = ""; }
+    /* 6. подтверждение учителя и ситуации (+ когда было) — отдельно от зеркала */
+    const wa = get("when"), cA = get("confirmA");
+    if (!wa || !wa.v || !cA || cA.v !== "yes") return ask({ id: "confirmA", kind: "confirmA" });
+    ok("confirmA", "yes"); f.whenCase = wa.v; f.teacherConfirmed = true;
+    { const pg = pauseGate(); if (pg) return pg; } if (get("pause")) trace.push({ q: "pause", a: get("pause").v, why: W.pause }); /* пауза — не решение по существу: в счётчик не входит */
+    /* 7. зеркало: гипотезы по ответам; после непопадания — реальная первая мысль; свои слова — отдельная карточка подтверждения */
+    let chosen = null, mStatus = null; const shown = [];
+    const tryCand = (c, note) => {
+      const a = get("mir:" + c.id);
+      if (!a || !["yes", "partly", "no", "own", "unsure"].includes(a.v) || ((a.v === "partly" || a.v === "own") && !a.text)) return ask({ id: "mir:" + c.id, kind: "mirror", mirror: c, index: shown.length, note });
+      ok("mir:" + c.id, a.v, c.type); shown.push(c.id);
+      if (a.v === "no") return null;
+      if (a.v === "unsure") { mStatus = "unknown"; return "stop"; }
+      chosen = { id: c.id, type: a.v === "own" ? "own" : c.type, text: a.v === "yes" ? c.text : R.trimEnd(a.text), candidateText: c.text, origin: a.v === "yes" ? "candidate_recognized" : a.v === "partly" ? "candidate_edited" : "user_written",
+        permissions: a.v === "own" ? [] : c.permissions, check: a.v === "own" ? "prediction" : c.check, predictions: a.v === "own" ? [] : c.predictions, basis: c.why || [] };
+      return "stop";
+    };
+    if (!st.mirrorDropped) {
+      const cands = R.storyCandidates(B, f); f.candidates = cands.map(c => c.id);
+      let r = null;
+      if (cands[0]) { r = tryCand(cands[0]); if (r && r.next) return r; }
+      if (!chosen && !mStatus) {
+        /* мысль в тот момент: не новая догадка, а то, что человек сам заметит */
+        const ta = get("thought");
+        const tOpts = [...B.mirrors.filter(m => m.thought && !shown.includes(m.id) && (((m.when.groups || []).includes(group)) || (scene && (m.when.scenes || []).includes(scene.id))) && R.storyMirrorScore(m, f).s >= 0).map(m => [m.id, m.thought]),
+          ...(B.thoughtsExtra || []).filter(t => t.groups.includes(group)).map(t => ["x:" + t.text, t.text])];
+        const tUniq = [...new Map(tOpts.map(o => [o[1], o])).values()].slice(0, 4);
+        if (!ta || !(tUniq.some(o => o[0] === ta.v) || (ta.v === "__own" && ta.text) || ta.v === "__skip")) return ask({ id: "thought", kind: "thought", options: tUniq });
+        ok("thought", ta.v);
+        f.thought = ta.v === "__own" ? R.trimEnd(ta.text) : ta.v === "__skip" ? "" : (tUniq.find(o => o[0] === ta.v) || [])[1] || "";
+        if (ta.v === "__own") {
+          const oa = get("ownrule");
+          if (!oa || !["yes", "edit", "no"].includes(oa.v) || (oa.v === "edit" && !oa.text)) return ask({ id: "ownrule", kind: "ownrule", text: f.thought });
+          ok("ownrule", oa.v);
+          if (oa.v !== "no") chosen = { id: "own", type: "own", text: oa.v === "edit" ? R.trimEnd(oa.text) : f.thought, origin: "user_written", permissions: [], check: "prediction", predictions: [], basis: ["ты сам назвал эту мысль"] };
+        } else if (ta.v !== "__skip" && !ta.v.startsWith("x:")) {
+          const m = B.mirrors.find(x => x.id === ta.v);
+          if (m) { const c = { id: m.id, type: m.type, text: m.text, why: [`ты отметил мысль: «${m.thought}»`], permissions: m.permissions, check: m.check, predictions: m.predictions }; const rr = tryCand(c, "по твоей мысли"); if (rr && rr.next) return rr; }
+        } else if (ta.v.startsWith("x:")) {
+          const t = (B.thoughtsExtra || []).find(x => "x:" + x.text === ta.v);
+          const m = t && t.mirror ? B.mirrors.find(x => x.id === t.mirror) : null;
+          if (m && !shown.includes(m.id)) { const c = { id: m.id, type: m.type, text: m.text, why: [`ты отметил мысль: «${t.text}»`], permissions: m.permissions, check: m.check, predictions: m.predictions }; const rr = tryCand(c, "по твоей мысли"); if (rr && rr.next) return rr; }
+        }
+        if (!chosen && !mStatus) for (const c of cands.slice(1)) { if (shown.includes(c.id)) continue; const rr = tryCand(c); if (rr && rr.next) return rr; if (chosen || mStatus) break; }
+      }
+      if (!chosen && !mStatus) mStatus = "searching";
+    } else mStatus = "searching";
+    f.need = (B.needs[group] || B.needs.other).text;
+    /* 8. проверка опытом: пример или прогноз (пример ещё не собран) */
+    if (chosen) {
+      const ca = get("check"), preds = chosen.predictions.length ? chosen.predictions : ["Будет конфликт", "Меня осудят", "Мне самому будет неловко"];
+      if (chosen.check === "example") { if (!ca || !((ca.v === "__example" && ca.text) || ca.v === "__later")) return ask({ id: "check", kind: "check", mode: "example", mirrorText: chosen.text }); }
+      else if (!ca || !(preds.includes(ca.v) || (ca.v === "__own" && ca.text) || (ca.v === "__example" && ca.text) || ca.v === "__unknown")) return ask({ id: "check", kind: "check", mode: "prediction", options: preds, mirrorText: chosen.text });
+      ok("check", ca.v);
+      chosen.example = ca.v === "__example" ? R.trimEnd(ca.text) : "";
+      chosen.prediction = preds.includes(ca.v) ? ca.v : ca.v === "__own" ? R.trimEnd(ca.text) : "";
+      /* «узнаю своё похожее поведение» без собственного примера не повышает статус: остаётся «нужен пример» */
+      chosen.status = chosen.example ? "example" : chosen.check === "example" ? "to_check" : "recognized";
+      f.mirror = chosen;
+    } else f.mirror = { status: mStatus || "searching", text: "" };
+    /* 9. внутреннее разрешение (зеркало есть) или что важно (зеркала нет) */
+    let actIds = [], dir = null;
+    /* действие допустимо для этой сферы и роли, если оно есть хотя бы в одной сцене этой сферы и роли (ребёнку — не взрослые реплики, другу — не карточка клиента) */
+    const actFits = id => Object.values(B.scenes).some(x => x.actions.includes(id) && x.spheres.includes(st.sphere) && (st.role === "__own" || x.roles.includes(st.role)));
+    const goals = (B.needs[group] || B.needs.other).goals.filter(gl => scene ? gl[2].some(id => scene.actions.includes(id)) : gl[2].some(actFits));
+    if (chosen) {
+      const pa = get("perm"), ps = chosen.permissions || [];
+      if (!pa || !(ps.some(p => p.id === pa.v) || (pa.v === "__own" && pa.text))) return ask({ id: "perm", kind: "choice", options: ps.map(p => [p.id, p.text]), own: true, mirrorText: chosen.text });
+      ok("perm", pa.v);
+      const pp = ps.find(p => p.id === pa.v);
+      f.permission = pp ? { id: pp.id, text: pp.text, short: pp.short, origin: "user_selected" } : { id: "own", text: R.trimEnd(pa.text), short: R.trimEnd(pa.text), origin: "user_written" };
+      actIds = pp ? pp.actions : goals.flatMap(gl => gl[2]); dir = f.permission;
+    } else {
+      const gA = get("goal");
+      if (!gA || !(goals.some(gl => gl[0] === gA.v) || (gA.v === "__own" && gA.text) || gA.v === "__observe")) return ask({ id: "goal", kind: "choice", options: goals.map(gl => [gl[0], gl[1]]).concat([["__observe", "__observe"]]), own: true, need: f.need });
+      ok("goal", gA.v);
+      const gl = goals.find(x => x[0] === gA.v);
+      f.goal = gl ? { id: gl[0], text: gl[1], origin: "user_selected" } : gA.v === "__own" ? { id: "own", text: R.trimEnd(gA.text), origin: "user_written" } : { id: "observe", text: "", origin: "user_selected" };
+      actIds = gl ? gl[2] : gA.v === "__own" ? [...new Set(goals.flatMap(x => x[2]))] : []; dir = f.goal;
+    }
+    /* 10. отдельное подтверждение зеркала перед работой */
+    const cb = get("confirmB");
+    if (!cb || !["yes", "drop"].includes(cb.v)) return ask({ id: "confirmB", kind: "confirmB" });
+    ok("confirmB", cb.v);
+    if (f.goal && f.goal.id === "observe") { f.action = { id: "observe", phrase: "", origin: "user_selected" }; return { done: true, next: { id: "step", kind: "step", why: "наблюдение без выдуманного действия" }, fields: f, asked, trace }; }
+    /* 11. шаг: только действия этой сцены (или вида — для своего случая) и выбранного направления; ожидание */
+    const groupActs = new Set([...gScenes.flatMap(x => x.actions), ...goals.flatMap(gl => gl[2])]);
+    let allowed = actIds.filter(id => scene ? scene.actions.includes(id) : groupActs.has(id) && actFits(id));
+    if (!allowed.length) allowed = scene ? scene.actions.slice() : actIds.filter(id => B.actions[id]);
+    const aa = get("action");
+    if (!aa || !((allowed.includes(aa.v) && aa.text) || (aa.v === "__own" && aa.text) || aa.v === "__observe")) return ask({ id: "action", kind: "action", options: allowed.map(id => B.actions[id]).filter(Boolean), dir: dir ? dir.text : "" });
+    ok("action", aa.v);
+    f.action = aa.v === "__observe" ? { id: "observe", phrase: "", origin: "user_selected" } : aa.v === "__own" ? { id: "own", phrase: R.trimEnd(aa.text), origin: "user_written" } : { id: aa.v, phrase: String(aa.text).trim(), origin: aa.text.trim() === B.actions[aa.v].phrase ? "user_selected" : "user_edited" };
+    if (f.action.id !== "observe") {
+      const pr = get("pred"), base = chosen && chosen.prediction ? chosen.prediction : "";
+      /* прогноз уже назван при проверке зеркала — переносится, не спрашиваем повторно (можно поправить в плане) */
+      if (base && !pr) f.pred = base;
+      else {
+        if (!pr || !(pr.v === "__unknown" || (pr.v === "__own" && pr.text) || (pr.v === "__base" && base))) return ask({ id: "pred", kind: "pred", base });
+        ok("pred", pr.v);
+        f.pred = pr.v === "__base" ? base : pr.v === "__own" ? R.trimEnd(pr.text) : "";
+      }
+    }
+    return { done: true, next: { id: "step", kind: "step", why: "всё собрано — первый эксперимент" }, fields: f, asked, trace };
+  };
+  R.storyFix = function (st, part) {
+    const drop = q => { delete st.answers[q]; st.order = (st.order || []).filter(x => x !== q); };
+    const mirrorChain = () => { Object.keys(st.answers).filter(q => q.startsWith("mir:")).forEach(drop); ["thought", "ownrule", "check", "perm", "goal", "confirmB", "action", "pred"].forEach(drop); st.mirrorDropped = false; };
+    if (part === "event") { Object.keys(st.answers).filter(q => q.startsWith("e:")).forEach(q => { if (st.answers[q].v === "yes") st.rejected = [...new Set([...(st.rejected || []), q.slice(2)])]; drop(q); }); ["miss2", "meaning", "confirmA"].forEach(drop); mirrorChain(); }
+    if (part === "meaning") { ["meaning", "confirmA"].forEach(drop); mirrorChain(); }
+    if (part === "reaction") { ["reaction", "now", "later", "confirmA"].forEach(drop); mirrorChain(); }
+    if (part === "mirror") mirrorChain();
+    if (part === "dropMirror") { ["perm", "confirmB", "action", "pred"].forEach(drop); st.mirrorDropped = true; }
+    if (part === "goal") ["perm", "goal", "confirmB", "action", "pred"].forEach(drop);
+    if (part === "action") ["action", "pred"].forEach(drop);
+    if (part === "all") { st.misses = (st.misses || 0) + 1; st.answers = {}; st.order = []; st.rejected = []; st.mirrorDropped = false; }
     return st;
   };
   R.dialogAnswer = function (st, qid, v, text) { st.answers = st.answers || {}; st.order = (st.order || []).filter(q => q !== qid); st.answers[qid] = { v, text: text || "", at: Date.now() }; st.order.push(qid); return st; };

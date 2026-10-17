@@ -66,7 +66,9 @@
   const lineageOf = p => { const x = expOf(p); return x && x.kind === "plan" ? (x.lineageId || x.id) : null; };
   function eligibility(p) { return R.flagEligibility({ pattern: p, checkins: D.checkins, episodes: D.episodes, todayKey: today(), policy: policy(), experiment: expOf(p), skillId: skillOfPattern(p), lineageId: lineageOf(p) }); }
   /* Метка доказательства: навык и версия плана в момент записи. Смена навыка потом не переименовывает историю. */
-  function evidenceTag(p) { const x = expOf(p); return { skillId: (x && x.skillId) || (p && p.skillId) || null, experimentId: x ? x.id : null, planId: x ? x.id : null, planVersion: x ? x.version : null, lineageId: lineageOf(p) }; }
+  function evidenceTag(p) { const x = expOf(p); return { skillId: (x && x.skillId) || (p && p.skillId) || null, experimentId: x ? x.id : null, planId: x ? x.id : null, planVersion: x ? x.version : null, lineageId: lineageOf(p), storyId: p ? (p.storyId || p.id) : null, mirrorVersion: mirrorVer(p) }; }
+  /* v7: версия зеркала, к которой относится запись; 0 — зеркало ищем или не найдено */
+  function mirrorVer(p) { const m = p && p.mirror; if (!m) return null; return m.text ? (m.version || 1) : 0; }
   /* Разрешение из пакета не затирает формулировку пользователя; источник запоминается для пересмотра при смене объяснения. */
   function setPermissionFromPack(p, text, hypId) { const ps = p.permissionSource; if (!text) return; if (!p.permission || !ps || ps.origin !== "user") { p.permission = text; p.permissionSource = { origin: "pack", hypothesisVersionId: hypId || null }; } }
   function setPermissionByUser(p, text) { p.permission = text; p.permissionSource = { origin: "user", hypothesisVersionId: p.hypothesisVersionId || null }; }
@@ -157,6 +159,7 @@
       if (s.type === "text") { const a = $("#a"); if (a) { const v = a.value.trim(); if (v) ans[s.k] = v; else if (ans[s.k] != null) delete ans[s.k]; } }
       if (s.type === "date") { const d = $("#dt"); if (d && d.value && R.isKey(d.value)) ans[s.k] = d.value; }
       if ((s.type === "choice" || s.type === "multi") && s.own) { const own = $("#own"); if (own) { const v = own.value.trim(); if (v) ans[s.k + "_own"] = v; } }
+      if (s.type === "card") $$(".gown").forEach(o => { const v = o.value.trim(); if (v) ans[o.dataset.gk + "_own"] = v; else delete ans[o.dataset.gk + "_own"]; });
     };
     const saveDraft = () => { clearTimeout(timer); collect(curStep); return persist(); };
     const later = () => { clearTimeout(timer); timer = setTimeout(() => { if (!alive()) return; collect(curStep); persist(); }, 400); };
@@ -178,7 +181,7 @@
         body = `<div class="chips col" id="ch">${opts.map(([v, l]) => `<button class="chip ${sel.includes(v) ? "on" : ""}" data-v="${esc(v)}">${esc(l)}</button>`).join("")}${s.own ? `<button class="chip ${cur === "__own" || (s.type === "multi" && sel.includes("__own")) ? "on" : ""}" data-v="__own">Своё</button>` : ""}${s.unknown ? `<button class="chip dim ${sel.includes("unknown") ? "on" : ""}" data-v="unknown">Пока не знаю</button>` : ""}</div>
           ${s.own ? `<input type="text" id="own" placeholder="${esc(s.ownPh || "Своими словами")}" value="${esc(ans[s.k + "_own"] || "")}" style="display:${cur === "__own" || (s.type === "multi" && sel.includes("__own")) ? "block" : "none"}">` : ""}`;
       } else if (s.type === "text") {
-        body = `${s.tags ? `<div class="chips" id="tg">${(typeof s.tags === "function" ? s.tags(ans) : s.tags).map(t => `<button class="chip" data-v="${esc(t)}">${esc(t)}</button>`).join("")}</div>` : ""}<textarea id="a" placeholder="${esc(s.ph || "")}">${esc(cur || "")}</textarea>`;
+        body = `${s.tags ? `<div class="chips" id="tg">${(typeof s.tags === "function" ? s.tags(ans) : s.tags).map(t => `<button class="chip" data-v="${esc(t)}">${esc(t)}</button>`).join("")}</div>` : ""}<textarea id="a" placeholder="${esc(s.ph || "")}">${esc(cur != null ? cur : (typeof s.def === "function" ? s.def(ans) : s.def) || "")}</textarea>`;
       } else if (s.type === "scale") {
         const v = cur != null ? cur : (s.def != null ? s.def : 5);
         body = `<div class="range-val" id="scv">${cur == null && s.optional ? "—" : v}</div><input type="range" id="sc" min="0" max="10" step="1" value="${v}" aria-label="${esc(q)}"><div class="range-hint"><span>${esc(s.lo || "0")}</span><span>${esc(s.hi || "10")}</span></div>`;
@@ -186,6 +189,10 @@
         const min = typeof s.min === "function" ? s.min(ans) : s.min, max = typeof s.max === "function" ? s.max(ans) : s.max;
         const def = typeof s.def === "function" ? s.def(ans) : s.def;
         body = `<input type="date" id="dt" value="${esc(cur || def || "")}"${min ? ` min="${esc(min)}"` : ""}${max ? ` max="${esc(max)}"` : ""} aria-label="${esc(q)}">`;
+      } else if (s.type === "card") {
+        /* v7: компактная карточка опыта — несколько коротких выборов на одном экране, каждый можно пропустить */
+        const gs = (typeof s.groups === "function" ? s.groups(ans) : s.groups).filter(g => !(g.skip && g.skip(ans)));
+        body = gs.map(g => `<div class="card tight expg" data-g="${esc(g.k)}">${g.lead ? `<p class="small muted" style="margin:0 0 4px">${esc(typeof g.lead === "function" ? g.lead(ans) : g.lead)}</p>` : ""}<p class="small" style="margin:0 0 6px"><b>${esc(g.label)}</b></p><div class="chips">${g.opts.map(([v, l]) => `<button class="chip ${ans[g.k] === v ? "on" : ""}" data-gk="${esc(g.k)}" data-v="${esc(v)}">${esc(l)}</button>`).join("")}</div>${g.ownOn ? `<input type="text" class="gown" id="gown-${esc(g.k)}" data-gk="${esc(g.k)}" data-on="${esc(g.ownOn.join(","))}" placeholder="${esc(g.ph || "Своими словами")}" value="${esc(ans[g.k + "_own"] || "")}" style="display:${g.ownOn.includes(ans[g.k]) ? "block" : "none"}">` : ""}</div>`).join("");
       } else if (s.type === "info") body = s.html ? (typeof s.html === "function" ? s.html(ans) : s.html) : "";
       const last = i === vis.length - 1;
       app.dataset.flow = key;
@@ -207,6 +214,13 @@
           if (v !== "__own" && !s.noAuto) { saveDraft(); setTimeout(() => advance(), 120); } else later();
         } else { const arr = ans[s.k] = ans[s.k] || []; const ix = arr.indexOf(v); if (ix >= 0) arr.splice(ix, 1); else arr.push(v); b.classList.toggle("on"); if (own) own.style.display = arr.includes("__own") ? "block" : "none"; later(); }
       });
+      $$(".expg .chip").forEach(b => b.onclick = () => {
+        const gk = b.dataset.gk, v = b.dataset.v; ans[gk] = ans[gk] === v ? undefined : v; if (ans[gk] === undefined) delete ans[gk];
+        $$(`.expg .chip[data-gk="${gk}"]`).forEach(x => x.classList.toggle("on", x.dataset.v === ans[gk]));
+        const o = document.getElementById("gown-" + gk); if (o) { const on = o.dataset.on.split(",").includes(ans[gk]); o.style.display = on ? "block" : "none"; if (on && !o.value) o.focus(); }
+        later();
+      });
+      $$(".gown").forEach(o => o.oninput = later);
       $$("#tg .chip").forEach(b => b.onclick = () => { if (a) { a.value = a.value.trim() ? a.value.trim() + ". " + b.dataset.v : b.dataset.v; a.focus(); later(); } });
       const sc = $("#sc"); if (sc) sc.oninput = () => { $("#scv").textContent = sc.value; ans[s.k] = Number(sc.value); later(); };
       const advance = () => {
@@ -214,12 +228,13 @@
         if (s.type === "multi") { const arr = ans[s.k] || []; if (arr.includes("__own")) { const v = own.value.trim(); if (!v) return toast("Напиши своё"); ans[s.k + "_own"] = v; } if (!arr.length && !s.optional) return toast("Отметь хотя бы одно"); }
         if (s.type === "text") { const v = a.value.trim(); if (!v && !s.optional) return toast(s.req || "Напиши хотя бы пару слов"); ans[s.k] = v; }
         if (s.type === "scale") { if (ans[s.k] == null) ans[s.k] = Number($("#sc").value); }
+        if (s.type === "card") { collect(s); const gs = (typeof s.groups === "function" ? s.groups(ans) : s.groups).filter(g => !(g.skip && g.skip(ans))); for (const g of gs) { if (ans[g.k] === "__own" && !ans[g.k + "_own"]) return toast("Напиши своё"); if (g.needOwn && g.needOwn.includes(ans[g.k]) && !ans[g.k + "_own"]) return toast(g.needOwnMsg || "Напиши пару слов"); } }
         if (s.type === "date") { const v = $("#dt").value; if (!v && !s.optional) return toast("Укажи дату"); if (v && !R.isKey(v)) return toast("Укажи дату"); if (v) ans[s.k] = v; else delete ans[s.k]; }
         if (s.validate) { const m = s.validate(ans); if (m) { $("#flag").innerHTML = `<div class="nudge">${esc(m)}</div>`; return; } }
         if (i >= visible().length - 1) { clearTimeout(timer); finish(); } else { i++; saveDraft(); render(); window.scrollTo(0, 0); }
       };
       $("#next").onclick = advance;
-      const sk = $("#skipq"); if (sk) sk.onclick = () => { delete ans[s.k]; if (i >= visible().length - 1) { clearTimeout(timer); finish(); } else { i++; saveDraft(); render(); } };
+      const sk = $("#skipq"); if (sk) sk.onclick = () => { delete ans[s.k]; if (s.type === "card") (typeof s.groups === "function" ? s.groups(ans) : s.groups).forEach(g => { delete ans[g.k]; delete ans[g.k + "_own"]; }); if (i >= visible().length - 1) { clearTimeout(timer); finish(); } else { i++; saveDraft(); render(); } };
       const bk = $("#back"); if (bk) bk.onclick = () => { collect(s); i--; saveDraft(); render(); };
       const cn = $("#cancel"); if (cn) cn.onclick = () => { saveDraft(); flowFlush = null; onCancel(); };
     };
@@ -232,12 +247,12 @@
   const go = h => { if (location.hash === "#" + h) route(); else location.hash = h; };
   function route() {
     if (!D) return;
-    if (flowFlush) { flowFlush(); flowFlush = null; } if (planFlush) { planFlush(); planFlush = null; } app.dataset.flow = "";
+    if (flowFlush) { flowFlush(); flowFlush = null; } if (planFlush) { planFlush(); planFlush = null; } app.dataset.flow = ""; app.dataset.sq = ""; app.dataset.sk = "";
     applyTheme();
     let [h, arg] = (location.hash || "#today").slice(1).split("/");
     const p = anyPattern();
     /* Новому человеку — вход (проблема → дата → число → сфера → события → фокус → учитель → случай → что задело → резюме → урок → карта дня). Действующий сюжет или записи прошлой версии — сразу свой путь. */
-    const STEPS = ["start", "birth", "symbol", "area", "workctx", "closectx", "fdialog", "cards", "dialog", "own", "teacher", "case", "sting", "want", "summary", "path", "lesson"];
+    const STEPS = ["start", "birth", "symbol", "area", "ctx", "sd", "workctx", "closectx", "fdialog", "cards", "dialog", "own", "teacher", "case", "sting", "want", "summary", "path", "lesson"];
     const ONB = [...STEPS, "plan", "map", "guide", "new", "entry", "help", "about", "settings"];
     const needStart = !p && !D.meta.migratedFromV9 && !(P.seen.start && !P.onb);
     if (needStart && !ONB.includes(h)) h = (P.onb && P.onb.step && ONB.includes(P.onb.step)) ? P.onb.step : "start";
@@ -253,7 +268,7 @@
     nav.innerHTML = `<a class="pill sos" href="#help" aria-label="Сейчас тяжело">${ic("flame", "")}<span>Сейчас тяжело</span></a><a class="pill ${h === "settings" ? "on" : ""}" href="#settings" aria-label="Настройки">${ic("key", "")}</a>`;
     tabs.innerHTML = [["today", "Сегодня", phaseIc()], ["story", "Мой путь", "eye"], ["history", "История", "hourglass"]].map(([k, l, i]) => `<a href="#${k}" class="${h === k ? "on" : ""}">${ic(i, "")}${l}</a>`).join("");
     $("#testbar").innerHTML = P.devMode && P.offsetH ? `<div class="testbar">Тестовое время: ${R.human(today())}, ${R.fmtTime(nowTs())} (сдвиг ${P.offsetH > 0 ? "+" : ""}${P.offsetH} ч) — <a href="#settings">сбросить</a></div>` : "";
-    const V = { start, birth, entry, new: newEpisode, area, workctx, cards, own: ownScenario, teacher, case: caseScreen, sting, want, summary, dialog, closectx, fdialog, path: summary, lesson, plan: planScreen, map: mapScreen, guide, tool: toolScreen, help, today: todayScreen, story, history, settings, morning, event, action, evening, module: moduleScreen, review, flag: flagScreen, about, symbol, detail, legacy, episode: episodeView };
+    const V = { start, birth, entry, new: newEpisode, area, workctx: ctxScreen, ctx: ctxScreen, sd, cards, own: ownRoute, teacher, case: caseScreen, sting, want, summary, dialog: sd, closectx: ctxScreen, fdialog: sd, path: summary, lesson, plan: planScreen, map: mapScreen, guide, tool: toolScreen, help, today: todayScreen, story, history, settings, morning, event, action, evening, module: moduleScreen, review, flag: flagScreen, about, symbol, detail, legacy, episode: episodeView };
     (V[h] || V.today)(arg);
     window.scrollTo(0, 0);
   }
@@ -308,10 +323,12 @@
     app.innerHTML = `<h1>С чем начнём?</h1><p class="muted">Один вопрос за раз. Можно уйти в любой момент — всё сохранится.</p>
       <div class="chips col">
         <a class="btn block" href="#area">Найти, с чего начать</a>
-        <a class="btn block secondary" href="#new">${esc(C.entryCopy.choices[0])}</a>
+        <button class="btn block secondary" id="entOwn">${esc(OB.story.ownCase)}</button>
         <a class="btn block sos" href="#help">${esc(C.entryCopy.choices[2])}</a>
       </div>
       ${anyPattern() ? `<div class="row tight"><a class="btn ghost" href="#today">На главную</a></div>` : ""}`;
+    /* v7: свой случай — тот же маршрут (сфера → учитель → своя сцена → зеркало), без обхода через старую запись */
+    $("#entOwn").onclick = async () => { P.onb = { step: "area" }; await saveProfile(true); ownRoute(); };
   }
   const EMOTIONS = C.emotions.primary;
   /* Эпизод и первый план. Создаёт сюжет, если его нет. Старт практики — день записи, не дата вспомненного случая. */
@@ -401,7 +418,7 @@
   function area(arg) {
     const S = onb(), num = pathNum(), pr = num ? X.pathProfiles[String(num)] : null, RG = OB.recog;
     S.routingVersion = S.routingVersion || RV;
-    const afterRecog = async () => { await persistOnb(); if (S.areaExplicit && S.area && S.area !== "own") return go(S.area === "work" && !S.ctx ? "workctx" : S.area === "close" && famBank() && !S.famRole ? "closectx" : "cards"); area(); };
+    const afterRecog = async () => { await persistOnb(); if (S.areaExplicit && S.area && S.area !== "own") return go(S.role ? "sd" : "ctx"); area(); };
     if (pr && !S.otherStory && !S.recogDone && !S.areaExplicit) {
       const sel = S.recogSel || [];
       if (S.recogPickOne && sel.length > 1) {
@@ -424,11 +441,10 @@
       return;
     }
     const pick = async v => {
-      if (v === "own") { stashBranch(S); S.area = "own"; S.areaExplicit = true; S.step = "own"; await persistOnb(); return go("own"); }
+      if (v === "own") { S.ownFirst = true; S.unclearView = false; await persistOnb(); return area(); }
       if (v === "unclear") { S.unclearView = true; await persistOnb(); return area(); }
       S.unclearView = false;
-      if (v === "work") { if (S.area !== "work") setBranch(S, "work", null); else S.areaExplicit = true; S.step = "workctx"; await persistOnb(); return go("workctx"); }
-      if (v === "close" && famBank()) { if (S.area !== "close") setBranch(S, "close", null); else S.areaExplicit = true; S.step = S.famRole && S.famRole !== "child" ? "fdialog" : "closectx"; await persistOnb(); return go(S.step); }
+      if (SB().spheres[v]) { if (S.area !== v) { setBranch(S, v, null); S.role = null; S.roleLabel = null; S.sd = null; } else S.areaExplicit = true; S.step = "ctx"; await persistOnb(); return go("ctx"); }
       setBranch(S, v, null); S.step = "cards"; await persistOnb(); go("cards");
     };
     /* «Пока трудно понять»: по одному примеру из каждой сферы, подписанному сферой. Выбор — явный, колода — только этой сферы. */
@@ -442,8 +458,8 @@
       return;
     }
     const cur = S.areaExplicit ? S.area : null;
-    app.innerHTML = `${pr ? `<p class="tiny" style="margin:0 0 4px">${num} · ${esc(pr.displayName)}</p>` : ""}<h1 class="q">${esc(OA.title)}</h1><p class="muted small">${esc(OA.sub)}</p>
-      <div class="chips col">${X.areas.map(([v, l]) => `<button class="chip ${cur === v ? "on" : ""}" data-v="${v}">${esc(l)}</button>`).join("")}</div>
+    app.innerHTML = `${pr ? `<p class="tiny" style="margin:0 0 4px">${num} · ${esc(pr.displayName)}</p>` : ""}<h1 class="q">${esc(S.ownFirst ? "Где это происходит?" : OA.title)}</h1><p class="muted small">${esc(S.ownFirst ? "Свой случай опишешь сам — сначала выберем сферу и учителя." : OA.sub)}</p>
+      <div class="chips col">${X.areas.filter(([v]) => !S.ownFirst || SB().spheres[v]).map(([v, l]) => `<button class="chip ${cur === v ? "on" : ""}" data-v="${v}">${esc(l)}</button>`).join("")}</div>
       <div class="row tight"><a class="btn ghost sm" href="#help">${esc(OB.buttons.sos.label)}</a>${pr ? `<button class="btn ghost sm" id="backRecog">${esc(RG.title)}</button>` : ""}</div>`;
     const br = $("#backRecog"); if (br) br.onclick = async () => { S.otherStory = false; S.recogDone = false; S.areaExplicit = false; S.recogSel = []; await persistOnb(); area(); };
     $$("[data-v]").forEach(b => b.onclick = () => pick(b.dataset.v));
@@ -629,7 +645,12 @@
     };
     const bindReview = () => $$("[data-rs]").forEach(b => b.onclick = () => { const pk = (S.picks || []).find(x => x.id === b.dataset.rs); if (pk) { delete pk.notStung; persistOnb(); } pickEvent(b.dataset.rs); });
     /* Выбор фокуса: дальше все уточнения относятся к выбранному варианту карточки. */
-    const pickEvent = async (variantId) => { if (S.event !== variantId) { S.case = null; S.sting = null; S.want = null; S.confirmed = false; } S.event = variantId; S.own = null; S.offer = null; S.choose = false; S.step = "teacher"; await persistOnb(); go("teacher"); };
+    /* v7: пример из колоды — подсказка вспомнить; дальше тот же единый маршрут (текст карточки — описание сцены, человек может поправить) */
+    const pickEvent = async (variantId) => { const v = variantById(variantId); S.deckPick = v ? v.text : ""; S.offer = null; S.choose = false;
+      /* колода с конкретным рабочим контекстом уже назвала учителя — не спрашиваем роль повторно */
+      const ctxRole = { boss: "boss", colleagues: "colleague", clients: "client" }[S.ctx];
+      if (!S.role && S.area === "work" && ctxRole) S.role = ctxRole;
+      await persistOnb(); if (!S.role || !SB().spheres[S.area]) { S.step = "ctx"; await persistOnb(); return go("ctx"); } S.sd = null; S.step = "sd"; await persistOnb(); go("sd"); };
     if (!deck.length) return nothingFits();
     render();
   }
@@ -928,6 +949,249 @@
     $("#fObs3").onclick = () => handoff(true);
     $("#fChange").onclick = async () => { R.familyFix(st, "action"); st.status = "asking"; await persistOnb(); fdialog(); };
   }
+  /* =================== v7 ЕДИНЫЙ МАРШРУТ: сфера → учитель → сцена (или свой случай) → что задело → реакция и последствия →
+     подтверждение учителя → зеркало (по ответам; после непопадания — первая мысль) → проверка → разрешение → подтверждение зеркала →
+     шаг и ожидание → первый эксперимент. Готовый и индивидуальный случаи идут одним процессом. =================== */
+  const SB = () => X.stories;
+  const KIND_OF = { partner: "partner", mother: "parent", father: "parent", brother: "relative", sister: "relative", relative: "relative", friend: "friend", child: "child", boss: "boss", colleague: "colleague", client: "client",
+    m_friend: "friend", m_relative: "relative", m_client: "client", m_partner: "partner", s_mistake: "situation", s_rest: "situation", s_choice: "situation", s_delay: "situation", __own: "other" };
+  const DECK_CTX = { boss: "boss", colleague: "colleagues", client: "clients" };
+  /* Учитель/контекст для выбранной сферы: известный учитель дальше не спрашивается. Колода — необязательные примеры. */
+  function ctxScreen() {
+    const S = onb(), B = SB(), O = OB.story; if (!S.area || !B.spheres[S.area]) return go("area");
+    const sp = B.spheres[S.area];
+    app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(sp.label)}</p><h1 class="q">${esc(sp.teacherQ)}</h1><p class="muted small">${esc(OB.family.ctxSub)}</p>
+      <div class="chips col" id="sRoles">${sp.roles.map(([v, l]) => `<button class="chip ${S.role === v ? "on" : ""}" data-v="${v}">${esc(l)}</button>`).join("")}<button class="chip dim" id="sRoleOwn">${esc(O.own)}</button></div><div id="sRoleBox"></div>
+      <div class="row tight"><a class="btn ghost sm" href="#cards" id="sExamples">${esc(O.examples)}</a><a class="btn ghost sm" href="#area">Другая сфера</a></div>`;
+    const pick = async (v, label) => {
+      if (S.role !== v || (label && S.roleLabel !== label)) { S.role = v; S.roleLabel = label || null; S.sd = null; }
+      if (S.area === "work" && DECK_CTX[v]) { S.ctx = DECK_CTX[v]; } if (S.area === "close") S.famRole = v;
+      S.step = "sd"; await persistOnb(); go("sd");
+    };
+    $$("#sRoles [data-v]").forEach(b => b.onclick = () => pick(b.dataset.v));
+    $("#sRoleOwn").onclick = () => { $("#sRoleBox").innerHTML = `<input id="sRoleT" placeholder="кто или что, без имени"><div class="row tight"><button class="btn secondary sm" id="sRoleOk">Готово</button></div>`; $("#sRoleT").focus(); $("#sRoleOk").onclick = () => { const t = $("#sRoleT").value.trim(); if (!t) return toast("Напиши пару слов"); pick("__own", t); }; };
+    $("#sExamples").onclick = async e => { e.preventDefault(); if (S.area === "work" && !S.ctx) S.ctx = "any"; S.step = "cards"; await persistOnb(); go("cards"); };
+  }
+  const sdLines = (f, B) => {
+    const O = OB.story, u = t => t ? uc1(R.trimEnd(t)) : O.unknownField;
+    const L = [["Учитель", f.roleLabel ? uc1(f.roleLabel) : O.unknownField], ["Ситуация", f.own ? `«${f.eventText}»` : uc1(f.when)], ["Задевает", f.meaning && f.meaning.text ? `«${R.trimEnd(f.meaning.text)}»` : O.unknownField]];
+    if (f.thought) L.push(["Первая мысль", `«${R.trimEnd(f.thought)}»`]);
+    L.push(["Обычно", f.reaction ? `«${R.trimEnd(f.reaction)}»` : O.unknownField]);
+    if (f.reaction) L.push(["Сразу это дало", u(f.now)], ["Потом", u(f.later)]);
+    return L;
+  };
+  const mirrorLine = (m, B) => !m || !m.text ? OB.story.noMirror : `«${R.trimEnd(m.text)}» — ${B.mirrorStatus[m.status] || ""}`;
+  function sd() {
+    const S = onb(), B = SB(), O = OB.story, D = OB.dialog;
+    if (!B || !S.area || !B.spheres[S.area] || !S.role) return go(S.area ? "ctx" : "area");
+    if (!S.sd) { const direct = !!(S.ownFirst || S.deckPick); S.sd = { bank: B.version, sphere: S.area, role: S.role, roleLabel: S.roleLabel || null, answers: {}, order: [], rejected: [], misses: 0, status: direct ? "asking" : "intro", startedAt: nowTs() }; if (direct) R.dialogAnswer(S.sd, "group", "__own"); S.ownFirst = false; }
+    const st = S.sd; st.sphere = S.area; st.role = S.role; if (S.roleLabel) st.roleLabel = S.roleLabel;
+    if (st.status === "intro") {
+      app.innerHTML = `${sparkHTML("listen")}<p class="tiny" style="margin:0 0 4px">${esc(B.spheres[S.area].label)} · ${esc(S.roleLabel || (B.spheres[S.area].roles.find(r => r[0] === S.role) || [])[1] || "")}</p><h1 class="q">${esc(O.introTitle)}</h1><p>${esc(O.intro)}</p>
+        <div class="row"><button class="btn block" id="sStart">${esc(O.start)}</button></div>
+        <div class="chips col"><button class="chip" id="sOwnStart">${esc(O.ownCase)}</button><a class="chip dim" href="#cards" id="sEx">${esc(O.examples)}</a></div>
+        <div class="row tight"><a class="btn ghost sm" href="#ctx">Другой учитель</a></div>`;
+      bindSpark();
+      $("#sStart").onclick = async () => { st.status = "asking"; await persistOnb(); sd(); };
+      $("#sOwnStart").onclick = async () => { st.status = "asking"; R.dialogAnswer(st, "group", "__own"); await persistOnb(); sd(); };
+      $("#sEx").onclick = async e => { e.preventDefault(); if (S.area === "work" && !S.ctx) S.ctx = DECK_CTX[S.role] || "any"; await persistOnb(); go("cards"); };
+      return;
+    }
+    const res = R.storyNext(B, st), q = res.next, f = res.fields; st.trace = res.trace; app.dataset.sq = q.id; app.dataset.sk = q.kind;
+    const answer = async (qid, v, text) => { R.dialogAnswer(st, qid, v, text); st.status = "asking"; const ok = await persistOnb(); sd(); return ok !== false; };
+    /* «Назад» отменяет весь последний экран: «сразу/потом» отвечаются на одном экране и снимаются вместе */
+    const back = async () => { if (st.status === "step") st.status = "asking"; const last = st.order[st.order.length - 1]; R.dialogUndo(st); if (last === "later" && st.order[st.order.length - 1] === "now") R.dialogUndo(st); await persistOnb(); sd(); };
+    const phase = q.kind === "pause" ? (st.answers.confirmB ? "step" : st.answers.confirmA ? "mirror" : "teacher") : ["mirror", "thought", "ownrule", "check", "perm", "goal", "confirmB"].includes(q.kind) || q.id.startsWith("mir:") || ["thought", "ownrule", "check", "perm", "goal", "confirmB"].includes(q.id) ? "mirror" : ["action", "pred", "step"].includes(q.kind) ? "step" : "teacher";
+    const head = sp => `${sparkHTML(sp)}<div class="row tight" style="justify-content:space-between;margin:0 0 4px"><span class="tiny" id="sPhase">${esc(O.phase[phase])}</span>${st.order.length ? `<button class="linkbtn tiny" id="sBack">${esc(D.back)}</button>` : `<a class="linkbtn tiny" href="#ctx">${esc(D.back)}</a>`}</div>`;
+    const bindHead = () => { bindSpark(); const b = $("#sBack"); if (b) b.onclick = back; };
+    const ownBox = (qid, ph, v, prefill, input) => { $("#sOwnBox").innerHTML = `<textarea id="sOwnT" placeholder="${esc(ph || D.ownPh)}">${esc(prefill || "")}</textarea><div class="row tight"><button class="btn secondary sm" id="sOwnOk">Готово</button></div>`; $("#sOwnT").focus(); $("#sOwnOk").onclick = () => { const t = $("#sOwnT").value.trim(); if (!t) return toast("Напиши пару слов"); answer(qid, v || "__own", t); }; };
+    const lbl = v => v === "__unknown" ? (q.id === "group" ? O.typeUnknown : O.unknown) : v === "__unsure" ? O.unsure : v === "__observe" ? O.observe : null;
+    const titleOf = { group: O.qGroup, meaning: O.qMeaning, reaction: O.qReaction, perm: O.qPermission, goal: O.qGoal, ownKind: O.qOwnKind };
+    if (q.kind === "choice") {
+      const opts = q.options.map(([v, t]) => [v, (String(t).startsWith("__") ? lbl(t) : null) || t]);
+      const lead = q.id === "ownKind" ? O.ownKindLead : ["meaning", "reaction"].includes(q.id) ? `«${f.eventText}»` : q.id === "perm" ? `«${R.trimEnd(q.mirrorText || "")}»` : q.id === "goal" ? O.needLead.replace("{need}", R.trimEnd(q.need || "")) : "";
+      app.innerHTML = `${head("listen")}${lead ? `<p class="tiny" id="sLead" style="margin:0 0 4px">${esc(lead)}</p>` : ""}<h1 class="q">${esc(q.text || titleOf[q.id] || "")}</h1>
+        <div class="chips col" id="sOpts">${opts.map(([v, t]) => `<button class="chip ${(st.answers[q.id] || {}).v === v ? "on" : ""}" data-v="${esc(v)}">${esc(t)}</button>`).join("")}${q.own ? `<button class="chip dim" id="sOwn">${esc(O.own)}</button>` : ""}${q.ownCase ? `<button class="chip dim" data-v="__own" id="sOwnCase">${esc(O.ownCase)}</button>` : ""}${q.danger ? `<button class="chip dim" data-v="danger" id="sDanger">${esc(O.dangerOpen)}</button>` : ""}</div><div id="sOwnBox"></div>`;
+      bindHead();
+      $$("#sOpts [data-v]").forEach(b => b.onclick = () => answer(q.id, b.dataset.v));
+      const ow = $("#sOwn"); if (ow) ow.onclick = () => ownBox(q.id); return;
+    }
+    if (q.kind === "text") {
+      app.innerHTML = `${head("listen")}<h1 class="q">${esc(O.qOwnScene)}</h1><p class="small muted">${esc(O.ownSceneLead)}</p>${S.deckPick && !(st.answers.ownScene || {}).text ? `<p class="tiny muted">Пример из карточек — поправь под свой случай.</p>` : ""}<textarea id="sScene" placeholder="${esc(O.ownScenePh)}">${esc((st.answers.ownScene || {}).text || S.deckPick || "")}</textarea><div class="row"><button class="btn block" id="sSceneOk">${esc(O.next)}</button></div>`;
+      bindHead(); $("#sSceneOk").onclick = () => { const t = $("#sScene").value.trim(); if (!t) return toast("Одна короткая фраза: что произошло"); answer("ownScene", "__own", t); }; return;
+    }
+    if (q.kind === "yn") {
+      app.innerHTML = `${head("think")}<h1 class="q">${esc(q.text)}</h1><div class="chips col" id="sYn">${D.yn.map(([v, t]) => `<button class="chip" data-v="${v}">${esc(t)}</button>`).join("")}</div>`;
+      bindHead(); $$("#sYn [data-v]").forEach(b => b.onclick = () => answer(q.id, b.dataset.v)); return;
+    }
+    if (q.kind === "swipe") {
+      const lastQ = st.order[st.order.length - 1], prev = lastQ && lastQ.startsWith("e:") && st.answers[lastQ] ? st.answers[lastQ].v : null;
+      app.innerHTML = `${head("listen")}<h1 class="q">${esc(O.qEvent)}</h1>${swipeHTML({ text: q.text, prev, tutorial: !P.seen.swipe })}<div class="row tight" style="justify-content:center"><button class="linkbtn tiny" id="sOwnSw">${esc(O.ownCase)}</button></div>`;
+      bindHead();
+      $("#sOwnSw").onclick = () => answer("miss2", "own");
+      bindSwipe({ onAnswer: async r => { P.seen.swipe = true; R.dialogAnswer(st, q.id, r); const ok = await persistOnb(); if (ok === false) { R.dialogUndo(st); return false; } setTimeout(sd, reduce() ? 0 : 230); return true; }, onUndo: back, announce: r => OB.swipe.prev.replace("{a}", swAns(r)) });
+      return;
+    }
+    if (q.kind === "miss2") {
+      app.innerHTML = `${head("think")}<h1 class="q">${esc(O.miss2Title)}</h1><p>${esc(O.miss2Text)}</p><div class="chips col" id="sOpts"><button class="chip" data-v="more">${esc(O.miss2More)}</button><button class="chip" data-v="own">${esc(O.miss2Own)}</button></div>`;
+      bindHead(); $$("#sOpts [data-v]").forEach(b => b.onclick = () => answer("miss2", b.dataset.v)); return;
+    }
+    if (q.kind === "conseq") {
+      const row = (id, list) => `<div class="chips" id="sC_${id}">${list.map(x => `<button class="chip ${(st.answers[id] || {}).v === x ? "on" : ""}" data-v="${esc(x)}">${esc(x)}</button>`).join("")}<button class="chip dim" data-v="__unknown">${esc(O.unknown)}</button><button class="chip dim" data-own="${id}">${esc(O.own)}</button></div><div id="sOwn_${id}"></div>`;
+      app.innerHTML = `${head("listen")}<p class="tiny" style="margin:0 0 4px">«${esc(R.trimEnd(f.reaction))}»</p><h1 class="q">${esc(O.qConseq)}</h1><p class="small" style="margin:6px 0 2px"><b>${esc(O.qNow)}</b></p>${row("now", q.now)}<p class="small" style="margin:8px 0 2px"><b>${esc(O.qLater)}</b></p>${row("later", q.later)}<div class="row"><button class="btn block" id="sCOk" disabled>${esc(O.next)}</button></div>`;
+      bindHead();
+      const sel = { now: st.answers.now || null, later: st.answers.later || null };
+      const upd = () => { $("#sCOk").disabled = !(sel.now && sel.later); };
+      ["now", "later"].forEach(id => {
+        $$(`#sC_${id} [data-v]`).forEach(b => b.onclick = () => { sel[id] = { v: b.dataset.v }; $$(`#sC_${id} .chip`).forEach(x => x.classList.toggle("on", x === b)); upd(); });
+        $(`#sC_${id} [data-own]`).onclick = () => { $(`#sOwn_${id}`).innerHTML = `<input id="sOT_${id}" placeholder="своими словами">`; const inp = $(`#sOT_${id}`); inp.focus(); inp.oninput = () => { sel[id] = inp.value.trim() ? { v: "__own", text: inp.value.trim() } : null; upd(); }; };
+      });
+      upd();
+      $("#sCOk").onclick = async () => { R.dialogAnswer(st, "now", sel.now.v, sel.now.text); R.dialogAnswer(st, "later", sel.later.v, sel.later.text); await persistOnb(); sd(); };
+      return;
+    }
+    if (q.kind === "confirmA") {
+      app.innerHTML = `${head("summary")}<h1 class="q">${esc(O.confirmA)}</h1><div class="card mark" id="sSumA"><div class="plines">${sdLines(f, B).map(([k, v]) => `<div><span>${esc(k)}:</span> ${esc(v)}</div>`).join("")}</div></div>
+        <p class="small" style="margin:6px 0 2px"><b>${esc(O.whenQ)}</b></p><div class="chips" id="sWhen">${X.lastTime.map(([v, l]) => `<button class="chip ${(st.answers.when || {}).v === v ? "on" : ""}" data-v="${v}">${esc(l)}</button>`).join("")}</div>
+        <p class="tiny muted" style="margin:6px 0">${esc(O.confirmANote)}</p>
+        <div class="chips col"><button class="chip" id="sAYes" ${(st.answers.when || {}).v ? "" : "disabled"}>${esc(O.confirmAYes)}</button><button class="chip" id="sAFix">${esc(O.confirmAFix)}</button><button class="chip dim" id="sANo">${esc(O.confirmANo)}</button></div><div id="sFix"></div>`;
+      bindHead();
+      $$("#sWhen [data-v]").forEach(b => b.onclick = async () => { R.dialogAnswer(st, "when", b.dataset.v); await persistOnb(); $$("#sWhen .chip").forEach(x => x.classList.toggle("on", x === b)); $("#sAYes").disabled = false; });
+      $("#sAYes").onclick = () => answer("confirmA", "yes");
+      const fix = all => { $("#sFix").innerHTML = `<p class="small muted" style="margin:6px 0 4px">${esc(O.fixWhat)}</p><div class="chips">${[["event", O.fixEvent], ["meaning", O.fixMeaning], ["reaction", O.fixReaction]].concat(all ? [["all", D.fixAll]] : []).map(([k, t]) => `<button class="chip" data-fx="${k}">${esc(t)}</button>`).join("")}</div>`; $$("[data-fx]").forEach(b => b.onclick = async () => { R.storyFix(st, b.dataset.fx); await persistOnb(); toast(D.say.fix); sd(); }); };
+      $("#sAFix").onclick = () => fix(false);
+      $("#sANo").onclick = async () => { st.misses = (st.misses || 0) + 1; await persistOnb(); if (st.misses >= 2) { app.innerHTML = `${sparkHTML("think")}<p id="sMissTwice">${esc(O.missTwice)}</p><div class="chips col"><button class="btn block secondary" id="sOwn2">${esc(O.miss2Own)}</button><button class="btn block secondary" id="sObs2">${esc(O.observe)}</button></div>`; bindSpark(); $("#sOwn2").onclick = async () => { R.storyFix(st, "all"); R.dialogAnswer(st, "group", "__own"); st.misses = 2; await persistOnb(); sd(); }; $("#sObs2").onclick = () => observeMode(); return; } fix(true); };
+      return;
+    }
+    if (q.kind === "pause") {
+      app.innerHTML = `${head("think")}<h1 class="q">${esc(O.pauseTitle)}</h1><p>${esc(O.pauseText)}</p><div class="chips col" id="sPause"><button class="chip" data-v="go">${esc(O.pauseGo)}</button><button class="chip" data-v="save">${esc(O.pauseSave)}</button><button class="chip dim" data-v="obs">${esc(O.pauseObs)}</button></div>`;
+      bindHead();
+      $$("#sPause [data-v]").forEach(b => b.onclick = async () => { const v = b.dataset.v; if (v === "obs") return observeMode(); R.dialogAnswer(st, "pause", "go"); await persistOnb(); if (v === "save") { toast("Сохранено — продолжишь с этого места"); return go(anyPattern() ? "today" : "area"); } sd(); });
+      return;
+    }
+    if (q.kind === "mirror") {
+      const M = q.mirror, T = O.mirrorTypes[M.type] || "";
+      app.innerHTML = `${head("think")}${q.index === 0 && !q.note ? `<p class="small" id="sBridge" style="margin:0 0 6px">${esc(O.bridge)}</p>` : ""}<h1 class="q">${esc(O.qMirror)}</h1>
+        <div class="card mark" id="sMirror"><div class="tiny">${esc(T)}${q.note ? ` · ${esc(q.note)}` : ""}</div><p style="margin:4px 0 0"><b>${esc(M.text)}</b></p>${M.why && M.why.length ? `<p class="tiny" id="sWhy" style="margin:6px 0 0">${esc(O.whyAsk)}: ${esc(M.why.join("; "))}.</p>` : ""}</div>
+        <div class="chips col" id="sMOpts"><button class="chip" data-v="yes">${esc(O.mYes)}</button><button class="chip" data-v="partly">${esc(O.mPartly)}</button><button class="chip" data-v="no">${esc(O.mNo)}</button><button class="chip dim" data-v="own">${esc(O.mOwn)}</button><button class="chip dim" data-v="unsure">${esc(O.mUnsure)}</button></div><div id="sOwnBox"></div>`;
+      bindHead();
+      $$("#sMOpts [data-v]").forEach(b => b.onclick = () => { const v = b.dataset.v; if (v === "partly") return ownBox(q.id, "", "partly", M.text); if (v === "own") return ownBox(q.id, "моё правило, от первого лица", "own"); answer(q.id, v); });
+      return;
+    }
+    if (q.kind === "thought") {
+      app.innerHTML = `${head("think")}<h1 class="q">${esc(O.qThought)}</h1><p class="small muted">${esc(O.thoughtLead)}</p>
+        <div class="chips col" id="sOpts">${q.options.map(([v, t]) => `<button class="chip" data-v="${esc(v)}">«${esc(t)}»</button>`).join("")}<button class="chip dim" id="sTOwn">${esc(O.thoughtOwn)}</button><button class="chip dim" data-v="__skip">${esc(O.thoughtSkip)}</button></div><div id="sOwnBox"></div>`;
+      bindHead();
+      $$("#sOpts [data-v]").forEach(b => b.onclick = () => answer("thought", b.dataset.v));
+      $("#sTOwn").onclick = () => ownBox("thought", "моя мысль или правило, как есть", "__own"); return;
+    }
+    if (q.kind === "ownrule") {
+      app.innerHTML = `${head("think")}<h1 class="q">${esc(O.ownRuleTitle)}</h1><div class="card mark" id="sOwnRule"><p style="margin:0"><b>«${esc(q.text)}»</b></p></div><p style="margin:8px 0 4px"><b>${esc(O.ownRuleAsk)}</b></p>
+        <div class="chips col" id="sOpts"><button class="chip" data-v="yes">${esc(O.ownRuleYes)}</button><button class="chip" id="sREdit">${esc(O.ownRuleEdit)}</button><button class="chip dim" data-v="no">${esc(O.ownRuleNo)}</button></div><div id="sOwnBox"></div>`;
+      bindHead(); $$("#sOpts [data-v]").forEach(b => b.onclick = () => answer("ownrule", b.dataset.v)); $("#sREdit").onclick = () => ownBox("ownrule", "", "edit", q.text); return;
+    }
+    if (q.kind === "check") {
+      const ex = q.mode === "example";
+      app.innerHTML = `${head("listen")}<p class="tiny" style="margin:0 0 4px">«${esc(R.trimEnd(q.mirrorText || ""))}»</p><h1 class="q">${esc(ex ? O.qCheckExample : O.qCheckPredict)}</h1>${ex ? "" : `<p class="tiny muted">${esc(O.predNote)}</p>`}
+        <div class="chips col" id="sOpts">${ex ? "" : q.options.map(o => `<button class="chip" data-v="${esc(o)}">${esc(o)}</button>`).join("")}<button class="chip" id="sEx">${esc(O.checkExampleOwn)}</button>${ex ? `<button class="chip dim" data-v="__later">${esc(O.checkLater)}</button>` : `<button class="chip dim" id="sOwn">${esc(O.own)}</button><button class="chip dim" data-v="__unknown">${esc(O.unknown)}</button>`}</div><div id="sOwnBox"></div>`;
+      bindHead();
+      $$("#sOpts [data-v]").forEach(b => b.onclick = () => answer("check", b.dataset.v));
+      $("#sEx").onclick = () => ownBox("check", "когда это было и что ты сделал", "__example");
+      const ow = $("#sOwn"); if (ow) ow.onclick = () => ownBox("check", "", "__own"); return;
+    }
+    if (q.kind === "confirmB") {
+      const F = O.sumBFields, m = f.mirror, dir = f.permission ? f.permission.text : f.goal && f.goal.text ? f.goal.text : O.observe;
+      const basis = m && m.text ? [m.example ? `пример: «${m.example}»` : "", m.prediction ? `ожидание: «${m.prediction}»` : "", ...(m.basis || [])].filter(Boolean).join("; ") : f.need ? `важно: «${R.trimEnd(f.need)}»` : "";
+      app.innerHTML = `${head("summary")}<h1 class="q">${esc(O.sumB)}</h1><div class="card mark" id="sSumB"><div class="plines">
+          <div><span>${esc(F.teacher)}:</span> ${esc(uc1(f.roleLabel || ""))}</div><div><span>${esc(F.trigger)}:</span> ${esc(f.own ? `«${f.eventText}»` : uc1(f.when))}${f.meaning && f.meaning.text ? ` — «${esc(R.trimEnd(f.meaning.text))}»` : ""}</div>
+          <div><span>${esc(F.mirror)}:</span> ${esc(mirrorLine(m, B))}</div>${basis ? `<div><span>${esc(F.basis)}:</span> ${esc(basis)}</div>` : ""}<div><span>${esc(F.change)}:</span> ${esc(uc1(R.trimEnd(dir)))}</div></div></div>
+        <div class="chips col"><button class="chip" id="sBYes">${esc(m && m.text ? O.sumBYes : O.sumBNoMirror)}</button>${m && m.text ? `<button class="chip" id="sBFix">${esc(O.sumBFix)}</button><button class="chip dim" id="sBDrop">${esc(O.sumBDrop)}</button>` : ""}</div>`;
+      bindHead();
+      $("#sBYes").onclick = () => answer("confirmB", "yes");
+      const fx = $("#sBFix"); if (fx) fx.onclick = async () => { R.storyFix(st, "mirror"); await persistOnb(); sd(); };
+      const dr = $("#sBDrop"); if (dr) dr.onclick = async () => { R.storyFix(st, "dropMirror"); await persistOnb(); sd(); };
+      return;
+    }
+    if (q.kind === "action") {
+      app.innerHTML = `${head("support")}${q.dir ? `<p class="tiny" style="margin:0 0 4px">${esc(uc1(R.trimEnd(q.dir)))}</p>` : ""}<h1 class="q">${esc(O.qAction)}</h1>
+        <div class="chips col" id="sActs">${q.options.map(a => `<button class="chip" data-a="${esc(a.id)}"><b>${esc(a.label)}</b><br><span class="small">«${esc(a.phrase)}»</span></button>`).join("")}<button class="chip dim" id="sOwn">${esc(O.ownAction)}</button><button class="chip dim" data-a="__observe">${esc(O.observe)}</button></div><div id="sOwnBox"></div>`;
+      bindHead();
+      $$("#sActs [data-a]").forEach(b => b.onclick = () => {
+        const id = b.dataset.a; if (id === "__observe") return answer("action", "__observe");
+        const a = q.options.find(x => x.id === id);
+        $("#sOwnBox").innerHTML = `<label for="sPhrase">${esc(O.editPhrase)}</label><textarea id="sPhrase">${esc(a.phrase)}</textarea><div class="row tight"><button class="btn secondary sm" id="sPhraseOk">${esc(O.phraseOk)}</button></div>`;
+        $("#sPhraseOk").onclick = () => { const t = $("#sPhrase").value.trim(); if (!t) return toast("Напиши фразу"); answer("action", id, t); };
+      });
+      $("#sOwn").onclick = () => ownBox("action", D.ownActionPh); return;
+    }
+    if (q.kind === "pred") {
+      app.innerHTML = `${head("support")}<p class="tiny" style="margin:0 0 4px">«${esc(R.trimEnd(f.action.phrase))}»</p><h1 class="q">${esc(O.qPred)}</h1>
+        <div class="chips col" id="sOpts">${q.base ? `<button class="chip" data-v="__base">«${esc(q.base)}»</button>` : ""}<button class="chip dim" id="sOwn">${esc(O.own)}</button><button class="chip dim" data-v="__unknown">${esc(O.predUnknown)}</button></div><div id="sOwnBox"></div>`;
+      bindHead(); $$("#sOpts [data-v]").forEach(b => b.onclick = () => answer("pred", b.dataset.v)); $("#sOwn").onclick = () => ownBox("pred", "чего ожидаешь, одной фразой"); return;
+    }
+    if (q.kind === "danger") { app.innerHTML = `<h1 class="q">${esc(B.danger.label)}</h1><p>${esc(B.danger.text)}</p><div class="row"><a class="btn block sos" href="#help">${esc(OB.buttons.sos.label)}</a></div><div class="row tight"><button class="btn ghost" id="sDBack">${esc(D.back)}</button></div>`; $("#sDBack").onclick = back; return; }
+    if (q.kind === "noEvent" || q.kind === "unsupported") {
+      const ne = q.kind === "noEvent";
+      app.innerHTML = `${head("think")}<h1 class="q">${esc(ne ? D.noEvent : D.unsupported)}</h1><p>${esc(ne ? D.noEventText : D.unsupportedText)}</p>
+        <div class="chips col">${ne ? `<button class="btn block secondary" id="sOther">${esc(D.otherType)}</button>` : ""}<button class="btn block secondary" id="sOwnN">${esc(O.miss2Own)}</button><button class="btn block secondary" id="sObs">${esc(O.observe)}</button></div>`;
+      bindHead();
+      const o = $("#sOther"); if (o) o.onclick = async () => { Object.keys(st.answers).filter(k => k === "group" || k.startsWith("e:") || k.startsWith("n:") || k === "miss2").forEach(k => { delete st.answers[k]; }); st.order = st.order.filter(k => st.answers[k]); await persistOnb(); sd(); };
+      $("#sOwnN").onclick = async () => { const g = (st.answers.group || {}).v; if (!g || g === "unknown") { Object.keys(st.answers).forEach(k => delete st.answers[k]); st.order = []; R.dialogAnswer(st, "group", "__own"); } else R.dialogAnswer(st, "miss2", "own"); await persistOnb(); sd(); };
+      $("#sObs").onclick = () => observeMode(); return;
+    }
+    /* шаг: первый эксперимент — правило, внутри, когда, с кем, снаружи, зачем, чего ожидаю, после отмечу */
+    const a = f.action && B.actions[f.action.id] ? B.actions[f.action.id] : null, m = f.mirror;
+    const why = a ? (m && m.text ? `Проверяем правило «${R.trimEnd(m.text)}»: ${lc1(a.why)}` : a.why) : f.action && f.action.id === "own" ? (m && m.text ? `Проверяем правило «${R.trimEnd(m.text)}» в своём действии.` : "Твоё действие — твоя проверка.") : "";
+    const pl = (B.pathLinks || {})[`${pathNum()}|${f.group}`] || "";
+    const obs = !f.action || f.action.id === "observe";
+    app.innerHTML = `${head("support")}<h1 class="q">${esc(O.stepTitle)}</h1>
+      <div class="card mark" id="sStep"><div class="plines">
+        ${m && m.text ? `<div><span>${esc(O.stepRule)}:</span> «${esc(R.trimEnd(m.text))}»</div>` : `<div><span>${esc(O.sumBFields.mirror)}:</span> ${esc(O.noMirror)}</div>`}
+        ${f.permission ? `<div><span>${esc(O.stepInside)}:</span> ${esc(uc1(R.trimEnd(f.permission.text)))}</div>` : f.goal && f.goal.text ? `<div><span>${esc(O.sumBFields.change)}:</span> ${esc(uc1(R.trimEnd(f.goal.text)))}</div>` : ""}
+        ${a ? `<div><span>${esc(O.stepWhen)}:</span> ${esc(a.cueTemplate)}</div>` : ""}
+        <div><span>${esc(O.stepWho)}:</span> ${esc(f.roleLabel || "")}</div>
+        <div><span>${esc(O.stepOutside)}:</span> ${esc(obs ? O.observeAction : `«${R.trimEnd(f.action.phrase)}»`)}</div>
+        ${why ? `<div><span>${esc(O.stepWhy)}:</span> ${esc(why)}</div>` : ""}
+        ${!obs ? `<div><span>${esc(O.stepExpect)}:</span> ${esc(f.pred ? `«${R.trimEnd(f.pred)}»` : O.predUnknown)}</div>` : ""}
+        ${a ? `<div><span>${esc(O.stepAfter)}:</span> ${esc(a.afterQuestion)}</div>` : f.action && f.action.id === "own" ? `<div><span>${esc(O.stepAfter)}:</span> ${esc(D.ownCheck)}</div>` : ""}
+      </div></div><p class="small" id="sPath" style="margin:6px 0">${esc(pl || (pathNum() ? OB.pathV7.neutralLink.replace("{lesson}", lc1(R.trimEnd(f.permission ? f.permission.short : f.goal && f.goal.text ? f.goal.text : O.observe))) : ""))}</p>
+      <div class="row"><button class="btn block" id="sOk">${esc(O.stepOk)}</button></div>
+      <div class="row tight"><button class="btn ghost" id="sChange">${esc(O.stepChange)}</button><button class="btn ghost" id="sObs3">${esc(O.observe)}</button></div>`;
+    bindHead();
+    const handoff = async observe => {
+      const obsW = observe || obs;
+      const kind = KIND_OF[f.role] || "other", label = f.roleLabel || "учитель";
+      const title = f.permission ? R.trimEnd(f.permission.short || f.permission.text) : f.goal && f.goal.text ? R.trimEnd(f.goal.text) : "";
+      S.event = null; S.areaExplicit = true;
+      const pk = a ? a.packId : null;
+      S.own = { text: uc1(f.eventText), packId: pk, version: C.contentVersion, area: S.area, origin: f.own ? "user_written" : "story_scene" };
+      S.teacher = { kind, label, ownName: f.role === "__own" ? label : "", area: S.area, origin: "story_selected", role: f.role };
+      S.case = { text: uc1(f.eventText), when: f.whenCase, date: null, repeat: null, origin: f.own ? "user_written" : "story_selected" };
+      S.sting = { meaningId: f.meaning.id, text: f.meaning.text || "", lessonId: null, observe: null, origin: f.meaning.origin, repeat: null, reaction: f.reaction || null };
+      const L = obsW ? X.lessonObserve : {
+        id: "st:" + (a ? a.id : "own") + ":" + (f.permission ? f.permission.id : f.goal ? f.goal.id : "x"), family: true, packId: pk || "fairness", title: lc1(title || (a ? a.label : "свой шаг")), homeTitle: null,
+        inner: f.permission ? R.trimEnd(f.permission.text) : "", action: f.action.phrase, skillId: a ? a.skillId : "boundary", signal: a ? a.cueTemplate : "", hypothesisId: null,
+        template: { id: "st:" + (a ? a.id : "own"), title: lc1(title || ""), lessonTitle: lc1(title || ""), lessonAction: f.action.phrase, cueTemplate: a ? a.cueTemplate : "Когда это повторится", actionTemplate: f.action.phrase,
+          afterQuestion: a ? a.afterQuestion : D.ownCheck, purpose: why, effortLabel: a ? a.effortLabel : "Один небольшой поступок", limits: a ? a.limits : "", smallerVersion: "Сделать только первую часть.", setup: [], skillId: a ? a.skillId : "boundary", packId: pk || "fairness", adapted: true, family: true } };
+      S.want = obsW ? { kind: "observe", text: OB.plan.observeGoal, origin: "user_selected", lessonId: null } : (f.permission && f.permission.origin === "user_selected") || (f.goal && f.goal.origin === "user_selected")
+        ? { kind: "lesson", key: "L:" + L.id, lessonId: L.id, text: uc1(L.title), origin: "user_selected", ownAction: f.action.phrase }
+        : { kind: "own", text: uc1(title), origin: "user_written", lessonId: null, ownAction: f.action.phrase };
+      S.confirmed = true; S.lesson = null; S.rejected = [];
+      S.storyResult = { bank: B.version, sphere: S.area, role: f.role, roleLabel: f.roleLabel, group: f.group, scene: f.scene || null, own: !!f.own, eventText: f.eventText, meaning: f.meaning, thought: f.thought || "", reaction: f.reaction, reactionOrigin: f.reactionOrigin, now: f.now, later: f.later,
+        mirror: f.mirror, need: f.need || null, permission: f.permission || null, goal: f.goal || null, action: f.action, pred: f.pred || "", answers: JSON.parse(JSON.stringify(st.answers)), order: [...st.order], trace: res.trace, asked: res.asked, confirmedAt: nowTs(), misses: st.misses || 0 };
+      await startLesson(S, L);
+    };
+    $("#sOk").onclick = () => handoff(false);
+    $("#sObs3").onclick = () => handoff(true);
+    $("#sChange").onclick = async () => { R.storyFix(st, "action"); st.status = "asking"; await persistOnb(); sd(); };
+  }
+  /* v7: «свой случай» — тот же единый маршрут: нужна сфера и учитель; дальше — свой текст сцены в том же процессе */
+  function ownRoute() {
+    const S = onb();
+    if (S.area && SB().spheres[S.area] && S.role) { S.sd = S.sd && S.sd.sphere === S.area && S.sd.role === S.role ? S.sd : null; if (!S.sd) S.sd = { bank: SB().version, sphere: S.area, role: S.role, roleLabel: S.roleLabel || null, answers: {}, order: [], rejected: [], misses: 0, status: "asking", startedAt: nowTs() };
+      const st = S.sd; st.status = "asking"; const g = (st.answers.group || {}).v; if (!g) R.dialogAnswer(st, "group", "__own"); else if (g !== "__own") R.dialogAnswer(st, "miss2", "own"); persistOnb(); return go("sd"); }
+    S.ownFirst = true; S.areaExplicit = false; persistOnb(); go("area");
+  }
   /* v6.7.1: из диалога руководителя уже известны сфера, контекст и учитель — не спрашиваем их заново */
   const fromBossDialog = S => !!(S.dialog && S.area === "work" && S.ctx === "boss");
   function ownScenario() {
@@ -1141,11 +1405,11 @@
       <p class="tiny muted" style="margin:6px 0 0">${esc(O.note)}</p>`;
     $("#cfSwitch").onclick = async () => { const b = $("#cfSwitch"); if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = O.switchSure; return; } archivePattern(cur, "new_story"); await savePattern(cur); return startLessonNow(S, L); };
     $("#cfLater").onclick = async () => {
-      const snap = JSON.parse(JSON.stringify(S)); delete snap.dialog; delete snap.fdialog;
+      const snap = JSON.parse(JSON.stringify(S)); delete snap.dialog; delete snap.fdialog; delete snap.sd;
       P.savedScenarios = [...(P.savedScenarios || []), { id: "onb-" + R.uuid(), kind: "onb", onb: snap, lesson: JSON.parse(JSON.stringify(L)), text: newText, recognition: newText, version: C.contentVersion, routingVersion: X.routingVersion, savedAt: nowTs(), area: S.area || null }];
       P.onb = null; await saveProfile(true); toast(O.saved); go("today");
     };
-    $("#cfBack").onclick = () => go(S.familyResult ? "fdialog" : S.dialogResult ? "dialog" : "lesson");
+    $("#cfBack").onclick = () => go(S.storyResult ? "sd" : S.familyResult ? "fdialog" : S.dialogResult ? "dialog" : "lesson");
   }
   async function startLessonNow(S, L) {
     const ts = nowTs(), k = today(), T = S.teacher, ev = S.event ? eventById(S.event) : null, cs = S.case || {};
@@ -1172,6 +1436,20 @@
       if (fr.permission) { p.permission = fr.permission.text; p.permissionSource = { origin: fr.permission.origin === "user_written" ? "user" : "dialog_user", hypothesisVersionId: null, confirmed: true, at: ts }; }
       else if (!observe) { p.permission = ""; p.permissionSource = null; }
     }
+    /* v7: единая модель сюжета — сфера, учитель, сцена, триггер, первая мысль, реакция, последствия, зеркало (статус, тип, версия, источник), потребность, цель, разрешение */
+    if (S.storyResult) {
+      const fr = S.storyResult; p.storyResult = fr; p.storyId = p.id; p.sphere = fr.sphere; p.title = shortTitle(caseText); p.scenario.story = true; p.scenario.consequenceNow = fr.now || ""; p.scenario.consequenceLater = fr.later || ""; p.scenario.trigger = fr.meaning && fr.meaning.text || "";
+      if (fr.thought) { p.thought = fr.thought; p.thoughtOrigin = "story_user"; }
+      p.habitualResponseOrigin = fr.reactionOrigin === "user_written" ? "user_written" : p.habitualResponseOrigin;
+      const mt = fr.mirror && fr.mirror.text;
+      p.mirror = mt ? { text: fr.mirror.text, type: fr.mirror.type, status: fr.mirror.status, origin: fr.mirror.origin, example: fr.mirror.example || "", prediction: fr.mirror.prediction || "", candidateId: fr.mirror.id || null, basis: fr.mirror.basis || [], at: ts, version: 1, versions: [{ version: 1, text: fr.mirror.text, at: ts, source: fr.mirror.origin }], history: [], evidence: [], altPending: true }
+        : { text: "", status: "searching", origin: "none", at: ts, version: 0, versions: [], history: [], evidence: [] };
+      if (fr.goal && fr.goal.id !== "observe" && fr.need) p.need = fr.need;
+      if (fr.permission) { p.permission = fr.permission.text; p.permissionSource = { origin: fr.permission.origin === "user_written" ? "user" : "dialog_user", hypothesisVersionId: null, confirmed: true, at: ts }; }
+      else { p.permission = ""; p.permissionSource = null; }
+      if (fr.goal && fr.goal.text) p.goalText = fr.goal.text;
+      p.lesson.status = "confirmed"; p.lesson.origin = "story_user"; /* урок выбран человеком в разборе (разрешение или цель), а не назначен каталогом */
+    }
     /* Личный план — черновик из шаблона: активируется только после заполнения момента и действия словами человека. */
     const tpl = templateFor(L, S), basis = [ev ? ev.id : null, S.sting.meaningId ? "meaning:" + S.sting.meaningId : null].filter(Boolean);
     /* Цель подтверждена на шаге «что хочу иначе», если урок совпал с выбранным направлением; иначе — проверка цели на экране шага. */
@@ -1181,6 +1459,7 @@
     if (desired) { x.goalOrigin = W.kind === "own" ? "user_written" : W.kind === "observe" ? "observe" : "user_confirmed"; x.goalAt = ts; }
     /* v6.7.1: своё действие из диалога — слова человека, шаблон только задаёт рамку момента */
     if (W.ownAction && wantMatches) x.actionUser = uc1(W.ownAction);
+    if (S.storyResult) { x.prediction = S.storyResult.pred || ""; x.predictionOrigin = S.storyResult.pred ? "story_user" : null; x.mirrorVersion = p.mirror ? p.mirror.version : 0; }
     p.experimentId = x.id; await saveExp(x); await savePattern(p);
     if (hasCase) {
       const e = { id: R.uuid(), patternId: p.id, linkStatus: "confirmed", occurredAt: ts, loggedAt: ts, dateKey: caseDate, dateApprox: cs.date || cs.when === "today" ? null : cs.when, tz: R.tz(), event: caseText, person: tl, emotion: null, intensity: null, response: null, verificationStatus: "onboarding", isRehearsal: false, legacy: false, meaning: S.sting.text || null };
@@ -1241,8 +1520,11 @@
   }
   const companionHTML = p => { const c = companionFor(p); return c ? `<p class="small" style="margin:0 0 6px" id="companion"><b>${esc(OB.companion.title)}:</b> ${esc(c.text)}</p>` : ""; };
   /* Связь подтверждённой истории с темой пути — только редакторская пара «число × вариант карточки». */
-  const pathLinkText = p => { const n = pathNum(), vid = p && p.scenario && p.scenario.variantId; return n && vid && p.scenario.confirmed === "yes" ? (X.pathLinks || {})[`${n}|${vid}`] || "" : ""; };
-  const pathLineHTML = () => { const n = pathNum(); return n ? `<a class="pathline" href="#symbol">${ic("star", "")}<span>${n} · ${esc(X.pathProfiles[String(n)].displayName)}</span></a>` : ""; };
+  /* v7: связь с темой пути — только содержательная пара «число × вид ситуации»; иначе нейтрально «Сейчас на твоём пути — [урок]» */
+  const pathLinkText = p => { const n = pathNum(); if (!n || !p) return ""; if (p.storyResult) { const t = (X.stories.pathLinks || {})[`${n}|${p.storyResult.group}`]; return t || (learningText(p) ? OB.pathV7.neutralLink.replace("{lesson}", learningText(p).replace(/\.$/, "")) : ""); } const vid = p.scenario && p.scenario.variantId; return vid && p.scenario.confirmed === "yes" ? (X.pathLinks || {})[`${n}|${vid}`] || "" : ""; };
+  const pathLineHTML = () => { const n = pathNum(); return n ? `<a class="pathline" href="#symbol">${ic("star", "")}<span>${esc(OB.pathV7.homeLink.replace("{n}", n))} · ${esc(X.pathProfiles[String(n)].displayName)}</span></a>` : ""; };
+  /* v7: статус зеркала — честно: пока ищем / узнано / есть пример / проверяем в практике / уточнено по опыту / не подходит */
+  const mirrorStatusText = p => { const M = p && p.mirror; if (!M) return ""; const S = X.stories.mirrorStatus; if (!M.text) return S.searching; const x = expOf(p), acc = x && x.kind === "plan" && x.planStatus === "accepted"; if ((M.status === "recognized" || M.status === "example") && acc) return S.practice + (M.example ? ` · ${S.example}` : ""); return S[M.status] || M.status; };
   function planScreen(arg) {
     const p = anyPattern(); if (!p) return go("today");
     const x = expOf(p); if (!x) return go("today");
@@ -1301,9 +1583,12 @@
         ${p.mirror && p.mirror.text && p.mirror.status !== "rejected" ? `<div class="card tight" id="planInside"><div class="k">${esc(OB.family.stepInside)}</div><p class="small" style="margin:2px 0 0">Проверяю правило: «${esc(R.trimEnd(p.mirror.text))}»${p.permission ? `. Разрешаю себе: ${esc(lc1(R.trimEnd(p.permission)))}` : ""}.</p></div>` : ""}
         <div class="card mark"><div class="plines">
           ${(w.setup || []).some(sl => sl.label) ? `<div><span>${esc(OPl.whoL)}:</span> <i id="whoTxt" style="font-style:normal">${esc((w.slots || {}).person || "—")}</i></div>` : ""}
+          ${p.storyResult && p.teacher && !(w.setup || []).some(sl => sl.label) ? `<div id="planWho"><span>С кем:</span> ${esc(p.teacher.label)}</div>` : ""}
           <div><span>${esc(OPl.whenL)}:</span> ${show.cue ? `<textarea id="cueOwn" placeholder="свой момент, одной фразой">${esc(w.cueUser || "")}</textarea>` : `<i id="cueTxt" style="font-style:normal">${hl(uc1(v.cue))}</i>`}</div>
           <div><span>${esc(obs ? OPl.whatObs : OPl.whatL)}:</span> ${show.act ? `${actHint()}<textarea id="actOwn" data-target="${actT()}" placeholder="${esc(OPl.ownActionLead)}">${esc((actT() === "small" ? w.smallerUser : w.actionUser) || "")}</textarea>` : `<i id="actTxt" style="font-style:normal">${hl(uc1(v.action || "—"))}</i>`}${v.simplified ? ` <span class="tiny">· ${esc(OPl.simplified)}</span>` : ""}</div>
           ${v.needsSmall ? `<div><label for="smallOwn" style="margin-top:4px">${esc(OPl.smallQ)}</label><textarea id="smallOwn" placeholder="${esc(OPl.smallPh)}">${esc(w.smallerUser || "")}</textarea></div>` : ""}
+          ${p.storyResult && v.purpose ? `<div id="planWhy"><span>Зачем:</span> ${esc(v.purpose)}</div>` : ""}
+          ${p.storyResult ? `<div id="planExpect"><span>Чего ожидаю:</span> ${esc(w.prediction ? `«${R.trimEnd(w.prediction)}»` : "не знаю")} <button class="linkbtn tiny" id="predEdit">изменить</button></div>` : ""}
           ${v.after ? `<div><span>${esc(OPl.afterL)}:</span> ${esc(v.after)}</div>` : ""}
         </div><details class="plain"><summary>${esc(OPl.why)}</summary><p class="small" style="margin:0 0 4px">${esc(v.purpose)}</p>${v.effort ? `<p class="tiny" style="margin:0">${esc(OPl.effort)}: ${esc(v.effort)}</p>` : ""}${v.limits ? `<p class="tiny" style="margin:0">${esc(OPl.limits)}: ${esc(v.limits)}</p>` : ""}</details></div>
         ${slots.length && (setup || show.params || !rd.ready) ? `<p class="small muted" style="margin:8px 0 2px">${esc(OPl.fill)}</p>${slots.map(sl => `<label for="sl-${esc(sl.key)}">${esc(sl.question)}</label><input type="${/minutes/i.test(sl.key) ? "number" : "text"}" ${/minutes/i.test(sl.key) ? 'min="1" step="1" inputmode="numeric"' : ""} id="sl-${esc(sl.key)}" data-slot="${esc(sl.key)}" placeholder="${esc(OPl.example + sl.example)}" value="${esc((w.slots || {})[sl.key] || "")}">${rd.errors[sl.key] && (w.slots || {})[sl.key] ? `<p class="tiny slerr" style="margin:0 0 4px;color:#B3261E">${esc(rd.errors[sl.key])}</p>` : ""}`).join("")}` : ""}
@@ -1329,6 +1614,7 @@
       const gy = $("#goalYes"); if (gy) gy.onclick = () => { w.goalConfirmed = true; w.goalOrigin = "user_confirmed"; w.desiredChange = uc1(p.lesson ? p.lesson.title : ""); w.goalAt = nowTs(); changed(); saveDraft(); render(); };
       const ge = $("#goalEdit"); if (ge) ge.onclick = () => { show.goalEdit = true; render(); const t = $("#goalOwn"); if (t) t.focus(); };
       const gc = $("#goalChange"); if (gc) gc.onclick = () => { show.goalEdit = true; render(); };
+      const pe = $("#predEdit"); if (pe) pe.onclick = () => { pe.insertAdjacentHTML("afterend", `<input id="predT" value="${esc(w.prediction || "")}" placeholder="чего ожидаешь, одной фразой или пусто — «не знаю»"><button class="btn secondary sm" id="predOk">Сохранить</button>`); pe.remove(); $("#predOk").onclick = () => { w.prediction = $("#predT").value.trim(); w.predictionOrigin = "user_edited"; changed(); render(); }; };
       const gb = $("#goalBack"); if (gb) gb.onclick = () => { show.goalEdit = false; render(); };
       const gs = $("#goalSave"); if (gs) gs.onclick = () => { const t = $("#goalOwn").value.trim(); if (!t) return toast("Напиши пару слов"); w.goalConfirmed = true; w.goalOrigin = "user_written"; w.desiredChange = uc1(t); w.goalAt = nowTs(); show.goalEdit = false; changed(); saveDraft(); render(); };
       const go2 = $("#goalObs"); if (go2) go2.onclick = () => { toObserve(); changed(); saveDraft(); render(); };
@@ -1445,7 +1731,7 @@
         <p class="tiny" style="margin:8px 0 0">${esc(FD.reminder)} <a href="#settings">Настройки</a>.</p></div>
         <div class="card tight"><p class="small" style="margin:0">${esc(FD.already)} <a href="#action">${esc(OB.buttons.action.label)}</a> — тогда этот день станет первым.</p></div>`;
     } else {
-      const elig = eligibility(p), due = R.reviewDue(ps, k, D.reviews.filter(r => r.patternId === p.id));
+      const elig = eligibility(p), due = reviewDueOf(p, k);
       const cy = checkinOf(yesterday(), p);
       const yOpen = R.eveningCloseable(yesterday(), k) && cy && !cy.evening && R.diffDays(ps, yesterday()) >= 0;
       const yAny = R.diffDays(ps, yesterday()) >= 0 && !(cy && cy.evening);
@@ -1470,7 +1756,7 @@
     /* Смысл на сейчас: учитель, урок; шаг — если его не показывает основная карточка. Рядом — «Как пользоваться». */
     /* Три уровня: тема пути (число, компактно), текущий урок (подтверждённый), сегодняшний шаг (принятый план). Они не конкурируют. */
     const sym = pathOf(), pv = planView(p), showStep = pv && rd.ready && !/plines/.test(main);
-    const pathCard = p && p.lesson ? `<div class="card"><div class="k">${ic("eye")}${esc(OB.home.title)}<a href="#guide" class="klink">${esc(OB.buttons.guide)}</a></div>${pathLineHTML()}<div class="plines"><div><span>${esc(OB.levels.lesson)}:</span> ${esc(learningText(p))}</div><div><span>${esc(OB.levels.teacher)}:</span> ${esc(p.teacher ? p.teacher.label : (p.contexts || []).join(", ") || "—")}</div>${showStep ? `<div><span>${esc(OB.levels.step)}:</span> ${esc(lc1(pv.cue) || "")}${pv.cue ? " — " : ""}${esc(lc1(pv.action))}</div>` : ""}</div>${pathLinkText(p) ? `<p class="small" id="pathLink" style="margin:6px 0 0"><i>${esc(pathLinkText(p))}</i></p>` : ""}</div>` : (p ? `${pathLineHTML()}<p class="tiny" style="margin:0 0 6px;text-align:right"><a href="#guide">${esc(OB.buttons.guide)}</a></p>` : "");
+    const pathCard = p && p.lesson ? `<div class="card"><div class="k">${ic("eye")}${esc(OB.home.title)}<a href="#guide" class="klink">${esc(OB.buttons.guide)}</a></div>${pathLineHTML()}<div class="plines"><div><span>${esc(OB.levels.lesson)}:</span> ${esc(learningText(p))}</div>${p.storyResult && p.permission ? `<div id="homeInside"><span>Внутри:</span> ${esc(lc1(R.trimEnd(p.permission)))}</div>` : ""}${p.storyResult ? `<div id="homeMirror"><span>Зеркало:</span> ${esc(p.mirror && p.mirror.text ? `«${R.trimEnd(p.mirror.text)}» · ${mirrorStatusText(p)}` : X.stories.mirrorStatus.searching)}</div>` : ""}<div><span>${esc(OB.levels.teacher)}:</span> ${esc(p.teacher ? p.teacher.label : (p.contexts || []).join(", ") || "—")}</div>${showStep ? `<div><span>${esc(OB.levels.step)}:</span> ${esc(lc1(pv.cue) || "")}${pv.cue ? " — " : ""}${esc(p.storyResult ? `«${R.trimEnd(pv.action)}»` : lc1(pv.action))}</div>` : ""}</div>${pathLinkText(p) ? `<p class="small" id="pathLink" style="margin:6px 0 0"><i>${esc(pathLinkText(p))}</i></p>` : ""}</div>` : (p ? `${pathLineHTML()}<p class="tiny" style="margin:0 0 6px;text-align:right"><a href="#guide">${esc(OB.buttons.guide)}</a></p>` : "");
     /* Кнопки дня: прямые названия; подписи-обучение до первого закрытого вечера или открытия «Как пользоваться». Нажатие само по себе успехом не считается. */
     const B = OB.buttons, learn = p && !P.seen.buttons;
     const tap = (href, icon, b) => `<a class="tap ${learn ? "learn" : ""}" href="${href}">${ic(icon, "")}<span>${esc(b.label)}</span>${learn ? `<em>${esc(b.caption)}</em>` : ""}</a>`;
@@ -1509,7 +1795,7 @@
     if (c.morning) { app.innerHTML = `<h1>Шаг уже с тобой</h1>${stepHTML(p)}<div class="row"><a class="btn block" href="#today">На главную</a></div><div class="row tight"><a class="btn ghost" href="#plan/adjust">${esc(OB.plan.notToday)}</a></div>`; return; }
     const v = planView(p);
     app.innerHTML = `<p class="tiny" style="margin:0 0 4px">Утро · ${esc(R.human(k))}${learningText(p) ? ` · ${esc(OB.levels.lesson)}: ${esc(learningText(p))}` : ""}</p><h1 class="q">${esc(OB.levels.step)}</h1>
-      <div class="card mark">${companionHTML(p)}${permissionText(p) ? `<p class="quote" style="margin:0 0 6px">${esc(permissionText(p))}</p>` : ""}${stepHTML(p)}</div>
+      <div class="card mark" id="mornCard">${companionHTML(p)}${p.mirror && p.mirror.text && p.mirror.status !== "rejected" ? `<p class="small" id="mornRule" style="margin:0 0 4px">${esc(OB.story.stepRule)}: «${esc(R.trimEnd(p.mirror.text))}»</p>` : ""}${permissionText(p) ? `<p class="quote" style="margin:0 0 6px">${esc(permissionText(p))}</p>` : ""}${stepHTML(p)}${(() => { const x = expOf(p); return x && x.prediction && p.storyResult ? `<p class="small" id="mornPred" style="margin:6px 0 0">${esc(OB.story.stepExpect)}: «${esc(R.trimEnd(x.prediction))}» <a href="#plan" class="tiny">поправить</a></p>` : ""; })()}</div>
       <label for="sc">Как сейчас? <span class="muted small">необязательно</span></label>
       <div class="range-val" id="scv">—</div><input type="range" id="sc" min="0" max="10" step="1" value="3" aria-label="Как сейчас, 0–10"><div class="range-hint"><span>0, спокойно</span><span>10, очень тяжело</span></div>
       <div class="row"><button class="btn block" id="take">${esc(OB.plan.take)}</button></div>
@@ -1616,12 +1902,21 @@
         e.verificationStatus = "detailed"; await saveEpisode(e); toast("Детали добавлены"); go("today");
       } });
   }
+  /* v7: в просмотре события — вечерний опыт того дня и версия зеркала, к которой относится запись */
+  function epMirrorRows(e, p) {
+    const c = p ? Object.values(D.checkins).find(cc => cc.patternId === p.id && cc.dateKey === e.dateKey && cc.evening && cc.evening.experience) : null, ex = c ? c.evening.experience : null, rows = [];
+    const ver = e.newResponse && e.newResponse.mirrorVersion != null ? e.newResponse.mirrorVersion : ex ? ex.mirrorVersion : null;
+    const mt = p && p.mirror ? ((p.mirror.versions || []).find(z => z.version === ver) || (ver === (p.mirror.version || 1) && p.mirror.text ? { text: p.mirror.text } : null)) : null;
+    if (mt) rows.push(["Зеркало этой записи", `«${R.trimEnd(mt.text)}» · версия ${ver}`]);
+    if (ex) { const E7 = OB.exp; if (ex.rule) rows.push(["Правило включилось?", (ex.hadMirror ? (E7.rule.find(o => o[0] === ex.rule) || [])[1] : (E7.thought.find(o => o[0] === ex.rule) || [])[1]) + (ex.ruleText ? `: «${R.trimEnd(ex.ruleText)}»` : "")]); if (ex.outcome) rows.push(["Ожидал — получилось", (E7.exp.find(o => o[0] === ex.outcome) || [])[1] + (ex.fact ? `: ${ex.fact}` : "")]); if (ex.conclusion) rows.push(["Вывод", ex.conclusion === "__own" ? ex.conclusionText : (E7.concl.find(o => o[0] === ex.conclusion) || [])[1]]); }
+    return rows;
+  }
   function episodeView(id) {
     const e = D.episodes.find(x => x.id === id); if (!e) return go("history");
     const p = D.patterns.find(x => x.id === e.patternId);
     app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(R.human(e.dateKey))} · ${R.fmtTime(e.loggedAt)}${e.legacy ? ' · <span class="badge legacy">прошлая версия</span>' : ""}${e.isRehearsal ? ' · <span class="badge">репетиция</span>' : ""}</p>
-      <h1 class="q">${esc(e.event || "Случай без описания")}</h1>
-      <div class="card">${[["Сюжет", p ? p.title : e.linkStatus === "queued" ? "в очереди" : "не привязан"], ["Чувство", e.emotion], ["Сила", e.intensity != null ? e.intensity + " из 10" : null], ["Первая мысль", e.thought], ["Тело", e.body ? [...(e.body.locations || []), e.body.sensation].filter(Boolean).join(", ") : null], ["Что сделал", e.response], ["Новый ответ", e.newResponse ? actionLabel(e.newResponse) : null]].filter(x => x[1]).map(([k, v]) => `<div class="prow"><div class="k">${k}</div>${esc(v)}</div>`).join("")}</div>
+      <h1 class="q">${esc(e.event || (e.newResponse ? `Попытка нового ответа${e.newResponse.status ? " · " + R.attemptStatusLabel(e.newResponse.status) : ""}` : "Случай без описания"))}</h1>
+      <div class="card">${[["Сюжет", p ? p.title : e.linkStatus === "queued" ? "в очереди" : "не привязан"], ["Чувство", e.emotion], ["Сила", e.intensity != null ? e.intensity + " из 10" : null], ["Первая мысль", e.thought], ["Тело", e.body ? [...(e.body.locations || []), e.body.sensation].filter(Boolean).join(", ") : null], ["Что сделал", e.response], ["Новый ответ", e.newResponse ? actionLabel(e.newResponse) : null], ["Что получилось", e.newResponse && e.newResponse.afterAnswer ? e.newResponse.afterAnswer : null], ...epMirrorRows(e, p)].filter(x => x[1]).map(([k, v]) => `<div class="prow"><div class="k">${k}</div>${esc(v)}</div>`).join("")}</div>
       <div class="row tight">${!e.legacy ? `<a class="btn secondary" href="#detail/${e.id}">Дополнить</a>` : ""}<a class="btn ghost" href="#history">Назад</a></div>`;
   }
   const actionLabel = nr => { if (nr && nr.status) { const st = R.attemptStatusLabel(nr.status); const what = nr.status === "other" ? nr.otherAction : nr.action; return `${uc1(st)}${what ? ": " + what : ""}`; } const t = (X.actionTypes.find(a => a.id === nr.type) || {}).label || nr.type || "действие"; return `${t}${nr.type === "pause" ? (nr.chosen === "chosen" ? " (выбранная)" : nr.chosen === "scared" ? " (было страшно сказать)" : "") : ""}${nr.note ? ": " + nr.note : ""}`; };
@@ -1645,7 +1940,7 @@
         const ts = nowTs(), st = ans.st;
         if (st === "none") { if (p) { const c = checkin(k, p); c.patternId = p.id; c.day = Object.assign({}, c.day, { noOpportunity: true, at: ts }); await saveCheckin(c); } app.innerHTML = `<h1>Записано</h1><p>${esc(A.result.none)}</p><div class="row"><a class="btn block" href="#today">На главную</a></div>`; return; }
         const planAction = st === "done" || st === "partial" || st === "rehearsal";
-        const nr = { status: st, opportunity: st === "rehearsal" ? "rehearsal" : "real", didPlanAction: st === "done", planId: x ? x.id : null, planVersion: x ? x.version : null, experimentId: x ? x.id : null, lineageId: planAction ? lineageOf(p) : null, patternId: p ? p.id : null, dateKey: k, skillId: planAction ? ((x && x.skillId) || (p && p.skillId) || null) : null, action: planAction && v ? v.action : "", otherAction: st === "other" ? (ans.other || "") : "", type: st === "other" ? (ans.tag || "other") : null, chosen: null, afterAnswer: ans.after || "", note: st === "other" ? (ans.other || "") : (ans.after || ""), at: ts };
+        const nr = { status: st, opportunity: st === "rehearsal" ? "rehearsal" : "real", didPlanAction: st === "done", planId: x ? x.id : null, planVersion: x ? x.version : null, experimentId: x ? x.id : null, lineageId: planAction ? lineageOf(p) : null, patternId: p ? p.id : null, dateKey: k, skillId: planAction ? ((x && x.skillId) || (p && p.skillId) || null) : null, action: planAction && v ? v.action : "", otherAction: st === "other" ? (ans.other || "") : "", type: st === "other" ? (ans.tag || "other") : null, chosen: null, afterAnswer: ans.after || "", note: st === "other" ? (ans.other || "") : (ans.after || ""), storyId: p ? (p.storyId || p.id) : null, mirrorVersion: mirrorVer(p), at: ts };
         let e = ans.link && ans.link !== "new" ? D.episodes.find(q => q.id === ans.link) : null;
         if (!e) e = { id: R.uuid(), patternId: p ? p.id : null, linkStatus: p ? "confirmed" : "none", occurredAt: ts, loggedAt: ts, dateKey: k, tz: R.tz(), event: "", emotion: null, intensity: null, verificationStatus: "quick", legacy: false };
         e.newResponse = nr; e.isRehearsal = st === "rehearsal";
@@ -1690,6 +1985,17 @@
       { k: "impact", q: C.daily.eveningImpactScale.label, lead: "Это отдельная шкала: не сила эмоции, а насколько она мешает сейчас.", type: "scale", lo: "0, легко", hi: "10, очень трудно", def: 3 },
       { k: "change", q: "Что заметил за день?", type: "choice", opts: [["better", C.daily.changeObservation[0]], ["same", C.daily.changeObservation[1]], ["worse", C.daily.changeObservation[2]], ["unknown", C.daily.changeObservation[3]]], optional: true },
     ];
+    /* v7: при поводе — одна компактная карточка опыта, связанная с текущим зеркалом; ожидание и дневная запись подставлены */
+    const M7 = p.mirror, hasM = !!(M7 && M7.text && M7.status !== "rejected"), mx = !!(p.storyResult || hasM), E7 = OB.exp;
+    const prevExp = Object.values(D.checkins).filter(cc => cc.patternId === p.id && cc.evening && cc.evening.experience && cc.dateKey !== k).length;
+    const outcomesN = x && x.results ? x.results.filter(r => r.planVersion == null || r.planVersion === x.version).length : 0;
+    const expStep = { k: "exp", q: E7.title, lead: E7.lead, type: "card", optional: true, skip: a => a.opp !== "yes", groups: a => [
+      hasM ? { k: "rule", lead: `«${R.trimEnd(M7.text)}»`, label: E7.ruleQ, opts: E7.rule, ownOn: ["no"], ph: E7.ruleOtherPh } : { k: "rule", label: E7.thoughtQ, opts: E7.thought, ownOn: ["yes"], ph: E7.thoughtPh, needOwn: ["yes"] },
+      { k: "outcome", lead: [x && x.prediction ? E7.expected.replace("{pred}", R.trimEnd(x.prediction)) : "", best && best.afterAnswer ? E7.noted.replace("{text}", R.trimEnd(best.afterAnswer)) : ""].filter(Boolean).join(" "), label: E7.expQ, opts: E7.exp, ownOn: E7.exp.map(o => o[0]), ph: E7.factPh, skip: a2 => !(x && x.prediction) || a2.act === "not" || (prevExp > 0 && outcomesN >= 3) },
+      { k: "concl", label: E7.conclQ, opts: E7.concl.filter(([v]) => v !== "notfit" || hasM), ownOn: ["__own"], ph: "Свой вывод" },
+    ] };
+    const tmrStep = { k: "tmr", q: E7.tmrQ, type: "choice", opts: E7.tmr, optional: true };
+    if (mx) { stepsFull.splice(stepsFull.findIndex(s => s.k === "mirror"), 3, expStep); stepsFull.push(tmrStep); }
     const stepsQuick = [
       { k: "oa", q: changedOnly ? OB.eveningOut.afterChange : "Был повод и что получилось?", lead: dayHint || (v ? `Твой шаг: ${lc1(v.action)}.` : ""), type: "choice", opts: R.QUICK_EVENING.map(([vv, l]) => [vv, l]) },
       { k: "impact", q: C.daily.eveningImpactScale.label, lead: "Не сила эмоции, а насколько она мешает сейчас.", type: "scale", lo: "0, легко", hi: "10, очень трудно", def: 3 },
@@ -1705,6 +2011,19 @@
         if (ans.fit && ans.fit !== "unknown") { const h = hypOf(p); const ep = eps[eps.length - 1]; if (h) { const key = ans.fit === "yes" ? "supportingEpisodeIds" : "contradictingEpisodeIds"; h[key] = [...new Set([...(h[key] || []), ep ? ep.id : "day-" + k])]; await saveHyp(h); } }
         if (ans.mirror && p.mirror && p.mirror.text) { c.evening.mirrorSeen = ans.mirror; p.mirror.evidence = [...(p.mirror.evidence || []).filter(e => e.dateKey !== k), { dateKey: k, seen: ans.mirror, at: nowTs() }]; await savePattern(p); }
         if (ans.outcome && x) { x.results = x.results || []; const ep = eps.filter(e => e.newResponse)[0] || eps[eps.length - 1]; x.results.push({ episodeId: ep ? ep.id : null, dateKey: k, outcome: ans.outcome, at: nowTs() }); await saveExp(x); }
+        if (mx && !quick) {
+          const ex = { rule: ans.rule || null, ruleText: ans.rule_own || "", outcome: ans.outcome || null, fact: ans.outcome ? (ans.outcome_own || "") : "", conclusion: ans.concl || null, conclusionText: ans.concl === "__own" ? (ans.concl_own || "") : "", tomorrow: ans.tmr || null, hadMirror: hasM, mirrorVersion: mirrorVer(p), storyId: p.storyId || p.id };
+          c.evening.experience = ex; c.evening.tomorrow = ans.tmr || null; c.evening.storyId = ex.storyId; c.evening.mirrorVersion = ex.mirrorVersion;
+          if (hasM && ex.rule) c.evening.mirrorSeen = { yes: "yes", partly: "partly", no: "no", unnoticed: "unknown" }[ex.rule];
+          if (p.mirror && (ex.rule || ex.conclusion)) {
+            const Mm = p.mirror, ts = nowTs();
+            if (ex.rule) Mm.evidence = [...(Mm.evidence || []).filter(e => e.dateKey !== k), { dateKey: k, seen: hasM ? ({ unnoticed: "unknown" }[ex.rule] || ex.rule) : "thought", text: ex.ruleText, conclusion: ex.conclusion, version: mirrorVer(p), at: ts }];
+            if (ex.ruleText && (!hasM || ex.rule === "no")) Mm.otherThoughts = [...(Mm.otherThoughts || []).filter(t => t.dateKey !== k), { dateKey: k, text: R.trimEnd(ex.ruleText), version: mirrorVer(p), at: ts, status: "pending" }];
+            if (ex.conclusion === "notfit") Mm.contradict = [...new Set([...(Mm.contradict || []), k])];
+            await savePattern(p);
+          }
+          if (ex.outcome && x) { x.results = x.results || []; const ep = eps.filter(e => e.newResponse)[0] || eps[eps.length - 1]; x.results = x.results.filter(r => r.dateKey !== k || r.source !== "evening_v7"); x.results.push({ episodeId: ep ? ep.id : null, dateKey: k, outcome: ex.outcome, fact: ex.fact, planVersion: x.version, mirrorVersion: ex.mirrorVersion, source: "evening_v7", at: nowTs() }); await saveExp(x); }
+        }
         await saveCheckin(c);
         eveningDone(p, c, rs, F);
       } }); };
@@ -1715,7 +2034,30 @@
     $("#full").onclick = () => run(false); $("#quick").onclick = () => run(true);
   }
   /* Итог вечера: только факты дня, связь с уроком через конкретную попытку, следующий шаг. Нет попытки — нет выдуманного продвижения. */
+  /* v7: итог дня — что попробовал → что заметил → что возьмёшь завтра; только из ответов человека */
+  function eveningStoryDone(p, c, F) {
+    const E7 = OB.exp, ev = c.evening, ex = ev.experience || {}, v = planView(p), best = F && F.best;
+    if (!P.seen.buttons) { P.seen.buttons = true; saveProfile(true); }
+    const st = best ? best.status : ({ done: "done", partial: "partial", other: "other" })[ev.actionStatus] || (ev.actionStatus === "not" ? "not" : null);
+    const act = best ? (best.status === "other" ? best.otherAction : best.action) : (v ? v.action : "");
+    const tried = ev.hadOpportunity !== "yes" ? E7.noOpp : st && st !== "not" ? `${R.attemptStatusLabel(st)}${act ? `: «${R.trimEnd(act)}»` : ""}.` : st === "not" ? "Повод был, выбранный шаг не получился — это наблюдение, не провал." : E7.triedNone;
+    const noticed = [];
+    if (best && best.afterAnswer) noticed.push(`«${R.trimEnd(best.afterAnswer)}»`);
+    if (ex.rule) noticed.push(ex.hadMirror ? ({ yes: E7.ruleOn, partly: E7.rulePartly, no: ex.ruleText ? E7.ruleOff.replace("{text}", R.trimEnd(ex.ruleText)) : E7.ruleOffNoText, unnoticed: E7.ruleUnnoticed })[ex.rule] : (ex.ruleText ? `первая мысль: «${R.trimEnd(ex.ruleText)}»` : E7.ruleUnnoticed));
+    if (ex.outcome) noticed.push(({ confirmed: E7.asExpected, not: E7.differently, insufficient: E7.unclear })[ex.outcome] + (ex.fact ? `, ${E7.fact.replace("{text}", R.trimEnd(ex.fact))}` : ""));
+    if (ex.conclusion) noticed.push(ex.conclusion === "__own" ? `«${R.trimEnd(ex.conclusionText)}»` : E7["concl" + ex.conclusion[0].toUpperCase() + ex.conclusion.slice(1)]);
+    if (ev.quick) noticed.push(E7.quickNote);
+    const tm = ex.tomorrow || ev.tomorrow || (ex.conclusion === "smaller" ? "smaller" : "same");
+    const tomorrow = ({ same: v ? E7.tmrSame.replace("{action}", `«${R.trimEnd(v.action)}»`) : E7.tmrObserve, smaller: E7.tmrSmaller, moment: E7.tmrMoment, observe: E7.tmrObserve })[tm];
+    const notes = [ex.ruleText && (!ex.hadMirror || ex.rule === "no") ? E7.otherSaved : "", ex.conclusion === "notfit" ? E7.notfitSaved : ""].filter(Boolean);
+    const line = (t, x2) => `<div class="dsum"><span>${esc(t)}</span> ${esc(uc1(x2))}</div>`;
+    app.innerHTML = `<h1>${esc(E7.sumTitle)}</h1><div class="trail" style="height:110px"><img src="${IMG("traveler")}" alt=""><i class="veil" style="opacity:.25"></i><div class="pop">+1 шаг</div></div>
+      <div class="card" id="daySum"><div class="k">${ic("moon")}${esc(OB.eveningOut.facts)}</div>${line(E7.tried, tried)}<div class="dsum"><span>${esc(E7.noticed)}</span>${noticed.length ? noticed.map(n => `<div>${esc(uc1(n))}</div>`).join("") : "Ничего не отмечено."}</div>${line(E7.tomorrow, tomorrow + ".")}${notes.map(n => `<p class="tiny" style="margin:6px 0 0">${esc(n)}</p>`).join("")}</div>
+      <div class="row tight">${tm === "smaller" || tm === "moment" ? `<a class="btn sm" href="#plan/${tm === "smaller" ? (v && v.canSimplify && !v.simplified ? "simplify" : "action") : "moment"}">${esc(tm === "smaller" ? OB.eveningOut.simpler : OB.eveningOut.moment)}</a>` : `<a class="btn secondary sm" href="#today">${esc(OB.eveningOut.keep)}</a>`}</div>
+      <div class="row"><a class="btn block" href="#today">На главную</a></div>`;
+  }
   function eveningDone(p, c, rs, F) {
+    if (c.evening && (c.evening.experience || (p.storyResult && c.evening.quick))) return eveningStoryDone(p, c, F);
     const E = OB.eveningOut, ev = c.evening, v = planView(p), best = F && F.best, lessonT = p.lesson ? lc1(p.lesson.title) : "";
     if (!P.seen.buttons) { P.seen.buttons = true; saveProfile(true); }
     const lines = [];
@@ -1932,18 +2274,52 @@
     const kp = $("#updKeep"); if (kp) kp.onclick = async () => { const x = expOf(p); x.templateUpdateDismissed = C.contentVersion; await saveExp(x); again(); };
   }
   /* v6.10: зеркало — проверяемая гипотеза: значение, статус и источник; можно поправить или снять, история сохраняется */
+  /* v7: правка зеркала — новая версия рабочей гипотезы; прежние эпизоды и вечера сохраняют свою версию */
+  async function mirrorNewVersion(p, text, source, status, type) {
+    const M = p.mirror = p.mirror || { text: "", status: "searching", history: [], evidence: [], versions: [] }, ts = nowTs();
+    M.versions = M.versions || (M.text ? [{ version: M.version || 1, text: M.text, at: M.at || ts, source: M.origin }] : []);
+    M.history = M.history || [];
+    if (M.text) M.history.push({ text: M.text, status: M.status, version: M.version || 1, at: ts, change: "new_version" });
+    const v = Math.max(0, M.version || 0, ...M.versions.map(z => z.version || 0)) + 1;
+    M.version = v; M.text = R.trimEnd(text); M.origin = source; M.status = status; if (type) M.type = type; M.at = ts; M.versions.push({ version: v, text: M.text, at: ts, source });
+    await savePattern(p);
+  }
   function mirrorCard(p) {
-    const M = p && p.mirror, F = OB.family; if (!M || !M.text) return "";
+    const M = p && p.mirror, F = OB.family, MP = OB.mirrorPath; if (!M) return "";
     const ev = M.evidence || [], y = ev.filter(e => e.seen === "yes" || e.seen === "partly").length, n = ev.filter(e => e.seen === "no").length;
-    return `<div class="prow" id="mirrorRow"><div class="k"><span>${esc(F.storyMirror)}</span>${M.status !== "rejected" ? `<button data-mir="edit">${esc(F.storyMirrorEdit)}</button> <button data-mir="reject">${esc(F.storyMirrorReject)}</button>` : ""}</div>«${esc(R.trimEnd(M.text))}» <span class="tiny">· ${esc(F.mirrorStatus[M.status] || "")}</span>${M.example ? `<div class="tiny">Пример: «${esc(R.trimEnd(M.example))}»</div>` : ""}${ev.length ? `<div class="tiny" id="mirrorEv">${esc(F.storyMirrorEvidence.replace("{y}", y).replace("{n}", n))}</div>` : ""}</div>`;
+    const thoughts = (M.otherThoughts || []);
+    const th = thoughts.length ? `<div class="tiny" id="mirrorThoughts">${esc(MP.otherThoughts)}: ${thoughts.map(t => `«${esc(t.text)}» (${esc(R.humanShort(t.dateKey))})`).join(", ")}</div>` : "";
+    if (!M.text) {
+      if (!p.storyResult) return "";
+      return `<div class="prow" id="mirrorRow"><div class="k"><span>${esc(MP.title)}</span></div><span id="mirrorStatus">${esc(X.stories.mirrorStatus.searching)}</span><div class="tiny">${esc(MP.searching)}</div>${th}<div class="row tight"><button class="btn ghost sm" data-mir="search">${esc(MP.continue)}</button><button class="btn ghost sm" data-mir="own">${esc(MP.own)}</button></div></div>`;
+    }
+    const v7 = !!p.storyResult, st = v7 ? mirrorStatusText(p) : (F.mirrorStatus[M.status] || "");
+    const old = (M.versions || []).filter(z => z.version !== M.version);
+    return `<div class="prow" id="mirrorRow"><div class="k"><span>${esc(v7 ? MP.title : F.storyMirror)}</span>${M.status !== "rejected" ? `<button data-mir="edit">${esc(F.storyMirrorEdit)}</button> <button data-mir="reject">${esc(F.storyMirrorReject)}</button>` : ""}</div>«${esc(R.trimEnd(M.text))}» <span class="tiny" id="mirrorStatus">· ${esc(st)}${v7 && M.version ? ` · ${esc(MP.version.replace("{v}", M.version))}` : ""}</span>${M.example ? `<div class="tiny">Пример: «${esc(R.trimEnd(M.example))}»</div>` : ""}${ev.length ? `<div class="tiny" id="mirrorEv">${esc(F.storyMirrorEvidence.replace("{y}", y).replace("{n}", n))}</div>` : ""}${th}${old.length ? `<details class="plain"><summary class="tiny">${esc(MP.versions)} · ${old.length}</summary>${old.map(z => `<div class="tiny">${esc(MP.version.replace("{v}", z.version))}: «${esc(z.text)}»</div>`).join("")}</details>` : ""}</div>`;
   }
   function bindMirrorCard(p) {
-    const F = OB.family;
+    const F = OB.family, MP = OB.mirrorPath, v7 = !!p.storyResult;
     $$("[data-mir]").forEach(b => b.onclick = async () => {
-      const M = p.mirror; M.history = M.history || [];
-      if (b.dataset.mir === "reject") { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Снять гипотезу? Нажми ещё раз"; return; } M.history.push({ text: M.text, status: M.status, at: nowTs(), change: "rejected" }); M.status = "rejected"; await savePattern(p); toast(F.storyMirrorRejected); return story(); }
-      const row = $("#mirrorRow"); row.insertAdjacentHTML("beforeend", `<textarea id="mirT">${esc(M.text)}</textarea><div class="row tight"><button class="btn secondary sm" id="mirOk">Сохранить</button></div>`);
-      $("#mirOk").onclick = async () => { const t = $("#mirT").value.trim(); if (!t) return; if (t !== M.text) { M.history.push({ text: M.text, status: M.status, at: nowTs(), change: "edited" }); M.text = t; M.origin = "user_edited"; M.status = M.status === "to_check" ? "to_check" : "partial"; await savePattern(p); } story(); };
+      const M = p.mirror; M.history = M.history || []; const row = $("#mirrorRow"), kind = b.dataset.mir;
+      if (kind === "reject") { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Снять гипотезу? Нажми ещё раз"; return; } M.history.push({ text: M.text, status: M.status, version: M.version || null, at: nowTs(), change: "rejected" }); M.status = "rejected"; await savePattern(p); toast(v7 ? MP.rejected : F.storyMirrorRejected); return story(); }
+      if (kind === "search") {
+        const sr = p.storyResult, A = sr.answers || {}, cands = R.storyCandidates(X.stories, sr).filter(c => !(A["mir:" + c.id] && A["mir:" + c.id].v === "no") && c.text !== M.text && !(M.history || []).some(h => h.text === c.text && h.change === "rejected"));
+        $("#mirSearch") && $("#mirSearch").remove();
+        row.insertAdjacentHTML("beforeend", `<div id="mirSearch">${cands.length ? `<p class="tiny" style="margin:6px 0 4px">${esc(MP.candidates)}</p>${cands.map(c => `<div class="card tight"><p class="small" style="margin:0 0 6px">«${esc(c.text)}»</p><button class="btn secondary sm" data-cand="${esc(c.id)}">${esc(MP.recog)}</button></div>`).join("")}` : `<p class="tiny" style="margin:6px 0">${esc(MP.noCand)}</p>`}</div>`);
+        $$("[data-cand]").forEach(cb => cb.onclick = async () => { const c = cands.find(z => z.id === cb.dataset.cand); M.candidateId = c.id; M.check = c.check; await mirrorNewVersion(p, c.text, "candidate_recognized_later", "recognized", c.type); toast("Записали"); story(); });
+        return;
+      }
+      $("#mirEdit") && $("#mirEdit").remove();
+      row.insertAdjacentHTML("beforeend", `<div id="mirEdit"><textarea id="mirT" placeholder="${esc(MP.ownPh)}">${esc(kind === "edit" ? M.text : "")}</textarea><div class="row tight"><button class="btn secondary sm" id="mirOk">Сохранить</button></div></div>`);
+      $("#mirT").focus();
+      $("#mirOk").onclick = async () => {
+        const t = $("#mirT").value.trim(); if (!t) return toast("Напиши пару слов");
+        if (kind === "own") { await mirrorNewVersion(p, t, "user_written", "recognized", "own"); return story(); }
+        if (t === M.text) return story();
+        if (v7) await mirrorNewVersion(p, t, "user_edited", (M.evidence || []).length ? "refined" : M.status);
+        else { M.history.push({ text: M.text, status: M.status, at: nowTs(), change: "edited" }); M.text = t; M.origin = "user_edited"; M.status = M.status === "to_check" ? "to_check" : "partial"; await savePattern(p); }
+        story();
+      };
     });
   }
   function story() {
@@ -1977,22 +2353,23 @@
         ${p.lesson ? field("Урок", uc1(p.lesson.title) + (p.lesson.status === "preliminary" ? " (предварительный)" : ""), "lesson", "направление урока") : ""}
         ${R.practiceStart(p) ? `<div class="prow"><div class="k"><span>Практика</span></div>${R.diffDays(R.practiceStart(p), today()) < 0 ? `начнётся ${esc(R.human(R.practiceStart(p)))}` : `с ${esc(R.human(R.practiceStart(p)))} · день ${R.daysSince(R.practiceStart(p), today()) + 1}`}${p.caseDate && p.caseDate !== R.practiceStart(p) ? ` <span class="muted small">· случай был ${esc(R.human(p.caseDate))}</span>` : ""}</div>` : ""}
         ${field("Последний случай", lastEvent(p), null, `запиши через «${OB.buttons.event.label}»`)}
-        ${field("Обычно думаю", p.thought ? `«${p.thought}»${p.thoughtKind === "version" ? " — моя версия" : p.thoughtKind === "observation" ? " — наблюдение" : ""}` : "", "thought", "первая мысль в момент")}
+        ${field("Обычно думаю", p.thought ? `«${p.thought}»${p.thoughtKind === "version" ? " — моя версия" : p.thoughtKind === "observation" ? " — наблюдение" : ""}` : "", "thought", p.storyResult ? OB.mirrorPath.empty.thought : "первая мысль в момент")}
         ${field("Обычно делаю", p.habitualResponse, "habitualResponse", "привычный ответ")}
-        ${field("Мне было важно", p.need, "need", "потребность")}
-        <div class="prow"><div class="k"><span>Проверяю объяснение</span>${h ? `<button data-edit="hyp">отвергнуть</button>` : ""}</div>${h ? `${esc(h.text)} <span class="badge">${esc(branchLabel(h.branch))}</span><div class="tiny" style="margin-top:3px">${esc(rec.label)}${sup ? ` · примеров: ${sup}` : ""}${h.status === "revised" ? " · пересмотрено" : ""}</div>` : `<span class="muted">появится на шаге «Чего мне не хватило»</span>`}</div>
-        ${field("Разрешаю себе", p.permission ? p.permission + (permissionConfirmed(p) ? "" : " (кандидат из каталога, не подтверждено)") : "", "permission", "внутреннее разрешение")}
+        ${field("Мне было важно", p.need, "need", p.storyResult ? OB.mirrorPath.empty.need : "потребность")}
+        ${p.storyResult ? "" : `<div class="prow"><div class="k"><span>Проверяю объяснение</span>${h ? `<button data-edit="hyp">отвергнуть</button>` : ""}</div>${h ? `${esc(h.text)} <span class="badge">${esc(branchLabel(h.branch))}</span><div class="tiny" style="margin-top:3px">${esc(rec.label)}${sup ? ` · примеров: ${sup}` : ""}${h.status === "revised" ? " · пересмотрено" : ""}</div>` : `<span class="muted">появится на шаге «Чего мне не хватило»</span>`}</div>`}
+        ${field("Разрешаю себе", p.permission ? p.permission + (permissionConfirmed(p) ? "" : " (кандидат из каталога, не подтверждено)") : "", "permission", p.storyResult ? OB.mirrorPath.empty.permission : "внутреннее разрешение")}
         <div class="prow"><div class="k"><span>${esc(OB.plan.title)}${x && x.kind === "plan" ? ` · v${x.version}${x.planStatus === "draft" ? " · черновик" : x.planStatus === "legacy" ? " · прежняя версия" : ""}` : ""}</span><button data-edit="plan">изменить</button></div>${planView(p) ? (planReady(p).ready ? stepHTML(p) : `<span class="muted">${esc(OB.home.notReadyText)}</span>`) : `<span class="muted">появится после выбора урока</span>`}</div>
         ${x && x.prediction ? field("Предсказание", x.prediction) : ""}
-        ${x && (x.results || []).length ? `<div class="prow"><div class="k">Результаты</div>${x.results.slice(-5).map(r => `${esc(R.human(r.dateKey || today()))}: ${esc(outcomeLabel(r.outcome))}`).join("<br>")}</div>` : ""}
+        ${x && (x.results || []).length ? `<div class="prow"><div class="k">Результаты</div>${x.results.slice(-5).map(r => `${esc(R.human(r.dateKey || today()))}: ${esc(outcomeLabel(r.outcome))}${r.fact ? ` — «${esc(R.trimEnd(r.fact))}»` : ""}${r.mirrorVersion ? ` <span class="tiny">· зеркало v${r.mirrorVersion}</span>` : ""}`).join("<br>")}</div>` : ""}
         ${field("Навык", skillLabel(skillOfPattern(p)), "skill", "выберем на шаге «Проверить действием»")}
         ${field("Тело даёт знать", bodySignal(p), "bodySignal", "необязательно: плечи, челюсть, живот…")}
       </div>
-      <div class="card tight"><div class="k">${ic("mirror")}Исследование · ${rs.doneCount} из ${rs.total}</div>
+      ${p.storyResult && p.startDate ? `<div class="card tight" id="weekCard"><div class="k">${ic("hourglass")}Итог недели</div><p class="small" style="margin:2px 0 6px">${(() => { const cw = R.currentWindow(R.practiceStart(p), today()); return cw ? esc(OB.weekV7.period.replace("{start}", R.human(cw.start)).replace("{end}", R.human(cw.end))) : "Неделя начнётся с первого дня практики."; })()}</p><div class="row tight"><a class="btn secondary sm" href="#review">Открыть итог</a></div></div>` : ""}
+      ${p.storyResult ? "" : `<div class="card tight"><div class="k">${ic("mirror")}Исследование · ${rs.doneCount} из ${rs.total}</div>
         <div class="dots" aria-label="Пройдено модулей: ${rs.doneCount} из ${rs.total}">${R.MODULE_ORDER.map(id => `<i class="${(researchOf(p).modules[id] || {}).status === "done" ? "on" : ""}" title="${esc((M.find(m => m.id === id) || {}).title || id)}"></i>`).join("")}</div>
         ${rs.next ? `<p class="small" style="margin:4px 0 8px">Следующий шаг: <b>${esc((M.find(m => m.id === rs.next) || {}).title)}</b> — ${esc((M.find(m => m.id === rs.next) || {}).lead)}</p><div class="row tight"><a class="btn block ${rs.lockedToday ? "secondary" : ""}" href="#module/${rs.next}">${rs.lockedToday ? "Уточнить (сегодня уже был шаг)" : "Уточнить · 1–2 минуты"}</a></div>` : `<p class="small" style="margin:4px 0 0">Все шаги первой недели пройдены. Дальше — практика и итоги недель.</p>`}
         <details class="plain"><summary>Пройти шаг заново</summary><div class="chips">${R.MODULE_ORDER.filter(id => id !== "episode").map(id => `<a class="chip" href="#module/${id}">${esc((M.find(m => m.id === id) || {}).title)}</a>`).join("")}</div></details>
-      </div>
+      </div>`}
       ${p.startDate ? `<div class="card tight"><div class="k">${ic("flag")}Навык и флаг</div><p class="small" style="margin:2px 0 6px">${elig.eligible ? "Условия проверки выполнены." : esc(elig.reasons[0] || "")}${elig.reasons.length > 1 ? ` <span class="tiny">и ещё ${elig.reasons.length - 1}</span>` : ""}</p>${flags.length ? `<p class="small" style="margin:0">Освоено: ${flags.map(f => esc(skillLabel(f.skillId))).join(", ")}</p>` : ""}<div class="row tight"><a class="btn secondary sm" href="#flag">${elig.eligible && !hasFlag(p) ? "Проверить навык" : "Как считается флаг"}</a></div></div>` : ""}
       ${(() => { const t = R.nextTool({ pattern: p, plan: x, hypothesis: h, research: researchOf(p), episodes: D.episodes, runsToday: toolRunsOn(today()).length + (rs.doneToday ? 1 : 0) }); return t && p.status === "active" ? toolOfferHTML(t) : ""; })()}
       ${(() => { const runs = (D.tools || []).filter(t => t.patternId === p.id && t.endedAt && !t.exited); return runs.length ? `<details class="plain"><summary>Разборы и инструменты · ${runs.length}</summary><ul class="list">${runs.slice(-8).reverse().map(t => `<li class="small"><div class="date">${esc(R.human(t.dateKey))} · ${esc(toolTitle(t.toolId))}${t.fit ? ` · ${esc((X.toolFit.find(f => f[0] === t.fit) || [])[1] || t.fit)}` : ""}</div>${esc(t.result || "без вывода")}${t.planChange && t.planChange.field ? ` <span class="badge">в плане</span>` : ""}</li>`).join("")}</ul></details>` : ""; })()}
@@ -2079,9 +2456,12 @@
   /* =================== ИТОГ НЕДЕЛИ (v6) ===================
      Факты: поводы и даты, попытки шага по статусам, ожидание и факт, трудность с пропусками. «Раньше» — только при явной исходной записи.
      Один выбор: оставить план / изменить момент / упростить то же действие / проверить другое объяснение / наблюдать / пауза — прямой переход в редактор. */
-  function review() {
+  function review(arg) {
     const p = activePattern(); if (!p || !p.startDate) return go("today");
-    const due = R.reviewDue(R.practiceStart(p), today(), D.reviews.filter(r => r.patternId === p.id));
+    const due = reviewDueOf(p, today());
+    const mx = !!(p.storyResult || (p.mirror && p.mirror.text));
+    if (mx && (arg === "interim" || !due)) { const cw = R.currentWindow(R.practiceStart(p), today()); if (arg === "interim" && cw) return reviewV7(p, cw, true); if (!due) { const last = D.reviews.filter(r => r.patternId === p.id).slice(-1)[0], nextEnd = cw ? R.addDays(cw.end, 1) : null; app.innerHTML = `<h1>Итог недели</h1><p class="muted">${last ? `Последний итог: ${esc(R.human(last.windowStart))} — ${esc(R.human(last.windowEnd))}.` : ""} ${cw ? esc(OB.weekV7.interimNote.replace("{date}", R.human(cw.end))) : ""}</p>${cw ? `<div class="row"><a class="btn block" id="interimBtn" href="#review/interim">${esc(OB.weekV7.interimBtn)}</a></div>` : ""}<div class="row tight"><a class="btn ghost" href="#today">На главную</a></div>`; return; } }
+    if (mx) return reviewV7(p, due, false);
     if (!due) { const last = D.reviews.filter(r => r.patternId === p.id).slice(-1)[0]; app.innerHTML = `<h1>Итог недели</h1><p class="muted">${last ? `Последний итог: ${esc(R.human(last.windowStart))} — ${esc(R.human(last.windowEnd))}, решение: ${esc((X.reviewDecisions.find(d => d.id === last.decision) || {}).label || last.decision)}.` : "Первый итог откроется на 7-й день недели."}</p><div class="row"><a class="btn block" href="#today">На главную</a></div>`; return; }
     const x = expOf(p), h = hypOf(p), W = OB.week, s = R.windowSummary({ checkins: D.checkins, episodes: D.episodes, window: due, patternId: p.id, skillId: skillOfPattern(p), experiment: x, lineageId: lineageOf(p) });
     const little = s.eveningCount < 3 || (s.opportunities + s.realEpisodes) === 0;
@@ -2122,6 +2502,64 @@
       } });
   }
 
+  /* v7: неделя завершена, когда прошёл её последний день или закрыт его вечер; до этого — только промежуточный обзор */
+  function reviewDueOf(p, k) {
+    const due = R.reviewDue(R.practiceStart(p), k, D.reviews.filter(r => r.patternId === p.id));
+    if (!due || !(p.storyResult || (p.mirror && p.mirror.text))) return due;
+    if (due.end === k) { const c = D.checkins[R.checkinId(k, p.id)]; if (!(c && c.evening)) return null; }
+    return due;
+  }
+  /* v7: недельный итог по текущему сюжету и версии зеркала — 7 календарных дней от начала практики */
+  function reviewV7(p, due, interim) {
+    const x = expOf(p), W = OB.week, W7 = OB.weekV7, E7 = OB.exp;
+    const s = R.windowSummary({ checkins: D.checkins, episodes: D.episodes, window: due, patternId: p.id, skillId: skillOfPattern(p), experiment: x, lineageId: lineageOf(p) });
+    const mw = R.mirrorWeek({ checkins: D.checkins, pattern: p, window: due }), M = p.mirror || {}, hasM = !!(M.text && M.status !== "rejected"), a = s.attempts || {};
+    const real = (a.done || 0) + (a.partial || 0) + (a.other || 0), endShown = R.diffDays(due.end, today()) < 0 ? today() : due.end;
+    const prevR = D.reviews.filter(r => r.patternId === p.id && r.ruleScore != null).slice(-1)[0];
+    const exs = D.episodes.filter(e => e.patternId === p.id && !e.legacy && e.dateKey && R.inWindow(e.dateKey, due) && e.newResponse && e.newResponse.status && e.newResponse.status !== "rehearsal").slice(-3);
+    const gaps = s.totalDays - s.eveningCount;
+    const resLbl = { confirmed: E7.asExpected, not: E7.differently, insufficient: E7.unclear };
+    const facts = `<p class="small" id="wkPeriod" style="margin:0 0 6px"><b>${esc(W7.period.replace("{start}", R.human(due.start)).replace("{end}", R.human(endShown)))}</b></p>${pathLineHTML()}${learningText(p) ? `<p class="small" style="margin:0 0 4px"><b>${esc(W.learning.replace("{lesson}", learningText(p)).replace(/\.$/, ""))}.</b></p>` : ""}
+      <div class="stats" id="wkStats"><div><b>${s.opportunities}</b><span>${esc(W.opps)}</span></div><div><b>${real}</b><span>${esc(W7.attemptsReal)}</span></div><div><b>${a.rehearsal || 0}</b><span>${esc(W7.rehearsalsSep)}</span></div></div>
+      ${exs.length ? `<ul class="list">${exs.map(e => `<li class="small"><div class="date">${esc(R.humanShort(e.dateKey))} · ${esc(R.attemptStatusLabel(e.newResponse.status))}</div>${esc(e.newResponse.status === "other" ? e.newResponse.otherAction : e.newResponse.action)}${e.newResponse.afterAnswer ? ` — ${esc(e.newResponse.afterAnswer)}` : ""}</li>`).join("")}</ul>` : ""}
+      <p class="small">Трудность по вечерам: ${s.impactRatings.length ? s.impactRatings.map(r => `${R.humanShort(r.dateKey)} — ${r.value}`).join(", ") : "оценок нет"}; ${gaps} ${esc(W.gaps)} (пропуски — не нули).</p>
+      <div class="card tight" id="wkMirror"><div class="k">${ic("mirror")}${esc(W7.mirrorH)}</div>${hasM ? `<p class="small" style="margin:2px 0 4px">${esc(W7.mirrorLine.replace("{text}", R.trimEnd(M.text)).replace("{v}", M.version || 1))}</p><p class="small" style="margin:0 0 4px">${esc(mw.ruleOn.length ? W7.ruleOnDays.replace("{list}", mw.ruleOn.map(r => R.humanShort(r.dateKey) + (r.rule === "partly" ? " (частично)" : "")).join(", ")) : W7.ruleOnNone)}</p>` : `<p class="small" style="margin:2px 0 4px">${esc(W7.searching)}</p>`}
+        ${mw.otherThoughts.length ? `<p class="small" style="margin:0 0 2px">${esc(W7.otherThoughts)}</p><ul class="list">${mw.otherThoughts.map(t => `<li class="small"><div class="date">${esc(R.humanShort(t.dateKey))}</div>«${esc(t.text)}»</li>`).join("")}</ul>` : ""}</div>
+      <div class="card tight" id="wkExp"><div class="k">${esc(W7.expFact)}</div>${x && x.prediction ? `<p class="small" style="margin:2px 0 4px">${esc(E7.expected.replace("{pred}", R.trimEnd(x.prediction)))}</p>` : ""}${mw.expected.length ? mw.expected.map(e => `<p class="small" style="margin:0 0 2px">${esc(W7.expLine.replace("{date}", R.humanShort(e.dateKey)).replace("{res}", resLbl[e.outcome] || e.outcome).replace("{fact}", e.fact ? ` — «${R.trimEnd(e.fact)}»` : ""))}</p>`).join("") : `<p class="small muted" style="margin:0">${esc(W7.noExp)}</p>`}</div>
+      ${s.opportunities + s.realEpisodes === 0 ? `<div class="nudge" id="wkLittle">${esc(W7.littleTeacher)}</div>` : ""}`;
+    if (interim) { app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(W7.interimTitle)}</p><h1>${esc(W.title.replace("{n}", due.idx + 1))}</h1><div class="nudge" id="interimNote">${esc(W7.interimNote.replace("{date}", R.human(due.end)))}</div>${facts}<div class="row"><a class="btn block" href="#today">На главную</a></div>`; return; }
+    const thoughtOpts = mw.allOtherThoughts.map((t, i) => ["t" + i, `«${t.text}»`]);
+    const steps = [
+      { k: "look", q: W.title.replace("{n}", due.idx + 1), type: "info", nextLabel: "Дальше", html: facts },
+      { k: "rule", q: W7.ruleQ, lead: hasM ? `«${R.trimEnd(M.text)}»` : "", type: "choice", opts: W7.rule, skip: () => !hasM },
+      { k: "refine", q: W7.refineQ, lead: W7.refineLead, type: "text", def: hasM ? M.text : "", skip: a2 => a2.rule !== "refine" },
+      { k: "other", q: W7.otherQ, lead: W7.otherLead, type: "choice", opts: thoughtOpts, own: true, ownPh: "Своими словами", skip: a2 => a2.rule !== "other" },
+      { k: "found", q: W7.foundQ, lead: W7.foundLead, type: "choice", opts: [...thoughtOpts, ["none", W7.foundNone]], skip: () => hasM || !thoughtOpts.length },
+      { k: "self", q: W7.selfQ, type: "multi", opts: W7.self, own: true, optional: true },
+      { k: "score", q: W7.scoreQ, lead: W7.scoreLead + (prevR ? " " + W7.scorePrev.replace("{v}", prevR.ruleScore) : ""), type: "scale", lo: W7.scoreLo, hi: W7.scoreHi, optional: true, def: prevR ? prevR.ruleScore : 5, skip: () => !hasM },
+      { k: "next", q: W7.nextQ, type: "choice", opts: W7.next },
+    ];
+    flow({ id: "review-" + due.start, scope: p.id, steps, title: `Итог · ${R.human(due.start)} — ${R.human(due.end)}`, onCancel: () => go("today"),
+      onDone: async ans => {
+        const vBefore = mirrorVer(p); let mirrorDecision = ans.rule || null;
+        const thoughtOf = v => { const i = Number(String(v).slice(1)); return mw.allOtherThoughts[i]; };
+        if (ans.rule === "refine" && ans.refine && ans.refine !== M.text) await mirrorNewVersion(p, ans.refine, "weekly_refined", "refined");
+        if (ans.rule === "other") { const t = ans.other === "__own" ? { text: ans.other_own } : thoughtOf(ans.other); if (t && t.text) { if (t.dateKey) t.status = "used"; await mirrorNewVersion(p, t.text, ans.other === "__own" ? "weekly_user_written" : "evening_thought", "recognized", "own"); } }
+        if (!hasM && ans.found && ans.found !== "none") { const t = thoughtOf(ans.found); if (t) { t.status = "used"; mirrorDecision = "found"; await mirrorNewVersion(p, t.text, "evening_thought", "recognized", "own"); } }
+        const decision = ({ repeat: "continue", smaller: "simplify", harder: "continue", change: "moment", observe: "observe", pause: "pause" })[ans.next] || "continue";
+        const r = { id: R.uuid(), patternId: p.id, storyId: p.storyId || p.id, windowStart: due.start, windowEnd: due.end, snapshot: s, mirrorWeek: mw, experimentId: x ? x.id : null, planVersion: x ? x.version : null,
+          mirrorDecision, mirrorVersionBefore: vBefore, mirrorVersionAfter: mirrorVer(p), selfChange: vals(ans, "self"), ruleScore: ans.score != null && hasM ? ans.score : null, ruleScorePrev: prevR ? prevR.ruleScore : null, nextExperiment: ans.next, decision, conclusion: "", createdAt: nowTs(), v7: true };
+        await saveReview(r);
+        if (ans.next === "pause") { p.status = "paused"; await savePattern(p); return go("today"); }
+        if (ans.next === "observe") { p.status = "observe"; await savePattern(p); return go("today"); }
+        const v = planView(p);
+        if (ans.next === "smaller") { if (v && v.canSimplify && !v.simplified) return go("plan/simplify"); toast(W7.smallerOwn); return go("plan/action"); }
+        if (ans.next === "harder") { toast(W7.harderOwn); return go("plan/action"); }
+        if (ans.next === "change") { toast(W7.changeOwn); return go("plan/action"); }
+        go("today");
+      } });
+  }
+
   /* =================== ФЛАГ =================== */
   function flagScreen() {
     const p = activePattern(); if (!p || !p.startDate) return go("today");
@@ -2130,11 +2568,13 @@
     if (!el.eligible || hasFlag(p)) {
       app.innerHTML = `<h1>${hasFlag(p) ? "Навык уже отмечен" : "Сейчас мало случаев для проверки"}</h1>${hasFlag(p) ? `<p>По этому сюжету флаг «${esc(skillLabel(skillOfPattern(p)))}» уже есть. Новые случаи его не стирают: можно освежить навык практикой.</p>` : `<ul class="small">${el.reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul><p class="small muted">Можно продолжать, наблюдать или взять паузу — без флага это тоже нормально.</p>`}${rulesHtml}<div class="row"><a class="btn block" href="#story">Назад</a></div>`; return;
     }
-    const skill = skillOfPattern(p);
+    const skill = skillOfPattern(p), v7 = !!p.storyResult, DV = OB.doneV7, mKnown = !!(p.mirror && p.mirror.text && p.mirror.status !== "rejected");
+    const checkList = v7 ? (mKnown ? DV.self : [DV.self[0], DV.selfMirrorUnknown, DV.self[2]]) : C.progressPolicy.flagChecks;
     app.innerHTML = `<h1>Проверка навыка</h1><p class="small muted">Две недели: оценки трудности ${el.windows.map(w => w.impactRatings.map(r => r.value).join("·")).join(" | ")}; применений в разные дни: ${el.actionDays.length}.</p>
       ${!skill ? `<label>Какой навык отмечаем?</label><div class="chips col" id="sk">${SKILLS.map(s => `<button class="chip" data-v="${s.id}">${s.label}</button>`).join("")}</div>` : `<p><b>Навык:</b> ${esc(skillLabel(skill))}</p>`}
-      <div class="chips col" id="cf">${C.progressPolicy.flagChecks.map((t, i) => `<button class="chip" data-i="${i}">${esc(t)}</button>`).join("")}</div>
-      <div class="row"><button class="btn block" id="ok" disabled>Отметить флаг</button></div><div class="row tight"><a class="btn ghost" href="#story">Не сейчас</a></div>${rulesHtml}`;
+      ${v7 ? `<p class="small" style="margin:8px 0 4px"><b>${esc(DV.selfH)}</b></p>` : ""}<div class="chips col" id="cf">${checkList.map((t, i) => `<button class="chip" data-i="${i}">${esc(t)}</button>`).join("")}</div>
+      <div class="row"><button class="btn block" id="ok" disabled>Отметить флаг</button></div><div class="row tight">${v7 ? `<button class="btn ghost" id="notReady">${esc(DV.notReady)}</button>` : `<a class="btn ghost" href="#story">Не сейчас</a>`}</div>${rulesHtml}`;
+    const nr = $("#notReady"); if (nr) nr.onclick = async () => { p.completionChecks = [...(p.completionChecks || []), { at: nowTs(), result: "not_ready" }]; await savePattern(p); toast(DV.notReadyToast); go("story"); };
     const checks = new Set(); let sk = skill;
     const upd = () => { $("#ok").disabled = !(checks.size === 3 && sk); };
     $$("#cf .chip").forEach(b => b.onclick = () => { const i = b.dataset.i; if (checks.has(i)) checks.delete(i); else checks.add(i); b.classList.toggle("on"); upd(); });
@@ -2142,6 +2582,7 @@
     $("#ok").onclick = async () => {
       const f = { id: R.uuid(), skillId: sk, patternId: p.id, awardedAt: nowTs(), windowStart: el.windows[0].window.start, windowEnd: el.windows[1].window.end, evidenceDays: el.actionDays, evidenceIds: D.episodes.filter(e => e.patternId === p.id && R.isConfirmedAction(e, sk, lineageOf(p))).map(e => e.id), legacy: false };
       await saveFlag(f); if (!p.skillId) { p.skillId = sk; await savePattern(p); }
+      if (v7) { p.completion = { at: nowTs(), flagId: f.id, kind: mKnown ? "mirror_and_skill" : "skill_only", mirrorStatus: p.mirror ? p.mirror.status : "searching", mirrorVersion: mirrorVer(p), checks: checkList }; await savePattern(p); return completionV7(p, f, el); }
       const cl = R.clarity(D.flags, TOTAL_SKILLS), cols = ["#FBE7A8", "#E2B65A", "#B9822A", "#C9BFFF", "#8C84C8", "#F2C4B0"];
       app.innerHTML = `${reduce() ? "" : `<div class="confetti" aria-hidden="true">${Array.from({ length: 50 }, (_, k) => `<i style="left:${(k * 37) % 100}%;background:${cols[k % 6]};animation-delay:${(k % 12) * 0.12}s"></i>`).join("")}</div>`}
         <p class="fanfare">Флаг твой</p><div class="trail" style="height:130px"><img src="${IMG("traveler")}" alt=""><i class="glow"></i></div>
@@ -2161,7 +2602,40 @@
     };
   }
 
+  /* v7: завершение — сравнение «раньше / сейчас» на данных человека; зеркало не объявляется проработанным само */
+  function completionV7(p, f, el) {
+    const DV = OB.doneV7, x = expOf(p), mKnown = p.completion.kind === "mirror_and_skill", sk = f.skillId;
+    const cases = D.episodes.filter(e => e.patternId === p.id && !e.legacy && R.isConfirmedAction(e, sk, lineageOf(p))).slice(-5);
+    const revs = D.reviews.filter(r => r.patternId === p.id && r.v7), scores = revs.filter(r => r.ruleScore != null).map(r => r.ruleScore);
+    const selfCh = [...new Set(revs.flatMap(r => r.selfChange || []))];
+    const concl = Object.values(D.checkins).filter(c => c.patternId === p.id && c.evening && c.evening.experience && c.evening.experience.conclusion).sort((a, b) => a.dateKey < b.dateKey ? -1 : 1).map(c => c.evening.experience.conclusion === "__own" ? c.evening.experience.conclusionText : OB.exp["concl" + c.evening.experience.conclusion[0].toUpperCase() + c.evening.experience.conclusion.slice(1)]).filter(Boolean);
+    const acts = [...new Set(cases.map(e => R.trimEnd(e.newResponse.action || e.newResponse.otherAction || "")).filter(Boolean))];
+    const before = [p.habitualResponse ? `обычно: ${lc1(R.trimEnd(p.habitualResponse))}` : "", p.mirror && p.mirror.versions && p.mirror.versions[0] ? `правило: «${p.mirror.versions[0].text}»` : ""].filter(Boolean);
+    const now = [acts.length ? `пробую: ${lc1(acts[acts.length - 1])}` : "", mKnown ? `правило сейчас: «${R.trimEnd(p.mirror.text)}» (${mirrorStatusText(p)})` : `зеркало: ${X.stories.mirrorStatus.searching}`].filter(Boolean);
+    const w = el.windows, ratings = w.map(s => s.impactRatings.map(r => r.value).join("·")).join(" | ");
+    const cl = R.clarity(D.flags, TOTAL_SKILLS), cols = ["#FBE7A8", "#E2B65A", "#B9822A", "#C9BFFF", "#8C84C8", "#F2C4B0"], v = planView(p);
+    app.innerHTML = `${reduce() ? "" : `<div class="confetti" aria-hidden="true">${Array.from({ length: 50 }, (_, k) => `<i style="left:${(k * 37) % 100}%;background:${cols[k % 6]};animation-delay:${(k % 12) * 0.12}s"></i>`).join("")}</div>`}
+      <p class="fanfare">Флаг твой</p><div class="trail" style="height:130px"><img src="${IMG("traveler")}" alt=""><i class="glow"></i></div>
+      <h2 id="doneTitle">${esc(mKnown && p.lesson ? OB.complete.title.replace("{lesson}", lc1(p.lesson.title)) : DV.titleSkill)}</h2>
+      <p class="small"><i>${esc(DV.less)}</i></p>
+      <div class="card tight" id="beforeNow"><div class="k">${esc(DV.beforeNow)}</div><div class="dsum"><span>${esc(DV.before)}</span>${esc(uc1(before.join("; ") || "—"))}</div><div class="dsum"><span>${esc(DV.now)}</span>${esc(uc1(now.join("; ")))}</div>${scores.length >= 2 ? `<p class="small" style="margin:4px 0 0">${esc(DV.ruleScore.replace("{a}", scores[0]).replace("{b}", scores[scores.length - 1]))}</p>` : ""}<p class="tiny" style="margin:4px 0 0">За две недели: реальных поводов ${w.reduce((a, s) => a + s.opportunities, 0)}, применений в разные дни ${el.actionDays.length}, оценки трудности ${esc(ratings)}.</p></div>
+      ${concl.length || selfCh.length ? `<div class="card tight"><div class="k">${esc(DV.conclusion)}</div><p class="small" style="margin:2px 0 0">${esc([...new Set([...selfCh, ...concl.slice(-3)])].join("; "))}.</p></div>` : ""}
+      ${acts.length ? `<div class="card tight" id="doneActs"><div class="k">${esc(DV.actions)}</div><ul class="list">${acts.map(t => { const es = cases.filter(e => R.trimEnd(e.newResponse.action || e.newResponse.otherAction || "") === t), last = es.filter(e => e.newResponse.afterAnswer).slice(-1)[0]; return `<li class="small"><div class="date">${esc(es.map(e => R.humanShort(e.dateKey)).join(", "))}</div>${esc(t)}${last ? ` — ${esc(last.newResponse.afterAnswer)}` : ""}</li>`; }).join("")}</ul></div>` : ""}
+      <div class="card tight"><div class="k">${esc(DV.return)}</div><p class="small" style="margin:2px 0 0">${esc(DV.returnText.replace("{action}", v ? lc1(R.trimEnd(v.action)) : "свой шаг"))}</p></div>
+      <p class="small" style="margin:8px 0 4px"><b>${esc(OB.complete.continue)}</b></p><div class="chips col" id="cont">${OB.complete.opts.map(([vv, l]) => `<button class="chip" data-c="${vv}">${esc(l)}</button>`).join("")}</div><div id="contOwn"></div>
+      <p class="small muted">${esc(OB.complete.note)} Небо: освоено ${cl.count} из ${cl.total} навыков.</p>
+      <div class="row"><a class="btn block" href="#today">Продолжить закрепление</a></div>`;
+    $$("[data-c]").forEach(b => b.onclick = async () => {
+      const vv = b.dataset.c;
+      if (vv === "next") { const fl = flagsReal().filter(ff => ff.patternId === p.id); p.status = "done"; p.completedBasis = { kind: "flag", flagIds: fl.map(ff => ff.id), skillIds: fl.map(ff => ff.skillId), at: nowTs() }; p.continueChoice = "next"; await savePattern(p); P.onb = { step: "area" }; await saveProfile(true); return go("area"); }
+      if (vv === "keep") { p.continueChoice = "keep"; await savePattern(p); toast("Продолжаем закреплять этот ответ"); return go("today"); }
+      $("#contOwn").innerHTML = `<textarea id="cown" placeholder="${esc(OB.complete.ownPh)}"></textarea><div class="row tight"><button class="btn secondary sm" id="cownOk">Сохранить</button></div>`;
+      $("#cownOk").onclick = async () => { const t = $("#cown").value.trim(); if (!t) return toast("Напиши пару слов"); p.continueChoice = "own"; p.continueNote = t; await savePattern(p); toast("Записано"); go("today"); };
+    });
+  }
+
   /* =================== ИСТОРИЯ =================== */
+  const histExp = ex => { const E7 = OB.exp; return [ex.rule ? `правило: ${lc1((ex.hadMirror ? E7.rule : E7.thought).find(o => o[0] === ex.rule)[1])}${ex.ruleText ? ` («${R.trimEnd(ex.ruleText)}»)` : ""}` : "", ex.outcome ? `${lc1(E7.exp.find(o => o[0] === ex.outcome)[1])}${ex.fact ? ` — ${ex.fact}` : ""}` : "", ex.conclusion ? `вывод: ${lc1(ex.conclusion === "__own" ? ex.conclusionText : E7.concl.find(o => o[0] === ex.conclusion)[1])}` : ""].filter(Boolean).join(" · "); };
   function history() {
     const eps = D.episodes.slice().sort((a, b) => b.loggedAt - a.loggedAt), ev = Object.values(D.checkins).filter(c => c.evening || c.morning).sort((a, b) => a.dateKey < b.dateKey ? 1 : -1), rv = D.reviews.slice().reverse(), fl = D.flags.slice().reverse();
     const n = { ep: eps.filter(e => !e.legacy).length, ev: ev.filter(c => c.evening && !c.legacy).length, rv: rv.filter(r => !r.legacy).length, fl: fl.filter(f => !f.legacy).length };
@@ -2179,8 +2653,8 @@
     const keys = Object.keys(byDate).sort().reverse().slice(0, 60);
     keys.forEach(k => {
       const items = byDate[k].map(it => {
-        if (it.t === "ep") { const e = it.e; return `<div class="small"><a href="#episode/${e.id}">${R.fmtTime(e.loggedAt)} · ${esc(e.emotion || "случай")}${e.intensity != null ? ` ${e.intensity}/10` : ""}${e.event ? " · " + esc(e.event.slice(0, 50)) : ""}</a>${e.newResponse ? ` <span class="badge">${esc(actionLabel(e.newResponse).split(":")[0])}</span>` : ""}${e.isRehearsal ? ` <span class="badge">репетиция</span>` : ""}${e.linkStatus === "queued" ? ` <span class="badge">очередь</span>` : ""}${e.legacy ? ` <span class="badge legacy">прошлая версия</span>` : ""}</div>`; }
-        if (it.t === "cv") { const c = it.c; return `<div class="small">${c.morning ? `утро${c.morning.intensity != null ? ` ${c.morning.intensity}/10` : ""}${c.evening ? " · " : ""}` : ""}${c.evening ? `вечер: трудность ${c.evening.currentImpact != null ? c.evening.currentImpact : "—"}${c.evening.hadOpportunity ? ` · повод: ${({ yes: "да", no: "нет", unsure: "не уверен" })[c.evening.hadOpportunity]}` : ""}${c.evening.actionStatus ? ` · ${({ done: "получилось", partial: "частично", not: "не получилось", other: "другое" })[c.evening.actionStatus]}` : ""}${c.evening.late ? ` <span class="badge">поздняя запись</span>` : ""}` : ""}${c.legacy ? ` <span class="badge legacy">прошлая версия</span>` : ""}</div>`; }
+        if (it.t === "ep") { const e = it.e; return `<div class="small"><a href="#episode/${e.id}">${R.fmtTime(e.loggedAt)} · ${esc(e.emotion || "случай")}${e.intensity != null ? ` ${e.intensity}/10` : ""}${e.event ? " · " + esc(e.event.slice(0, 50)) : ""}</a>${e.newResponse ? ` <span class="badge">${esc(actionLabel(e.newResponse).split(":")[0])}</span>` : ""}${e.newResponse && e.newResponse.afterAnswer ? `<div class="tiny">— ${esc(e.newResponse.afterAnswer.slice(0, 90))}</div>` : ""}${e.isRehearsal ? ` <span class="badge">репетиция</span>` : ""}${e.linkStatus === "queued" ? ` <span class="badge">очередь</span>` : ""}${e.legacy ? ` <span class="badge legacy">прошлая версия</span>` : ""}</div>`; }
+        if (it.t === "cv") { const c = it.c; return `<div class="small">${c.morning ? `утро${c.morning.intensity != null ? ` ${c.morning.intensity}/10` : ""}${c.evening ? " · " : ""}` : ""}${c.evening ? `вечер: трудность ${c.evening.currentImpact != null ? c.evening.currentImpact : "—"}${c.evening.hadOpportunity ? ` · повод: ${({ yes: "да", no: "нет", unsure: "не уверен" })[c.evening.hadOpportunity]}` : ""}${c.evening.actionStatus ? ` · ${({ done: "получилось", partial: "частично", not: "не получилось", other: "другое" })[c.evening.actionStatus]}` : ""}${c.evening.late ? ` <span class="badge">поздняя запись</span>` : ""}${c.evening.experience ? `<div class="tiny">${esc(histExp(c.evening.experience))}</div>` : ""}` : ""}${c.legacy ? ` <span class="badge legacy">прошлая версия</span>` : ""}</div>`; }
         if (it.t === "rv") { const r = it.r; return `<div class="small"><b>Итог недели</b> ${esc(R.human(r.windowStart || k))}${r.windowEnd ? ` — ${esc(R.human(r.windowEnd))}` : ""}: ${esc(r.legacy ? (r.decision === "legacy-passed" ? "урок пройден по старым правилам" : "продолжение") : (X.reviewDecisions.find(d => d.id === r.decision) || {}).label || r.decision)}${r.conclusion ? ` · ${esc(r.conclusion.slice(0, 80))}` : ""}${r.legacy ? ` <span class="badge legacy">прошлая версия</span>` : ""}</div>`; }
         if (it.t === "fl") { const f = it.f; return `<div class="small icline" style="align-items:center">${ic("flag", "")}<span><b>${esc(f.legacy ? "Флаг прошлой версии" : skillLabel(f.skillId))}</b>${f.legacy ? ` <span class="badge legacy">старые правила, в ясность не входит</span>` : ""}</span></div>`; }
         return "";
@@ -2245,8 +2719,9 @@
   const paras = (arr, cls) => (arr || []).map(t => `<p class="${cls || "small"}" style="margin:0 0 6px">${esc(t)}</p>`).join("");
   const foundationHTML = () => `<details class="plain" id="foundation"><summary>${esc(PS().foundation.title)}</summary>${paras(PS().foundation.paragraphs)}</details>`;
   const readingCard = id => { const c = (PS().readingCards || []).find(r => r.id === id); return c ? `<details class="plain reading" data-reading="${id}"><summary>${esc(c.title)}</summary><p class="small" style="margin:0 0 6px">${esc(c.text)}</p></details>` : ""; };
-  const pathProfileHTML = (n, open) => { const pr = X.pathProfiles[String(n)], R2 = OB.reveal2; return `<details class="plain" id="resource"${open ? " open" : ""}><summary>${esc(R2.resource)}</summary><p class="small" style="margin:0 0 6px">${esc(pr.resource)}</p></details>
-    <details class="plain" id="deeper"${open ? " open" : ""}><summary>${esc(R2.more)}</summary>${paras(pr.deeperParagraphs)}<p class="small" style="margin:0 0 6px"><b>${esc(R2.direction)}.</b> ${esc(pr.lessonDirection)}</p><p class="small" style="margin:0 0 6px"><b>${esc(R2.question)}.</b> ${esc(pr.reflectionQuestion)}</p><p class="tiny">${esc(OPth.note)}</p></details>`; };
+  /* v7: раскрываемые разделы пути — сильные стороны и темы уроков (навигация для размышления, не назначенные упражнения) */
+  const pathProfileHTML = (n, open) => { const pr = X.pathProfiles[String(n)], V7 = OB.pathV7; return `<details class="plain" id="strengths"${open ? " open" : ""}><summary>${esc(V7.strengths)}</summary><p class="small" style="margin:0 0 6px">${esc(uc1(pr.strengths))}.</p></details>
+    <details class="plain" id="themes"${open ? " open" : ""}><summary>${esc(V7.themes)}</summary><ul class="small" style="margin:0 0 6px">${(pr.lessonThemes || []).map(t => `<li>${esc(uc1(t))}</li>`).join("")}</ul><p class="tiny">${esc(OPth.note)}</p></details>`; };
   function reveal(n) {
     const S = P.symbolic, pr = X.pathProfiles[String(n)], R2 = OB.reveal2, r = R.calcNum(S.birth) || { digits: [], chain: [n] }, red = reduce() || !!(P.onb && P.onb.revealed);
     app.innerHTML = `<div class="astro compact"><img src="${IMG("astrolabe")}" alt=""><div class="orb ${red ? "shown" : "calc"}" id="orb"><div class="core"><i class="fl"></i><img class="num" src="${IMG("num-" + n)}" alt="Число ${n}"></div></div></div>
@@ -2254,6 +2729,8 @@
       <p class="tiny eyebrow" style="margin:4px 0 0">${esc(R2.eyebrow)} · ${n}</p>
       <h1 style="margin-top:2px">${esc(pr.displayName)}</h1>
       <div id="revealText">${paras(pr.revealParagraphs, "")}</div>
+      <p class="small" id="revCaption" style="margin:8px 0 4px"><b>${esc(OB.pathV7.recogCaption)}</b></p>
+      <div class="chips col recog" id="revRecog">${pr.recognitionItems.map(i => `<button class="chip ${(onb().recogSel || []).includes(i.id) ? "on" : ""}" data-rg="${i.id}" aria-pressed="${(onb().recogSel || []).includes(i.id)}">${esc(i.text)}</button>`).join("")}<button class="chip dim" id="revOther">${esc(OB.pathV7.otherStory)}</button></div>
       ${pathProfileHTML(n, false)}
       ${foundationHTML()}
       <div class="row"><button class="btn block" id="go">${esc(R2.cta)}</button></div>
@@ -2262,7 +2739,15 @@
     let stopped = false;
     const finish = () => { stopped = true; const orb = $("#orb"); if (orb) { orb.classList.remove("calc", "reveal"); orb.classList.add("shown"); } const sr = $("#skipRow"); if (sr) sr.remove(); if (P.onb) { P.onb.revealed = true; saveProfile(true); } };
     if (red) finish(); else { const orb = $("#orb"); setTimeout(() => { if (orb.isConnected && !stopped) { orb.classList.remove("calc"); orb.classList.add("shown", "reveal"); setTimeout(() => { if (orb.isConnected && !stopped) { const sr = $("#skipRow"); if (sr) sr.remove(); stopped = true; if (P.onb) { P.onb.revealed = true; saveProfile(true); } } }, 1100); } }, 500); $("#skipAnim").onclick = finish; }
-    $("#go").onclick = async () => { finish(); onb().step = "area"; await saveProfile(true); go("area"); };
+    /* v7: примеры узнавания прямо на экране числа; выбор ведёт в те же сферы, «другой сюжет» — без подбора по числу */
+    $$("#revRecog [data-rg]").forEach(b => b.onclick = () => { const S2 = onb(), id = b.dataset.rg, sel = S2.recogSel || []; S2.recogSel = sel.includes(id) ? sel.filter(x => x !== id) : [...sel, id]; b.classList.toggle("on"); b.setAttribute("aria-pressed", S2.recogSel.includes(id)); saveProfile(true); });
+    $("#revOther").onclick = async () => { finish(); const S2 = onb(); S2.otherStory = true; S2.preferTopics = []; S2.recogMain = null; S2.recogSel = []; S2.step = "area"; await saveProfile(true); go("area"); };
+    $("#go").onclick = async () => {
+      finish(); const S2 = onb(), sel = S2.recogSel || []; S2.step = "area";
+      if (sel.length) { P.pathRecognition = [...(P.pathRecognition || []), ...sel.map(id => ({ itemId: id, answer: "familiar", date: today(), pathNumber: n, contentVersion: C.contentVersion }))]; if (sel.length === 1) recogStart(S2, pr.recognitionItems.find(i => i.id === sel[0])); else S2.recogPickOne = true; }
+      else { S2.otherStory = true; S2.recogMain = null; }
+      await saveProfile(true); go("area");
+    };
   }
   function symbol() {
     const S = P.symbolic || {};
@@ -2402,6 +2887,8 @@
     /* v6.10: сохранённый выбор «по времени суток / рассвет» приводится к единственной вечерней теме; остальные настройки не трогаем */
     if (P.theme !== "dark") { P.themeLegacy = P.theme || null; P.theme = "dark"; await saveProfile(true); applyTheme(); }
     /* v6.7.2: если прежняя сборка оставила два действующих сюжета — остаётся один (с принятым шагом), другой уходит в историю */
+    /* v7: миграция v6.10 без сброса — зеркалу семейного разбора присваивается версия 1, сюжету — storyId; формулировки не меняются */
+    for (const q of R.migrateMirrorV7(D.patterns)) await savePattern(q);
     { const dup = R.resolveDuplicateCurrent(D, Date.now()); if (dup.length) { for (const q of dup) await savePattern(q); P.lastResult2 = OB.conflict.repaired; await saveProfile(true); } }
     /* v6.4: незавершённый вход переводится на ветки по сфере; автоматическая сфера из отклика пути не считается выбором. */
     if (P.onb && R.migrateOnbV64(P.onb, { variants: X.variants, routingVersion: X.routingVersion, recognitionTopics: Object.fromEntries(Object.values(X.pathProfiles).flatMap(pr => pr.recognitionItems.map(i => [i.id, i.preferSubtypes]))) })) await saveProfile(true);
