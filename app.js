@@ -946,7 +946,28 @@
   }
   /* Создание сюжета из входа. Происхождение каждой части резюме сохраняется; редакционная гипотеза не становится «подтверждённым» без явного ответа.
      Даты честные: дата случая (dateKey эпизода) отдельно от старта практики (practiceStartDate): день 1 — день, когда человек начал практику, вечером — завтра. */
+  /* v6.7.2: единое правило смены сюжета для всех входов. Новый разбор можно пройти, не трогая текущую практику;
+     принятие нового шага при действующем сюжете требует явного выбора: перейти (текущий — в историю, не прохождение и не флаг),
+     оставить текущий и сохранить новый на потом, или вернуться к разбору. До выбора ничего не записывается. */
   async function startLesson(S, L) {
+    const cur = anyPattern();
+    if (!cur) return startLessonNow(S, L);
+    const O = OB.conflict, cx = expOf(cur), cv = cx && cx.kind === "plan" ? R.planView(cx) : null;
+    const newText = S.want && S.want.text ? S.want.text : uc1(L.title || "");
+    app.innerHTML = `<h1 class="q">${esc(O.title)}</h1><p class="muted small">${esc(O.lead)}</p>
+      <div class="card tight" id="cfCur"><div class="k">${esc(O.current)}</div><div class="small"><b>${esc(cur.title || "")}</b>${cv && cv.action ? `<br>${esc(cv.action)}` : ""}</div></div>
+      <div class="card tight mark" id="cfNew"><div class="k">${esc(O.next)}</div><div class="small">${esc(newText)}</div></div>
+      <div class="chips col"><button class="btn block" id="cfSwitch">${esc(O.switch)}</button><button class="btn block secondary" id="cfLater">${esc(O.later)}</button><button class="btn ghost" id="cfBack">${esc(O.back)}</button></div>
+      <p class="tiny muted" style="margin:6px 0 0">${esc(O.note)}</p>`;
+    $("#cfSwitch").onclick = async () => { const b = $("#cfSwitch"); if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = O.switchSure; return; } archivePattern(cur, "new_story"); await savePattern(cur); return startLessonNow(S, L); };
+    $("#cfLater").onclick = async () => {
+      const snap = JSON.parse(JSON.stringify(S)); delete snap.dialog;
+      P.savedScenarios = [...(P.savedScenarios || []), { id: "onb-" + R.uuid(), kind: "onb", onb: snap, lesson: JSON.parse(JSON.stringify(L)), text: newText, recognition: newText, version: C.contentVersion, routingVersion: X.routingVersion, savedAt: nowTs(), area: S.area || null }];
+      P.onb = null; await saveProfile(true); toast(O.saved); go("today");
+    };
+    $("#cfBack").onclick = () => go(S.dialogResult ? "dialog" : "lesson");
+  }
+  async function startLessonNow(S, L) {
     const ts = nowTs(), k = today(), T = S.teacher, ev = S.event ? eventById(S.event) : null, cs = S.case || {};
     /* Пакет сюжета — по направлению (уроку), иначе по событию: практика следует за подтверждённым значением. */
     const packId = L.packId || packIdOf(S), pk = C.packs.find(x => x.id === packId);
@@ -958,7 +979,7 @@
     const scenario = { origin: ev ? "event" : "own", eventId: ev ? ev.eventId : null, variantId: ev ? ev.variantId : null, routingVersion: X.routingVersion, areaExplicit: !!S.areaExplicit, wantText: S.want ? S.want.text : "", wantOrigin: S.want ? S.want.origin : null, wantKind: S.want ? S.want.kind : null, eventText: evText, eventOrigin: ev ? "user_selected" : "user_written", caseText, caseOrigin: cs.origin || (ev ? "user_selected" : "user_written"), meaningId: S.sting.meaningId, meaningText: S.sting.text || "", meaningOrigin: S.sting.origin, repeat: cs.repeat || S.sting.repeat || null, reaction: null, reactionOrigin: null, area: ev ? ev.area : (S.own && S.own.area) || null, ctx: ev && ev.area === "work" ? S.ctx || null : null, version: C.contentVersion, recognition: caseText, own: ev ? "" : evText, confirmed: S.confirmed ? "yes" : "no", habitualReaction: (S.sting && S.sting.reaction) || null, dialog: S.dialogResult || null };
     const p = { id: R.uuid(), title: pk ? pk.title : shortTitle(caseText), packId: packId || null, contexts: tl ? [tl] : [], status: hasCase ? "active" : "observe", startDate: practiceStart, practiceStartDate: practiceStart, practiceStartOrigin: "user", caseDate: hasCase ? caseDate : null, firstDay: { kind: phase(), date: k, at: ts, taken: false }, createdAt: ts, hypothesisVersionId: null, experimentId: null, queue: [], legacy: false,
       scenario, teacher: { kind: T.kind, label: tl, what: caseText },
-      lesson: { id: L.id, title: L.title, inner: L.inner || "", action: L.action, skillId: L.skillId, hypothesisId: L.hypothesisId || null, signal: L.signal, status: "preliminary", chosenAt: ts, rejected: S.rejected || [], origin: "editorial_hypothesis", basis: { eventId: ev ? ev.eventId : null, variantId: ev ? ev.variantId : null, meaningId: S.sting.meaningId } },
+      lesson: { id: L.id, title: L.title, homeTitle: L.homeTitle || null, inner: L.inner || "", action: L.action, skillId: L.skillId, hypothesisId: L.hypothesisId || null, signal: L.signal, status: "preliminary", chosenAt: ts, rejected: S.rejected || [], origin: "editorial_hypothesis", basis: { eventId: ev ? ev.eventId : null, variantId: ev ? ev.variantId : null, meaningId: S.sting.meaningId } },
       firstPlan: { id: L.id, text: uc1(L.action), skill: L.skillId, signal: L.signal, action: L.action }, skillId: L.skillId, habitualResponse: null };
     /* Разрешение из каталога — кандидат: хранится с происхождением, подтверждается человеком на шаге «Что я себе разрешаю». */
     if (L.inner) { p.permission = L.inner; p.permissionSource = { origin: "lesson", hypothesisVersionId: null, confirmed: false }; }
@@ -1199,7 +1220,8 @@
     const ps = R.practiceStart(p), dps = ps ? R.diffDays(ps, k) : null;
     const prep = !!(p && p.status === "active" && ps && dps < 0);
     const fd = p && p.firstDay && p.firstDay.date === k && dps === 0 ? p.firstDay : null;
-    const title = p ? (p.status === "observe" ? "Наблюдаю" : (p.lesson ? uc1(p.lesson.title) : p.title)) : "Начало";
+    const ownGoal = p && expOf(p) && expOf(p).goalOrigin === "user_written";
+    const title = p ? (p.status === "observe" ? "Наблюдаю" : (p.lesson ? uc1(ownGoal && p.lesson.homeTitle ? p.lesson.homeTitle : p.lesson.title) : p.title)) : "Начало";
     const rd = p ? planReady(p) : { ready: false };
     let sub = "";
     if (p && ps && dps >= 0) { const d = dps + 1, w = R.weekIndex(ps, k) + 1; const h = hypOf(p); const elig = eligibility(p); sub = `день ${d} · неделя ${w} · ${R.workPhase({ hypothesis: h, experiment: expOf(p), confirmedActionDays: R.confirmedActionDays({ episodes: D.episodes, checkins: D.checkins, patternId: p.id, skillId: skillOfPattern(p), lineageId: lineageOf(p) }).size, eligible: elig.eligible })}`; }
@@ -1780,7 +1802,7 @@
     const kl = $("#keepLesson"); if (kl) kl.onclick = async () => { p.lesson.keptForExperimentId = x.id; p.lesson.status = "confirmed"; await savePattern(p); toast("Формулировка сохранена"); story(); };
     const rl = $("#refineLesson"); if (rl) rl.onclick = () => editField(p, "lesson");
     $$("[data-unsave]").forEach(b => b.onclick = async () => { P.savedScenarios.splice(Number(b.dataset.unsave), 1); await saveProfile(); story(); });
-    $$("[data-saved]").forEach(b => b.onclick = async () => { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Текущий сюжет уйдёт в историю. Нажми ещё раз"; return; } const sc = P.savedScenarios[Number(b.dataset.saved)]; P.savedScenarios.splice(Number(b.dataset.saved), 1); archivePattern(p, "saved_scenario"); await savePattern(p); const sv = sc.kind === "event" ? (variantById(sc.id) || (sc.area ? variantById(`${sc.id}@${sc.area}`) : null)) : null; P.onb = sv ? { step: "teacher", event: sv.variantId, picks: [{ id: sv.variantId, variantId: sv.variantId, area: sv.area, packId: sv.packId, text: sv.text, r: "yes" }], shown: [sv.variantId], area: sv.area, ctx: sv.area === "work" ? "any" : null, areaExplicit: true, routingVersion: X.routingVersion } : { step: "teacher", own: { text: sc.recognition || sc.text, packId: sc.packId || null, version: C.contentVersion, area: sc.area || null }, picks: [], routingVersion: X.routingVersion }; ["onb-teacher", "onb-case-" + (sv ? sv.variantId : "own"), "onb-sting-" + (sv ? sv.variantId : "own"), "onb-want-" + (sv ? sv.variantId : "own")].forEach(id => dropDraft(id, "onb")); await saveProfile(true); go("teacher"); });
+    $$("[data-saved]").forEach(b => b.onclick = async () => { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Текущий сюжет уйдёт в историю. Нажми ещё раз"; return; } const sc = P.savedScenarios[Number(b.dataset.saved)]; P.savedScenarios.splice(Number(b.dataset.saved), 1); archivePattern(p, "saved_scenario"); await savePattern(p); if (sc.kind === "onb" && sc.onb && sc.lesson) { P.onb = sc.onb; await saveProfile(true); return startLessonNow(P.onb, sc.lesson); } const sv = sc.kind === "event" ? (variantById(sc.id) || (sc.area ? variantById(`${sc.id}@${sc.area}`) : null)) : null; P.onb = sv ? { step: "teacher", event: sv.variantId, picks: [{ id: sv.variantId, variantId: sv.variantId, area: sv.area, packId: sv.packId, text: sv.text, r: "yes" }], shown: [sv.variantId], area: sv.area, ctx: sv.area === "work" ? "any" : null, areaExplicit: true, routingVersion: X.routingVersion } : { step: "teacher", own: { text: sc.recognition || sc.text, packId: sc.packId || null, version: C.contentVersion, area: sc.area || null }, picks: [], routingVersion: X.routingVersion }; ["onb-teacher", "onb-case-" + (sv ? sv.variantId : "own"), "onb-sting-" + (sv ? sv.variantId : "own"), "onb-want-" + (sv ? sv.variantId : "own")].forEach(id => dropDraft(id, "onb")); await saveProfile(true); go("teacher"); });
     const kd = $("#keepDep"); if (kd) kd.onclick = async () => { const cur = p.hypothesisVersionId || null; if (dep.permission) { p.permissionSource = Object.assign({}, p.permissionSource, { keptFor: cur }); await savePattern(p); } if (dep.plan) { x.keptFor = cur; await saveExp(x); } toast("Оставлено осознанно"); story(); };
     const rd = $("#redoDep"); if (rd) rd.onclick = async () => { if (dep.permission) { p.permissionSource = null; await savePattern(p); } deepToday = true; go(dep.permission ? "module/rule" : "module/experiment"); };
     const rp = $("#resume"); if (rp) rp.onclick = async () => { p.status = "active"; await savePattern(p); story(); };
@@ -2168,6 +2190,8 @@
       D.meta.schemaVersion = R.SCHEMA_VERSION; D.meta.upgradedAt = Date.now();
       try { await ST.replaceAll(Object.assign(D, { profile: P })); } catch (e) { saveError(e); }
     }
+    /* v6.7.2: если прежняя сборка оставила два действующих сюжета — остаётся один (с принятым шагом), другой уходит в историю */
+    { const dup = R.resolveDuplicateCurrent(D, Date.now()); if (dup.length) { for (const q of dup) await savePattern(q); P.lastResult2 = OB.conflict.repaired; await saveProfile(true); } }
     /* v6.4: незавершённый вход переводится на ветки по сфере; автоматическая сфера из отклика пути не считается выбором. */
     if (P.onb && R.migrateOnbV64(P.onb, { variants: X.variants, routingVersion: X.routingVersion, recognitionTopics: Object.fromEntries(Object.values(X.pathProfiles).flatMap(pr => pr.recognitionItems.map(i => [i.id, i.preferSubtypes]))) })) await saveProfile(true);
     if (!D.profile) await saveProfile();

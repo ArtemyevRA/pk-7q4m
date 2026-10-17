@@ -801,6 +801,19 @@
     });
     return n;
   };
+  /* v6.7.2: восстановление данных после дефекта v6.7.1 — два действующих сюжета одновременно (новый вход создавал второй).
+     Остаётся один: с принятым шагом, затем самый поздний; остальные — в историю (не прохождение, не флаг). Повторный запуск безопасен. */
+  R.resolveDuplicateCurrent = function (data, now) {
+    const cur = (data.patterns || []).filter(p => ["active", "observe", "paused"].includes(p.status));
+    if (cur.length < 2) return [];
+    const xs = new Map((data.experiments || []).map(x => [x.id, x]));
+    const acc = p => { const x = xs.get(p.experimentId); return x && x.kind === "plan" && x.planStatus === "accepted" ? 1 : 0; };
+    const st = p => p.status === "paused" ? 0 : 1;
+    const keep = cur.slice().sort((a, b) => (acc(b) - acc(a)) || (st(b) - st(a)) || ((b.createdAt || 0) - (a.createdAt || 0)))[0];
+    const out = [];
+    cur.forEach(p => { if (p === keep) return; p.status = "archived"; p.archivedAt = now || Date.now(); p.archiveReason = "duplicate_current"; p.duplicateOf = keep.id; out.push(p); });
+    return out;
+  };
   R.isCompleted = p => !!p && p.status === "done" && !!p.completedBasis;
   R.migrateV63 = function (data) {
     let n = 0;
