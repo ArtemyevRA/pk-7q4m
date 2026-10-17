@@ -92,7 +92,8 @@
 
   /* ---------- тема и фон ---------- */
   function applyTheme() {
-    const ph = phase(), mode = P.theme === "auto" ? (ph === "evening" || ph === "night" ? "dark" : "light") : P.theme;
+    /* v6.10: единственная тема — «Звёздный вечер»; время суток остаётся функциональным (окна практики, подписи), не меняет палитру */
+    const mode = "dark";
     const r = document.documentElement; r.setAttribute("data-theme", mode); r.setAttribute("data-big", P.bigText ? "1" : "0");
     const im = $("#bgimg"), src = IMG(mode === "dark" ? "bg-evening" : "bg-morning"); if (im.getAttribute("src") !== src) im.setAttribute("src", src);
   }
@@ -236,7 +237,7 @@
     let [h, arg] = (location.hash || "#today").slice(1).split("/");
     const p = anyPattern();
     /* Новому человеку — вход (проблема → дата → число → сфера → события → фокус → учитель → случай → что задело → резюме → урок → карта дня). Действующий сюжет или записи прошлой версии — сразу свой путь. */
-    const STEPS = ["start", "birth", "symbol", "area", "workctx", "cards", "dialog", "own", "teacher", "case", "sting", "want", "summary", "path", "lesson"];
+    const STEPS = ["start", "birth", "symbol", "area", "workctx", "closectx", "fdialog", "cards", "dialog", "own", "teacher", "case", "sting", "want", "summary", "path", "lesson"];
     const ONB = [...STEPS, "plan", "map", "guide", "new", "entry", "help", "about", "settings"];
     const needStart = !p && !D.meta.migratedFromV9 && !(P.seen.start && !P.onb);
     if (needStart && !ONB.includes(h)) h = (P.onb && P.onb.step && ONB.includes(P.onb.step)) ? P.onb.step : "start";
@@ -252,7 +253,7 @@
     nav.innerHTML = `<a class="pill sos" href="#help" aria-label="Сейчас тяжело">${ic("flame", "")}<span>Сейчас тяжело</span></a><a class="pill ${h === "settings" ? "on" : ""}" href="#settings" aria-label="Настройки">${ic("key", "")}</a>`;
     tabs.innerHTML = [["today", "Сегодня", phaseIc()], ["story", "Мой путь", "eye"], ["history", "История", "hourglass"]].map(([k, l, i]) => `<a href="#${k}" class="${h === k ? "on" : ""}">${ic(i, "")}${l}</a>`).join("");
     $("#testbar").innerHTML = P.devMode && P.offsetH ? `<div class="testbar">Тестовое время: ${R.human(today())}, ${R.fmtTime(nowTs())} (сдвиг ${P.offsetH > 0 ? "+" : ""}${P.offsetH} ч) — <a href="#settings">сбросить</a></div>` : "";
-    const V = { start, birth, entry, new: newEpisode, area, workctx, cards, own: ownScenario, teacher, case: caseScreen, sting, want, summary, dialog, path: summary, lesson, plan: planScreen, map: mapScreen, guide, tool: toolScreen, help, today: todayScreen, story, history, settings, morning, event, action, evening, module: moduleScreen, review, flag: flagScreen, about, symbol, detail, legacy, episode: episodeView };
+    const V = { start, birth, entry, new: newEpisode, area, workctx, cards, own: ownScenario, teacher, case: caseScreen, sting, want, summary, dialog, closectx, fdialog, path: summary, lesson, plan: planScreen, map: mapScreen, guide, tool: toolScreen, help, today: todayScreen, story, history, settings, morning, event, action, evening, module: moduleScreen, review, flag: flagScreen, about, symbol, detail, legacy, episode: episodeView };
     (V[h] || V.today)(arg);
     window.scrollTo(0, 0);
   }
@@ -400,7 +401,7 @@
   function area(arg) {
     const S = onb(), num = pathNum(), pr = num ? X.pathProfiles[String(num)] : null, RG = OB.recog;
     S.routingVersion = S.routingVersion || RV;
-    const afterRecog = async () => { await persistOnb(); if (S.areaExplicit && S.area && S.area !== "own") return go(S.area === "work" && !S.ctx ? "workctx" : "cards"); area(); };
+    const afterRecog = async () => { await persistOnb(); if (S.areaExplicit && S.area && S.area !== "own") return go(S.area === "work" && !S.ctx ? "workctx" : S.area === "close" && famBank() && !S.famRole ? "closectx" : "cards"); area(); };
     if (pr && !S.otherStory && !S.recogDone && !S.areaExplicit) {
       const sel = S.recogSel || [];
       if (S.recogPickOne && sel.length > 1) {
@@ -427,6 +428,7 @@
       if (v === "unclear") { S.unclearView = true; await persistOnb(); return area(); }
       S.unclearView = false;
       if (v === "work") { if (S.area !== "work") setBranch(S, "work", null); else S.areaExplicit = true; S.step = "workctx"; await persistOnb(); return go("workctx"); }
+      if (v === "close" && famBank()) { if (S.area !== "close") setBranch(S, "close", null); else S.areaExplicit = true; S.step = S.famRole && S.famRole !== "child" ? "fdialog" : "closectx"; await persistOnb(); return go(S.step); }
       setBranch(S, v, null); S.step = "cards"; await persistOnb(); go("cards");
     };
     /* «Пока трудно понять»: по одному примеру из каждой сферы, подписанному сферой. Выбор — явный, колода — только этой сферы. */
@@ -550,7 +552,7 @@
         ${swipeHTML({ text: c.text, prev, tutorial: tut })}
         ${canPick() ? `<div class="row tight"><button class="btn secondary block sm" id="pick">${esc(OE.pick)} (${cands().length})</button></div>` : (cands().length ? `<p class="tiny" style="margin:4px 0 0;text-align:center">${esc(Math.min(DECK_MIN, deck.length) - answered() === 1 && OE.minHint1 ? OE.minHint1 : OE.minHint)}</p>` : "")}
         ${threeNo() ? `<div class="row tight"><button class="btn secondary block sm" id="refine">${esc(OB.refine.cta)}</button></div>` : ""}
-        <div class="row tight"><a class="btn ghost sm" href="#own">${esc(OE.own)}</a><a class="btn ghost sm" href="${S.area === "work" ? "#workctx" : "#area"}">${S.area === "work" ? "Другой контекст" : "Другая сфера"}</a>${dialogFor(S) ? `<a class="btn ghost sm" href="#dialog">${esc(OB.dialog.start)}</a>` : ""}</div>
+        <div class="row tight"><a class="btn ghost sm" href="#own">${esc(OE.own)}</a><a class="btn ghost sm" href="${S.area === "work" ? "#workctx" : S.area === "close" && famBank() ? "#closectx" : "#area"}">${S.area === "work" || (S.area === "close" && famBank()) ? "Другой контекст" : "Другая сфера"}</a>${S.area === "close" && S.famRole && S.famRole !== "child" && famBank() ? `<a class="btn ghost sm" href="#fdialog">${esc(OB.family.start)}</a>` : ""}${dialogFor(S) ? `<a class="btn ghost sm" href="#dialog">${esc(OB.dialog.start)}</a>` : ""}</div>
         ${first ? readingCard("karma-scene") : ""}`;
       $("#swc").dataset.variant = c.id;
       /* Сначала запись, потом счётчик: ответ сохраняется до перехода к следующей карточке. */
@@ -747,6 +749,184 @@
     $("#dOk").onclick = () => handoff(false);
     $("#dObs3").onclick = () => handoff(true);
     $("#dChange").onclick = async () => { R.dialogFix(st, "desire"); st.status = "asking"; await persistOnb(); dialog(); };
+  }
+  /* =================== v6.10 Семейная ветка: учитель → зеркало → разрешение → шаг ===================
+     Вход: «Отношения с близкими» → «С кем это связано?» (известная роль больше не спрашивается). Ребёнок и примеры — прежние карточки.
+     Две независимые проверки: «Ты узнал учителя и ситуацию?» и «Это внутреннее правило тебе знакомо?». Гипотезы — от первого лица,
+     ранжируются по ответам; «не моё» снимает одну формулировку. Без узнанного зеркала помощь с границей не блокируется. */
+  const famBank = () => (X.dialogs || {})["close:adult"] || null;
+  const FAM_KIND = { partner: "partner", mother: "parent", father: "parent", brother: "relative", sister: "relative", relative: "relative", friend: "friend", __own: "other" };
+  function closectx() {
+    const S = onb(), F = OB.family, B = famBank(); if (S.area !== "close" || !B) return go("area");
+    app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(areaLabel("close"))}</p><h1 class="q">${esc(F.ctxTitle)}</h1><p class="muted small">${esc(F.ctxSub)}</p>
+      <div class="chips col" id="fRoles">${B.roles.map(([v, l]) => `<button class="chip ${S.famRole === v ? "on" : ""}" data-v="${v}">${esc(l)}</button>`).join("")}<button class="chip dim" data-v="child">${esc(F.child)} <span class="tiny">· ${esc(F.childNote)}</span></button></div>
+      <div class="row tight"><a class="btn ghost sm" href="#cards" id="fExamples">${esc(F.examples)}</a><a class="btn ghost sm" href="#area">Другая сфера</a><a class="btn ghost sm" href="#own">${esc(OE.own)}</a></div>`;
+    $$("#fRoles [data-v]").forEach(b => b.onclick = async () => {
+      const v = b.dataset.v;
+      if (v === "child") { S.famRole = "child"; S.step = "cards"; await persistOnb(); return go("cards"); }
+      if (S.famRole !== v) { S.famRole = v; S.fdialog = null; }
+      S.step = "fdialog"; await persistOnb(); go("fdialog");
+    });
+  }
+  const famSummaryLines = (f, B, F) => {
+    const u = t => t ? uc1(R.trimEnd(t)) : F.unknownField, ms = F.mirrorStatus;
+    const lines = [[F.fTeacher, f.roleLabel ? uc1(f.roleLabel) : F.unknownField], [F.fEpisode, uc1(f.when)], [F.fMeaning, f.meaning && f.meaning.text ? `«${R.trimEnd(f.meaning.text)}»` : F.unknownField], [F.fReaction, f.reaction ? `«${R.trimEnd(f.reaction)}»` : F.unknownField]];
+    if (f.reaction) lines.push([F.fNow, u(f.now)], [F.fLater, u(f.later)]);
+    if (f.mirror) lines.push([F.fMirror, f.mirror.text ? `«${R.trimEnd(f.mirror.text)}» — ${ms[f.mirror.status] || ""}${f.mirror.example ? `; пример: «${R.trimEnd(f.mirror.example)}»` : ""}${f.mirror.prediction ? `; ожидание: «${R.trimEnd(f.mirror.prediction)}»` : ""}` : (ms[f.mirror.status] || F.unknownField)]);
+    if (f.need) lines.push([F.fGoal, uc1(f.need)]);
+    if (f.permission) lines.push([F.fPermission, uc1(R.trimEnd(f.permission.text))]);
+    if (f.goal && f.goal.text) lines.push([F.fGoal, uc1(R.trimEnd(f.goal.text))]);
+    if (f.action) lines.push([F.fAction, f.action.phrase ? `«${R.trimEnd(f.action.phrase)}»` : F.observeAction]);
+    return lines;
+  };
+  function fdialog() {
+    const S = onb(), B = famBank(), F = OB.family, D = OB.dialog;
+    if (!B || S.area !== "close" || !S.famRole || S.famRole === "child") return go(S.area === "close" ? "closectx" : "area");
+    if (!S.fdialog) S.fdialog = { bank: B.id, bankVersion: B.version, role: S.famRole, answers: {}, order: [], rejected: [], misses: 0, status: "intro", startedAt: nowTs() };
+    const st = S.fdialog; st.role = S.famRole;
+    if (st.status === "intro") {
+      app.innerHTML = `${sparkHTML("listen")}<h1 class="q">${esc(F.introTitle)}</h1><p>${esc(F.intro)}</p>
+        <div class="row"><button class="btn block" id="fStart">${esc(F.start)}</button></div>
+        <div class="chips col"><a class="chip" href="#own">${esc(D.own)}</a><a class="chip dim" href="#cards">${esc(F.examples)}</a></div>
+        <div class="row tight"><a class="btn ghost sm" href="#closectx">Другой учитель</a></div>`;
+      bindSpark(); $("#fStart").onclick = async () => { st.status = "asking"; await persistOnb(); fdialog(); }; return;
+    }
+    const res = R.familyNext(B, st), q = res.next, f = res.fields;
+    st.trace = res.trace;
+    const answer = async (qid, v, text) => { R.dialogAnswer(st, qid, v, text); st.status = "asking"; const ok = await persistOnb(); fdialog(); return ok !== false; };
+    const back = async () => { if (st.status === "summary" || st.status === "step") st.status = "asking"; R.dialogUndo(st); await persistOnb(); fdialog(); };
+    const head = sp => `${sparkHTML(sp)}<div class="row tight" style="justify-content:space-between;margin:0 0 4px"><span class="tiny" id="fQn">${res.done || q.kind === "noEvent" || q.kind === "unsupported" ? `Вопросов: ${res.asked}` : esc(D.qn.replace("{n}", res.asked + 1))}</span>${st.order.length ? `<button class="linkbtn tiny" id="fBack">${esc(D.back)}</button>` : `<a class="linkbtn tiny" href="#closectx">${esc(D.back)}</a>`}</div>
+      ${res.asked >= 10 && !res.done && (q.kind === "mirror" || q.kind === "yn") ? `<div class="card tight" id="fTooMany"><p class="small" style="margin:0 0 6px">${esc(F.tooMany)}</p><div class="row tight"><a class="btn ghost sm" href="#today">Продолжить позже</a><a class="btn ghost sm" href="#own">${esc(D.own)}</a></div></div>` : ""}`;
+    const bindHead = () => { bindSpark(); const b = $("#fBack"); if (b) b.onclick = back; };
+    const ownBox = (qid, ph, v, prefill) => { $("#fOwnBox").innerHTML = `<textarea id="fOwnT" placeholder="${esc(ph || D.ownPh)}">${esc(prefill || "")}</textarea><div class="row tight"><button class="btn secondary sm" id="fOwnOk">Готово</button></div>`; $("#fOwnT").focus(); $("#fOwnOk").onclick = () => { const t = $("#fOwnT").value.trim(); if (!t) return toast("Напиши пару слов"); answer(qid, v || "__own", t); }; };
+    const lbl = v => v === "__unknown" ? (q.id === "group" ? D.typeUnknown : F.unknown) : v === "__unsure" ? F.unsure : v === "__observe" ? F.observe : null;
+    const titleOf = { role: F.qRole, group: F.qGroup, meaning: F.qMeaning, reaction: F.qReaction, now: F.qNow, later: F.qLater, perm: F.qPermission, goal: F.qGoal, when: F.qWhen };
+    if (q.kind === "choice" || q.kind === "when") {
+      const opts = q.kind === "when" ? X.lastTime : q.options.map(([v, t]) => [v, (String(t).startsWith("__") ? lbl(t) : null) || t]);
+      const lead = ["meaning", "reaction", "now", "later"].includes(q.id) ? `«${f.eventText}»` : q.id === "perm" && f.mirror && f.mirror.text ? `«${R.trimEnd(f.mirror.text)}»` : q.id === "goal" && f.mirror && f.mirror.status !== "unknown" ? F.mirrorNone : "";
+      app.innerHTML = `${head(q.id === "contra" ? "think" : "listen")}${lead ? `<p class="tiny" style="margin:0 0 4px">${esc(lead)}</p>` : ""}<h1 class="q">${esc(q.text || titleOf[q.id] || "")}</h1>
+        <div class="chips col" id="fOpts">${opts.map(([v, t]) => `<button class="chip ${(st.answers[q.id] || {}).v === v ? "on" : ""}" data-v="${esc(v)}">${esc(t)}</button>`).join("")}${q.own ? `<button class="chip dim" id="fOwn">${esc(F.own)}</button>` : ""}</div><div id="fOwnBox"></div>`;
+      bindHead();
+      $$("#fOpts [data-v]").forEach(b => b.onclick = () => answer(q.id, b.dataset.v));
+      const ow = $("#fOwn"); if (ow) ow.onclick = () => ownBox(q.id); return;
+    }
+    if (q.kind === "yn") {
+      app.innerHTML = `${head("think")}<h1 class="q">${esc(q.text)}</h1><div class="chips col" id="fYn">${D.yn.map(([v, t]) => `<button class="chip" data-v="${v}">${esc(t)}</button>`).join("")}</div>`;
+      bindHead(); $$("#fYn [data-v]").forEach(b => b.onclick = () => answer(q.id, b.dataset.v)); return;
+    }
+    if (q.kind === "swipe") {
+      const lastQ = st.order[st.order.length - 1], prev = lastQ && lastQ.startsWith("e:") && st.answers[lastQ] ? st.answers[lastQ].v : null;
+      app.innerHTML = `${head("listen")}<h1 class="q">${esc(F.qEvent)}</h1>${swipeHTML({ text: q.text, prev, tutorial: !P.seen.swipe })}`;
+      bindHead();
+      bindSwipe({ onAnswer: async r => { P.seen.swipe = true; R.dialogAnswer(st, q.id, r); const ok = await persistOnb(); if (ok === false) { R.dialogUndo(st); return false; } setTimeout(fdialog, reduce() ? 0 : 230); return true; }, onUndo: back, announce: r => OB.swipe.prev.replace("{a}", swAns(r)) });
+      return;
+    }
+    if (q.kind === "confirmA") {
+      app.innerHTML = `${head("summary")}<h1 class="q">${esc(F.confirmA)}</h1><div class="card mark" id="fSumA"><div class="plines">${famSummaryLines(f, B, F).map(([k, v]) => `<div><span>${esc(k)}:</span> ${esc(v)}</div>`).join("")}</div></div>
+        <div class="chips col"><button class="chip" id="fAYes">${esc(F.confirmAYes)}</button><button class="chip" id="fAFix">${esc(F.confirmAFix)}</button><button class="chip dim" id="fANo">${esc(F.confirmANo)}</button></div><div id="fFix"></div>`;
+      bindHead();
+      $("#fAYes").onclick = () => answer("confirmA", "yes");
+      const fix = all => { $("#fFix").innerHTML = `<p class="small muted" style="margin:6px 0 4px">${esc(F.fixWhat)}</p><div class="chips">${[["event", F.fixEvent], ["meaning", F.fixMeaning], ["reaction", F.fixReaction]].concat(all ? [["all", D.fixAll]] : []).map(([k, t]) => `<button class="chip" data-fx="${k}">${esc(t)}</button>`).join("")}</div>`; $$("[data-fx]").forEach(b => b.onclick = async () => { R.familyFix(st, b.dataset.fx); await persistOnb(); toast(D.say.fix); fdialog(); }); };
+      $("#fAFix").onclick = () => fix(false);
+      $("#fANo").onclick = async () => { st.misses = (st.misses || 0) + 1; await persistOnb(); if (st.misses >= 2) { app.innerHTML = `${sparkHTML("think")}<p id="fMissTwice">${esc(D.missTwice)}</p><div class="chips col"><a class="btn block secondary" href="#own">${esc(D.own)}</a><button class="btn block secondary" id="fObs2">${esc(F.observe)}</button></div>`; bindSpark(); $("#fObs2").onclick = () => observeMode(); return; } fix(true); };
+      return;
+    }
+    if (q.kind === "mirror") {
+      const M = q.mirror, T = F.mirrorTypes[M.type] || "";
+      app.innerHTML = `${head("think")}${q.index === 0 ? `<p class="small" id="fBridge" style="margin:0 0 6px">${esc(F.bridge)}</p>` : ""}<h1 class="q">${esc(F.qMirror)}</h1>
+        <div class="card mark" id="fMirror"><div class="tiny">${esc(T)} · ${q.index + 1} из ${q.total}</div><p style="margin:4px 0 0"><b>${esc(M.text)}</b></p></div>
+        <div class="chips col" id="fMOpts"><button class="chip" data-v="yes">${esc(F.mYes)}</button><button class="chip" data-v="partly">${esc(F.mPartly)}</button><button class="chip" data-v="no">${esc(F.mNo)}</button><button class="chip dim" data-v="own">${esc(F.mOwn)}</button><button class="chip dim" data-v="unsure">${esc(F.mUnsure)}</button></div><div id="fOwnBox"></div>`;
+      bindHead();
+      $$("#fMOpts [data-v]").forEach(b => b.onclick = () => {
+        const v = b.dataset.v;
+        if (v === "partly") return ownBox(q.id, "", "partly", M.text);
+        if (v === "own") return ownBox(q.id, "моё правило, от первого лица", "own");
+        answer(q.id, v);
+      });
+      return;
+    }
+    if (q.kind === "check") {
+      const ex = q.mode === "example";
+      app.innerHTML = `${head("listen")}<p class="tiny" style="margin:0 0 4px">«${esc(R.trimEnd(q.mirrorText || ""))}»</p><h1 class="q">${esc(ex ? F.qCheckExample : F.qCheckPredict)}</h1>
+        <div class="chips col" id="fOpts">${ex ? "" : q.options.map(o => `<button class="chip" data-v="${esc(o)}">${esc(o)}</button>`).join("")}<button class="chip" id="fEx">${esc(F.checkExampleOwn)}</button>${ex ? "" : `<button class="chip dim" id="fOwn">${esc(F.own)}</button><button class="chip dim" data-v="__unknown">${esc(F.unknown)}</button>`}<button class="chip dim" data-v="__later">${esc(F.checkLater)}</button></div><div id="fOwnBox"></div>`;
+      bindHead();
+      $$("#fOpts [data-v]").forEach(b => b.onclick = () => answer("check", b.dataset.v === "__later" && !ex ? "__unknown" : b.dataset.v));
+      $("#fEx").onclick = () => ownBox("check", "когда это было и что ты сделал", "__example");
+      const ow = $("#fOwn"); if (ow) ow.onclick = () => ownBox("check", "", "__own");
+      return;
+    }
+    if (q.kind === "action") {
+      app.innerHTML = `${head("support")}<p class="tiny" style="margin:0 0 4px">${esc(f.permission ? uc1(R.trimEnd(f.permission.text)) : f.goal ? uc1(f.goal.text) : "")}</p><h1 class="q">${esc(F.qAction)}</h1>
+        <div class="chips col" id="fActs">${q.options.map(a => `<button class="chip" data-a="${esc(a.id)}"><b>${esc(a.label)}</b><br><span class="small">«${esc(a.phrase)}»</span></button>`).join("")}<button class="chip dim" id="fOwn">${esc(D.ownAction)}</button><button class="chip dim" data-a="__observe">${esc(F.observe)}</button></div><div id="fOwnBox"></div>`;
+      bindHead();
+      $$("#fActs [data-a]").forEach(b => b.onclick = () => {
+        const id = b.dataset.a; if (id === "__observe") return answer("action", "__observe");
+        const a = q.options.find(x => x.id === id);
+        $("#fOwnBox").innerHTML = `<label for="fPhrase">${esc(F.editPhrase)}</label><textarea id="fPhrase">${esc(a.phrase)}</textarea><div class="row tight"><button class="btn secondary sm" id="fPhraseOk">${esc(F.phraseOk)}</button></div>`;
+        $("#fPhraseOk").onclick = () => { const t = $("#fPhrase").value.trim(); if (!t) return toast("Напиши фразу"); answer("action", id, t); };
+      });
+      $("#fOwn").onclick = () => ownBox("action", D.ownActionPh);
+      return;
+    }
+    if (q.kind === "noEvent" || q.kind === "unsupported") {
+      const ne = q.kind === "noEvent";
+      app.innerHTML = `${head("think")}<h1 class="q">${esc(ne ? D.noEvent : D.unsupported)}</h1><p>${esc(ne ? D.noEventText : D.unsupportedText)}</p>
+        <div class="chips col">${ne ? `<button class="btn block secondary" id="fOther">${esc(D.otherType)}</button>` : ""}<a class="btn block secondary" href="#own">${esc(D.own)}</a><a class="btn block secondary" href="#cards">${esc(F.examples)}</a><button class="btn block secondary" id="fObs">${esc(F.observe)}</button></div>`;
+      bindHead();
+      const o = $("#fOther"); if (o) o.onclick = async () => { Object.keys(st.answers).filter(k => k === "group" || k.startsWith("e:") || k.startsWith("n:")).forEach(k => { delete st.answers[k]; }); st.order = st.order.filter(k => st.answers[k]); await persistOnb(); fdialog(); };
+      $("#fObs").onclick = () => observeMode(); return;
+    }
+    /* итог: подтверждается отдельно, затем шаг — отдельным экраном */
+    if (st.status !== "step") {
+      st.status = "summary";
+      app.innerHTML = `${head("summary")}<h1 class="q">${esc(F.sumTitle)}</h1><div class="card mark" id="fSum"><div class="plines">${famSummaryLines(f, B, F).map(([k, v]) => `<div><span>${esc(k)}:</span> ${esc(v)}</div>`).join("")}</div></div>
+        <p style="margin:8px 0 4px"><b>${esc(F.sumAsk)}</b></p><div class="chips col"><button class="chip" id="fYes">${esc(F.sumYes)}</button><button class="chip" id="fFixB">${esc(F.sumFix)}</button></div><div id="fFix"></div>`;
+      bindHead();
+      $("#fYes").onclick = async () => { st.status = "step"; st.confirmedAt = nowTs(); await persistOnb(); fdialog(); };
+      $("#fFixB").onclick = () => { $("#fFix").innerHTML = `<div class="chips">${[["event", F.fixEvent], ["meaning", F.fixMeaning], ["reaction", F.fixReaction], ["mirror", F.fixMirror], ["goal", F.fixGoal], ["action", F.fixAction]].map(([k, t]) => `<button class="chip" data-fx="${k}">${esc(t)}</button>`).join("")}</div>`; $$("[data-fx]").forEach(b => b.onclick = async () => { R.familyFix(st, b.dataset.fx); st.status = "asking"; await persistOnb(); toast(D.say.fix); fdialog(); }); };
+      return;
+    }
+    /* шаг: внутри — правило и разрешение; снаружи — поступок рядом с учителем; «зачем» относится к разговору */
+    const a = f.action && f.action.id !== "observe" && f.action.id !== "own" ? B.actions[f.action.id] : null;
+    const why = a ? (f.mirror && f.mirror.text ? `Проверяем правило «${R.trimEnd(f.mirror.text)}»: ${lc1(a.why)}` : a.why) : "";
+    const pl = (B.pathLinks || {})[`${pathNum()}|${f.group}`] || "";
+    app.innerHTML = `${head("support")}<h1 class="q">${esc(F.stepTitle)}</h1>
+      <div class="card mark" id="fStep"><div class="plines">
+        <div><span>${esc(D.stepTeacher)}:</span> ${esc(f.roleLabel || "")}</div>
+        ${f.mirror && f.mirror.text ? `<div><span>${esc(F.stepInside)}:</span> ${esc(f.permission ? uc1(R.trimEnd(f.permission.text)) : "")}</div>` : f.goal && f.goal.text ? `<div><span>${esc(F.fGoal)}:</span> ${esc(uc1(f.goal.text))}</div>` : ""}
+        <div><span>${esc(F.stepOutside)}:</span> ${esc(f.action && f.action.phrase ? `«${R.trimEnd(f.action.phrase)}»` : F.observeAction)}</div>
+        ${why ? `<div><span>${esc(F.stepWhy)}:</span> ${esc(why)}</div>` : ""}
+        ${a ? `<div><span>${esc(D.stepCheck)}:</span> ${esc(a.afterQuestion)}</div>` : f.action && f.action.id === "own" ? `<div><span>${esc(D.stepCheck)}:</span> ${esc(D.ownCheck)}</div>` : ""}
+      </div></div>${pl ? `<p class="small" id="fPath" style="margin:6px 0">${esc(pl)}</p>` : ""}
+      <div class="row"><button class="btn block" id="fOk">${esc(F.stepOk)}</button></div>
+      <div class="row tight"><button class="btn ghost" id="fChange">${esc(F.stepChange)}</button><button class="btn ghost" id="fObs3">${esc(F.observe)}</button></div>`;
+    bindHead();
+    const handoff = async observe => {
+      const obs = observe || !f.action || f.action.id === "observe";
+      const kind = FAM_KIND[f.role] || "other", label = f.roleLabel || "близкий";
+      S.event = null; S.area = "close"; S.areaExplicit = true;
+      const pk = a ? a.packId : null;
+      S.own = { text: uc1(f.eventText), packId: pk, version: C.contentVersion, area: "close", origin: "family_dialog" };
+      S.teacher = { kind, label, ownName: f.role === "__own" ? label : "", area: "close", origin: "dialog_selected" };
+      S.case = { text: uc1(f.eventText), when: f.whenCase, date: null, repeat: null, origin: "dialog_selected" };
+      S.sting = { meaningId: f.meaning.id, text: f.meaning.text || "", lessonId: null, observe: null, origin: f.meaning.origin, repeat: null, reaction: f.reaction || null };
+      const title = f.permission ? R.trimEnd(f.permission.short || f.permission.text) : f.goal && f.goal.text ? R.trimEnd(f.goal.text) : "";
+      const purpose = why || (a ? a.why : "");
+      const L = obs || !a && !(f.action && f.action.id === "own") ? X.lessonObserve : {
+        id: "fam:" + (a ? a.id : "own") + ":" + (f.permission ? f.permission.id : f.goal ? f.goal.id : "x"), family: true, packId: pk || "fairness", title: lc1(title || (a ? a.label : "свой шаг")), homeTitle: null,
+        inner: f.permission ? R.trimEnd(f.permission.text) : "", action: f.action.phrase, skillId: a ? a.skillId : "boundary", signal: a ? a.cueTemplate : "", hypothesisId: null,
+        template: Object.assign({ id: "fam:" + (a ? a.id : "own"), title: lc1(title || ""), lessonTitle: lc1(title || ""), lessonAction: f.action.phrase, cueTemplate: a ? a.cueTemplate : "Когда это повторится", actionTemplate: f.action.phrase,
+          afterQuestion: a ? a.afterQuestion : D.ownCheck, purpose, effortLabel: a ? a.effortLabel : "Один небольшой поступок", limits: a ? a.limits : "", smallerVersion: "Сказать только первую часть фразы.", setup: [], skillId: a ? a.skillId : "boundary", packId: pk || "fairness", adapted: true, family: true }) };
+      S.want = obs ? { kind: "observe", text: OB.plan.observeGoal, origin: "user_selected", lessonId: null } : (f.permission && f.permission.origin === "user_selected") || (f.goal && f.goal.origin === "user_selected")
+        ? { kind: "lesson", key: "L:" + L.id, lessonId: L.id, text: uc1(L.title), origin: "user_selected", ownAction: f.action.phrase }
+        : { kind: "own", text: uc1(title), origin: "user_written", lessonId: null, ownAction: f.action.phrase };
+      S.confirmed = true; S.lesson = null; S.rejected = [];
+      S.familyResult = { bank: B.id, bankVersion: B.version, role: f.role, group: f.group, event: f.event, meaning: f.meaning, reaction: f.reaction, now: f.now, later: f.later, mirror: f.mirror, need: f.need || null, permission: f.permission || null, goal: f.goal || null, action: f.action, answers: JSON.parse(JSON.stringify(st.answers)), order: [...st.order], trace: res.trace, asked: res.asked, confirmedAt: st.confirmedAt || nowTs(), misses: st.misses || 0 };
+      await startLesson(S, L);
+    };
+    $("#fOk").onclick = () => handoff(false);
+    $("#fObs3").onclick = () => handoff(true);
+    $("#fChange").onclick = async () => { R.familyFix(st, "action"); st.status = "asking"; await persistOnb(); fdialog(); };
   }
   /* v6.7.1: из диалога руководителя уже известны сфера, контекст и учитель — не спрашиваем их заново */
   const fromBossDialog = S => !!(S.dialog && S.area === "work" && S.ctx === "boss");
@@ -961,11 +1141,11 @@
       <p class="tiny muted" style="margin:6px 0 0">${esc(O.note)}</p>`;
     $("#cfSwitch").onclick = async () => { const b = $("#cfSwitch"); if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = O.switchSure; return; } archivePattern(cur, "new_story"); await savePattern(cur); return startLessonNow(S, L); };
     $("#cfLater").onclick = async () => {
-      const snap = JSON.parse(JSON.stringify(S)); delete snap.dialog;
+      const snap = JSON.parse(JSON.stringify(S)); delete snap.dialog; delete snap.fdialog;
       P.savedScenarios = [...(P.savedScenarios || []), { id: "onb-" + R.uuid(), kind: "onb", onb: snap, lesson: JSON.parse(JSON.stringify(L)), text: newText, recognition: newText, version: C.contentVersion, routingVersion: X.routingVersion, savedAt: nowTs(), area: S.area || null }];
       P.onb = null; await saveProfile(true); toast(O.saved); go("today");
     };
-    $("#cfBack").onclick = () => go(S.dialogResult ? "dialog" : "lesson");
+    $("#cfBack").onclick = () => go(S.familyResult ? "fdialog" : S.dialogResult ? "dialog" : "lesson");
   }
   async function startLessonNow(S, L) {
     const ts = nowTs(), k = today(), T = S.teacher, ev = S.event ? eventById(S.event) : null, cs = S.case || {};
@@ -980,9 +1160,18 @@
     const p = { id: R.uuid(), title: pk ? pk.title : shortTitle(caseText), packId: packId || null, contexts: tl ? [tl] : [], status: hasCase ? "active" : "observe", startDate: practiceStart, practiceStartDate: practiceStart, practiceStartOrigin: "user", caseDate: hasCase ? caseDate : null, firstDay: { kind: phase(), date: k, at: ts, taken: false }, createdAt: ts, hypothesisVersionId: null, experimentId: null, queue: [], legacy: false,
       scenario, teacher: { kind: T.kind, label: tl, what: caseText },
       lesson: { id: L.id, title: L.title, homeTitle: L.homeTitle || null, inner: L.inner || "", action: L.action, skillId: L.skillId, hypothesisId: L.hypothesisId || null, signal: L.signal, status: "preliminary", chosenAt: ts, rejected: S.rejected || [], origin: "editorial_hypothesis", basis: { eventId: ev ? ev.eventId : null, variantId: ev ? ev.variantId : null, meaningId: S.sting.meaningId } },
-      firstPlan: { id: L.id, text: uc1(L.action), skill: L.skillId, signal: L.signal, action: L.action }, skillId: L.skillId, habitualResponse: null };
+      firstPlan: { id: L.id, text: uc1(L.action), skill: L.skillId, signal: L.signal, action: L.action }, skillId: L.skillId, habitualResponse: (S.sting && S.sting.reaction) ? uc1(R.trimEnd(S.sting.reaction)) : null, habitualResponseOrigin: (S.sting && S.sting.reaction) ? "dialog_user" : null };
     /* Разрешение из каталога — кандидат: хранится с происхождением, подтверждается человеком на шаге «Что я себе разрешаю». */
     if (L.inner) { p.permission = L.inner; p.permissionSource = { origin: "lesson", hypothesisVersionId: null, confirmed: false }; }
+    /* v6.10: семейный разбор — зеркало хранится отдельно от учителя: значение, тип, статус и источник; разрешение выбрано человеком */
+    if (S.familyResult) {
+      const fr = S.familyResult; p.familyResult = fr; p.title = shortTitle(caseText); /* заголовок — сцена с учителем, не название пакета */ p.scenario.family = true; p.scenario.consequenceNow = fr.now || ""; p.scenario.consequenceLater = fr.later || "";
+      if (fr.mirror && fr.mirror.text) p.mirror = { text: fr.mirror.text, type: fr.mirror.type, status: fr.mirror.status, origin: fr.mirror.origin, example: fr.mirror.example || "", prediction: fr.mirror.prediction || "", candidateId: fr.mirror.id || null, at: ts, history: [], evidence: [] };
+      else p.mirror = { text: "", status: (fr.mirror && fr.mirror.status) || "unknown", origin: "none", at: ts, history: [], evidence: [] };
+      if (fr.need) p.need = fr.need;
+      if (fr.permission) { p.permission = fr.permission.text; p.permissionSource = { origin: fr.permission.origin === "user_written" ? "user" : "dialog_user", hypothesisVersionId: null, confirmed: true, at: ts }; }
+      else if (!observe) { p.permission = ""; p.permissionSource = null; }
+    }
     /* Личный план — черновик из шаблона: активируется только после заполнения момента и действия словами человека. */
     const tpl = templateFor(L, S), basis = [ev ? ev.id : null, S.sting.meaningId ? "meaning:" + S.sting.meaningId : null].filter(Boolean);
     /* Цель подтверждена на шаге «что хочу иначе», если урок совпал с выбранным направлением; иначе — проверка цели на экране шага. */
@@ -991,7 +1180,7 @@
     const x = Object.assign(R.planFromTemplate({ template: tpl.template, kind: tpl.kind, patternId: p.id, lessonId: L.id, skillId: L.skillId, basisIds: basis, painText: S.sting.text || "", desiredChange: desired, createdAt: ts, mode: tpl.mode, once: tpl.once }), { id: R.uuid(), hypothesisVersionId: null, lessonId: L.id }); x.lineageId = x.id;
     if (desired) { x.goalOrigin = W.kind === "own" ? "user_written" : W.kind === "observe" ? "observe" : "user_confirmed"; x.goalAt = ts; }
     /* v6.7.1: своё действие из диалога — слова человека, шаблон только задаёт рамку момента */
-    if (W.kind === "own" && W.ownAction && wantMatches) x.actionUser = uc1(W.ownAction);
+    if (W.ownAction && wantMatches) x.actionUser = uc1(W.ownAction);
     p.experimentId = x.id; await saveExp(x); await savePattern(p);
     if (hasCase) {
       const e = { id: R.uuid(), patternId: p.id, linkStatus: "confirmed", occurredAt: ts, loggedAt: ts, dateKey: caseDate, dateApprox: cs.date || cs.when === "today" ? null : cs.when, tz: R.tz(), event: caseText, person: tl, emotion: null, intensity: null, response: null, verificationStatus: "onboarding", isRehearsal: false, legacy: false, meaning: S.sting.text || null };
@@ -1008,6 +1197,7 @@
   /* Шаблон для урока: карточка каталога по id урока; наблюдение — предметная карточка (деньги) или общий стартовый план; свои слова — стартовый план по навыку. */
   function templateFor(L, S) {
     const id = L && L.id || "";
+    if (L && L.family && L.template) return { template: Object.assign({ catalogVersion: PR.catalogVersion }, L.template), kind: "card", mode: null, once: false };
     const ad = adaptedCard(id, (L && L.variantId) || (S && S.event) || null);
     if (ad) return { template: Object.assign({ catalogVersion: PR.catalogVersion }, ad), kind: "card", mode: PR.modes[id] || null, once: PR.once.includes(id) };
     if (PR.cards[id]) return { template: Object.assign({ catalogVersion: PR.catalogVersion }, PR.cards[id]), kind: "card", mode: PR.modes[id] || null, once: PR.once.includes(id) };
@@ -1108,6 +1298,7 @@
       app.innerHTML = `<p class="tiny" style="margin:0 0 4px">${esc(editing ? OPl.editTitle : OPl.title)}${obs ? " · наблюдение" : w.mode === "experiment" ? " · проверка ожидания" : ""} · v${w.version || 1}</p>
         <h1 class="q">${esc(editing ? OPl.editTitle : OPl.title)}</h1>
         ${goalHtml}
+        ${p.mirror && p.mirror.text && p.mirror.status !== "rejected" ? `<div class="card tight" id="planInside"><div class="k">${esc(OB.family.stepInside)}</div><p class="small" style="margin:2px 0 0">Проверяю правило: «${esc(R.trimEnd(p.mirror.text))}»${p.permission ? `. Разрешаю себе: ${esc(lc1(R.trimEnd(p.permission)))}` : ""}.</p></div>` : ""}
         <div class="card mark"><div class="plines">
           ${(w.setup || []).some(sl => sl.label) ? `<div><span>${esc(OPl.whoL)}:</span> <i id="whoTxt" style="font-style:normal">${esc((w.slots || {}).person || "—")}</i></div>` : ""}
           <div><span>${esc(OPl.whenL)}:</span> ${show.cue ? `<textarea id="cueOwn" placeholder="свой момент, одной фразой">${esc(w.cueUser || "")}</textarea>` : `<i id="cueTxt" style="font-style:normal">${hl(uc1(v.cue))}</i>`}</div>
@@ -1493,6 +1684,7 @@
     const stepsFull = [
       { k: "opp", q: changedOnly ? OB.eveningOut.afterChange : "Был сегодня повод потренироваться?", lead: late ? `Вечер за ${R.human(k)} — запись помечена как поздняя.` : dayHint, type: "choice", opts: [["yes", C.daily.opportunity[0]], ["no", C.daily.opportunity[1]], ["unsure", C.daily.opportunity[2]]] },
       { k: "act", q: "Выбранное действие получилось?", lead: v ? `Твой шаг: ${lc1(v.action)}.` : "", type: "choice", opts: [["done", C.daily.actionResult[0]], ["partial", C.daily.actionResult[1]], ["not", C.daily.actionResult[2]], ["other", C.daily.actionResult[3]]], skip: a => a.opp !== "yes" || !!derived },
+      { k: "mirror", q: OB.family.eveMirrorQ, lead: () => p.mirror ? `«${R.trimEnd(p.mirror.text)}»` : "", type: "choice", opts: OB.family.eveMirror, optional: true, skip: a => !(p.mirror && p.mirror.text && p.mirror.status !== "rejected") || a.opp !== "yes" },
       { k: "outcome", q: "Что случилось на самом деле?", lead: a => `Ты ожидал: «${x.prediction}».`, type: "choice", opts: [["confirmed", "Ожидание подтвердилось"], ["partial", "Отчасти"], ["not", "Не подтвердилось"], ["insufficient", "Данных мало"]], skip: a => a.opp !== "yes" || !(x && x.prediction) || a.act === "not" },
       { k: "fit", q: "Объяснение подходило к сегодняшнему случаю?", lead: a => { const h = hypOf(p); return h ? `«${h.text}»` : ""; }, type: "choice", opts: [["yes", "Да, узнаю"], ["no", "Нет, здесь было другое"], ["unknown", "Не знаю"]], optional: true, skip: a => a.opp !== "yes" || !hypOf(p) || hypOf(p).branch === "unknown" },
       { k: "impact", q: C.daily.eveningImpactScale.label, lead: "Это отдельная шкала: не сила эмоции, а насколько она мешает сейчас.", type: "scale", lo: "0, легко", hi: "10, очень трудно", def: 3 },
@@ -1511,6 +1703,7 @@
         const prov = useBest ? { skillId: best.skillId || null, experimentId: best.experimentId || best.planId || null, planId: best.planId || null, planVersion: best.planVersion || null, lineageId: best.lineageId || null } : evidenceTag(p);
         c.patternId = p.id; c.evening = Object.assign({ at: nowTs(), late, quick, hadOpportunity: q.hadOpportunity, actionStatus: q.actionStatus, currentImpact: ans.impact, change: ans.change || null, tz: R.tz(), enteredDate: today(), fromEpisodeId: useBest ? best.episodeId : null, otherAttemptIds: F.other.map(a => a.episodeId), provenanceChecked: true }, prov);
         if (ans.fit && ans.fit !== "unknown") { const h = hypOf(p); const ep = eps[eps.length - 1]; if (h) { const key = ans.fit === "yes" ? "supportingEpisodeIds" : "contradictingEpisodeIds"; h[key] = [...new Set([...(h[key] || []), ep ? ep.id : "day-" + k])]; await saveHyp(h); } }
+        if (ans.mirror && p.mirror && p.mirror.text) { c.evening.mirrorSeen = ans.mirror; p.mirror.evidence = [...(p.mirror.evidence || []).filter(e => e.dateKey !== k), { dateKey: k, seen: ans.mirror, at: nowTs() }]; await savePattern(p); }
         if (ans.outcome && x) { x.results = x.results || []; const ep = eps.filter(e => e.newResponse)[0] || eps[eps.length - 1]; x.results.push({ episodeId: ep ? ep.id : null, dateKey: k, outcome: ans.outcome, at: nowTs() }); await saveExp(x); }
         await saveCheckin(c);
         eveningDone(p, c, rs, F);
@@ -1738,6 +1931,21 @@
       const nxp = await newExperimentVersion(p, patch); nxp.lineageId = lin; nxp.wordingUpdatedFrom = u.x.id; await saveExp(nxp); toast(OB.planUpdate.done); again(); };
     const kp = $("#updKeep"); if (kp) kp.onclick = async () => { const x = expOf(p); x.templateUpdateDismissed = C.contentVersion; await saveExp(x); again(); };
   }
+  /* v6.10: зеркало — проверяемая гипотеза: значение, статус и источник; можно поправить или снять, история сохраняется */
+  function mirrorCard(p) {
+    const M = p && p.mirror, F = OB.family; if (!M || !M.text) return "";
+    const ev = M.evidence || [], y = ev.filter(e => e.seen === "yes" || e.seen === "partly").length, n = ev.filter(e => e.seen === "no").length;
+    return `<div class="prow" id="mirrorRow"><div class="k"><span>${esc(F.storyMirror)}</span>${M.status !== "rejected" ? `<button data-mir="edit">${esc(F.storyMirrorEdit)}</button> <button data-mir="reject">${esc(F.storyMirrorReject)}</button>` : ""}</div>«${esc(R.trimEnd(M.text))}» <span class="tiny">· ${esc(F.mirrorStatus[M.status] || "")}</span>${M.example ? `<div class="tiny">Пример: «${esc(R.trimEnd(M.example))}»</div>` : ""}${ev.length ? `<div class="tiny" id="mirrorEv">${esc(F.storyMirrorEvidence.replace("{y}", y).replace("{n}", n))}</div>` : ""}</div>`;
+  }
+  function bindMirrorCard(p) {
+    const F = OB.family;
+    $$("[data-mir]").forEach(b => b.onclick = async () => {
+      const M = p.mirror; M.history = M.history || [];
+      if (b.dataset.mir === "reject") { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Снять гипотезу? Нажми ещё раз"; return; } M.history.push({ text: M.text, status: M.status, at: nowTs(), change: "rejected" }); M.status = "rejected"; await savePattern(p); toast(F.storyMirrorRejected); return story(); }
+      const row = $("#mirrorRow"); row.insertAdjacentHTML("beforeend", `<textarea id="mirT">${esc(M.text)}</textarea><div class="row tight"><button class="btn secondary sm" id="mirOk">Сохранить</button></div>`);
+      $("#mirOk").onclick = async () => { const t = $("#mirT").value.trim(); if (!t) return; if (t !== M.text) { M.history.push({ text: M.text, status: M.status, at: nowTs(), change: "edited" }); M.text = t; M.origin = "user_edited"; M.status = M.status === "to_check" ? "to_check" : "partial"; await savePattern(p); } story(); };
+    });
+  }
   function story() {
     const p = anyPattern();
     if (!p) { app.innerHTML = `<h1>Сюжета пока нет</h1><p class="muted">Начни с одного случая или посмотри карточки.</p><div class="row"><a class="btn block" href="#entry">Начать</a></div>`; return; }
@@ -1763,6 +1971,7 @@
       <div class="card">
         ${pathNum() ? `<div class="prow"><div class="k"><span>${esc(OB.levels.theme)}</span><a href="#symbol">открыть</a></div>${pathNum()} · ${esc(X.pathProfiles[String(pathNum())].displayName)}<div class="tiny">${esc(X.pathProfiles[String(pathNum())].shortIntro)}</div></div>` : ""}
         ${learningText(p) ? `<div class="prow"><div class="k"><span>${esc(OB.levels.lesson)}</span></div>${esc(uc1(learningText(p)))}${expOf(p) && expOf(p).goalConfirmed ? "" : ` <span class="tiny">· цель не подтверждена — уточни в шаге</span>`}</div>` : ""}
+        ${mirrorCard(p)}
         ${p.scenario ? field("Знакомый сценарий", (p.scenario.own || p.scenario.recognition) + (p.scenario.meaningText ? ` — задевает: ${lc1(p.scenario.meaningText)}` : "") + (p.scenario.repeat === "repeat" ? " (повторяется)" : p.scenario.repeat === "once" ? " (пока один случай)" : ""), "scenario", "что повторяется") : field("Сюжет", p.title, "title", "как назвать")}
         ${p.teacher ? field("Учитель", `${p.teacher.label}${p.teacher.what ? ` — ${lc1(p.teacher.what)}` : ""}`, "teacher", "кто или что возвращает в сюжет") : field("Кто или что", (p.contexts || []).join(", "), "contexts", "коллега, партнёр, ситуация")}
         ${p.lesson ? field("Урок", uc1(p.lesson.title) + (p.lesson.status === "preliminary" ? " (предварительный)" : ""), "lesson", "направление урока") : ""}
@@ -1795,6 +2004,7 @@
       ${(() => { const done = D.patterns.filter(q => R.isCompleted(q) && q.lesson && !q.legacy); return `<details class="plain"><summary>${esc(OB.completed.title)} · ${done.length}</summary>${done.length ? `<ul class="list">${done.map(q => { const fl = flagsReal().filter(f => f.patternId === q.id); const n = D.episodes.filter(e => e.patternId === q.id && R.isConfirmedAction(e)).length; return `<li class="small"><b>${esc(uc1(q.lesson.title))}</b>${fl.length ? ` · ${esc(OB.archive.basis)}: флаг «${fl.map(f => esc(skillLabel(f.skillId))).join(", ")}»` : ""}${q.completedBasis && q.completedBasis.at ? ` · ${esc(R.human(R.dateKey(q.completedBasis.at)))}` : ""} · применений: ${n}</li>`; }).join("")}</ul>` : `<p class="tiny">${esc(OB.completed.none)}</p>`}</details>`; })()}
       <details class="plain"><summary>Версии гипотез и экспериментов</summary><ul class="list">${D.hypotheses.filter(v => v.patternId === p.id).map(v => `<li><div class="date">гипотеза v${v.version || 1} · ${esc(statusLabel(v.status))} · ${esc(R.human(R.dateKey(v.createdAt)))}</div>${esc(v.text)}</li>`).join("")}${D.experiments.filter(v => v.patternId === p.id).map(v => `<li><div class="date">шаг v${v.version} · ${v.status === "active" ? "действует" : "заменён"} · ${esc(R.human(R.dateKey(v.createdAt)))}</div>${esc(v.action)}${v.prediction ? ` — ожидание: ${esc(v.prediction)}` : ""}</li>`).join("") || "<li class='muted'>пока пусто</li>"}</ul></details>
       <div class="row tight">${p.status === "paused" ? `<button class="btn secondary" id="resume">Вернуться к сюжету</button>` : `<button class="btn ghost" id="pauseP">Пауза по сюжету</button>`}<button class="btn ghost" id="newP">Другой сюжет</button></div>`;
+    bindMirrorCard(p);
     $$("[data-edit]").forEach(b => b.onclick = () => b.dataset.edit === "plan" ? go(x && x.kind === "plan" && x.planStatus !== "draft" ? "plan/edit" : "plan") : editField(p, b.dataset.edit, b.dataset.ph));
     const ct = $("#compToggle"); if (ct) ct.onclick = async () => { P.companionOff = !P.companionOff; await saveProfile(true); story(); };
     bindPlanUpdate(p, story);
@@ -2094,7 +2304,7 @@
   function settings() {
     const rem = P.reminders;
     app.innerHTML = `<h1>Настройки</h1>
-      <div class="card"><div class="k">${ic("sunrise")}Оформление</div><div class="chips" id="theme">${[["auto", "По времени суток"], ["light", "Рассвет"], ["dark", "Звёздный вечер"]].map(([v, l]) => `<button class="chip ${P.theme === v ? "on" : ""}" data-v="${v}">${l}</button>`).join("")}</div>
+      <div class="card"><div class="k">${ic("sunrise")}Оформление</div><p class="small muted" style="margin:2px 0 4px">Тема «Звёздный вечер».</p>
         <div class="switch"><span>Крупный текст</span><input type="checkbox" id="big" ${P.bigText ? "checked" : ""}></div></div>
       <div class="card"><div class="k">${ic("hourglass")}Напоминания</div><p class="small muted" style="margin:2px 0 4px">По умолчанию одно вечернее. Утро и день — по желанию. Приложение само уведомления не присылает: напоминания живут в календаре телефона.</p>
         ${[["evening", "Вечер"], ["morning", "Утро"], ["day", "День"]].map(([k, l]) => `<div class="switch"><label style="margin:0;display:flex;align-items:center;gap:8px"><input type="checkbox" data-rk="${k}" ${rem[k].on ? "checked" : ""}>${l}</label><input type="time" data-rt="${k}" value="${esc(rem[k].time)}" aria-label="Время: ${l}"></div>`).join("")}
@@ -2109,7 +2319,6 @@
       <details class="plain"><summary>Для разработчика</summary><div class="card tight"><div class="switch"><span>Режим разработки</span><input type="checkbox" id="dev" ${P.devMode ? "checked" : ""}></div>
         ${P.devMode ? `<p class="small muted">Тестовые часы: ${esc(R.human(today()))}, ${R.fmtTime(nowTs())}, сдвиг +${P.offsetH || 0} ч.</p><div class="row tight"><button class="btn secondary sm" data-o="6">+6 ч</button><button class="btn secondary sm" data-o="24">+1 день</button><button class="btn secondary sm" data-o="168">+7 дней</button><button class="btn secondary sm" data-o="0">Сброс</button></div>` : ""}
         <p class="tiny">Версия ${esc(window.KARMA_VERSION || "v2")} · контент ${esc(C.contentVersion)}</p></div></details>`;
-    $$("#theme .chip").forEach(b => b.onclick = async () => { P.theme = b.dataset.v; await saveProfile(); applyTheme(); settings(); });
     $("#big").onchange = async e => { P.bigText = e.target.checked; await saveProfile(); applyTheme(); };
     $$("[data-rk]").forEach(i => i.onchange = async () => { rem[i.dataset.rk].on = i.checked; await saveProfile(); });
     $$("[data-rt]").forEach(i => i.onchange = async () => { rem[i.dataset.rt].time = i.value; await saveProfile(); });
@@ -2148,7 +2357,7 @@
 
   /* =================== СТАРТ ПРИЛОЖЕНИЯ =================== */
   function defaultProfile(keep) {
-    return Object.assign({ theme: "auto", bigText: false, reminders: { evening: { on: true, time: "20:30" }, morning: { on: false, time: "08:30" }, day: { on: false, time: "13:00" } }, times: { morningStart: 5, dayStart: 12, eveningStart: 17 }, devMode: false, offsetH: 0, installId: R.uuid().slice(0, 8), seen: {}, drafts: {}, symbolic: null, legacyDecision: null }, keep || {});
+    return Object.assign({ theme: "dark", bigText: false, reminders: { evening: { on: true, time: "20:30" }, morning: { on: false, time: "08:30" }, day: { on: false, time: "13:00" } }, times: { morningStart: 5, dayStart: 12, eveningStart: 17 }, devMode: false, offsetH: 0, installId: R.uuid().slice(0, 8), seen: {}, drafts: {}, symbolic: null, legacyDecision: null }, keep || {});
   }
   async function boot() {
     D = await ST.load(); D.tools = D.tools || [];
@@ -2190,6 +2399,8 @@
       D.meta.schemaVersion = R.SCHEMA_VERSION; D.meta.upgradedAt = Date.now();
       try { await ST.replaceAll(Object.assign(D, { profile: P })); } catch (e) { saveError(e); }
     }
+    /* v6.10: сохранённый выбор «по времени суток / рассвет» приводится к единственной вечерней теме; остальные настройки не трогаем */
+    if (P.theme !== "dark") { P.themeLegacy = P.theme || null; P.theme = "dark"; await saveProfile(true); applyTheme(); }
     /* v6.7.2: если прежняя сборка оставила два действующих сюжета — остаётся один (с принятым шагом), другой уходит в историю */
     { const dup = R.resolveDuplicateCurrent(D, Date.now()); if (dup.length) { for (const q of dup) await savePattern(q); P.lastResult2 = OB.conflict.repaired; await saveProfile(true); } }
     /* v6.4: незавершённый вход переводится на ветки по сфере; автоматическая сфера из отклика пути не считается выбором. */

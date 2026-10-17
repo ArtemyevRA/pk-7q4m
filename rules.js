@@ -498,6 +498,173 @@
     f.whenCase = wa.v;
     return { done: true, next: { id: "summary", kind: "summary" }, fields: f, basis, asked };
   };
+  /* ---------- v6.10 семейная ветка: учитель → зеркало → разрешение → шаг (локальный редакторский граф) ----------
+     Тот же формат состояния, что у диалога руководителя (answers/order). Следующий вопрос вычисляется заново из ответов;
+     у каждого вопроса — служебное «why»: что уже известно и что различает этот вопрос (для трассы, не для экрана).
+     Кандидаты зеркала ранжируются по ответам человека (сцена, смысл, реакция, что дало сразу), не по числу пути.
+     Узнавание учителя и узнавание зеркала — две разные проверки; ни одно поле не появляется без ответа. */
+  R.familyMirrors = function (bank, f) {
+    const g = f.group, e = f.event, tags = (f.meaning && f.meaning.tags) || [];
+    const fit = m => (m.when.groups || []).includes(g) || (m.when.events || []).includes(e);
+    const score = m => { const w = m.when; let s = 0; tags.forEach(t => { if ((w.tags || []).includes(t)) s += 2; }); if (f.reaction && (w.reactions || []).includes(f.reaction)) s += 2; if (f.now && (w.now || []).includes(f.now)) s += 1; if ((w.events || []).includes(e)) s += 2; return s; };
+    const pool = bank.mirrors.filter(fit).map(m => ({ m, s: score(m) }));
+    const inner = pool.filter(x => x.m.type !== "same").sort((a, b) => b.s - a.s);
+    const strong = inner.filter(x => x.s >= 2), picked = (strong.length ? strong : inner).slice(0, 2).map(x => x.m);
+    const same = pool.filter(x => x.m.type === "same").sort((a, b) => b.s - a.s).slice(0, 1).map(x => x.m);
+    const need = bank.needs[g] ? [{ id: "need:" + g, type: "need", text: bank.needs[g].text, permissions: [], check: null, predictions: [] }] : [];
+    return [...picked, ...same, ...need];
+  };
+  R.familyNext = function (bank, st, opts = {}) {
+    const A = (st && st.answers) || {}, f = {}, trace = []; let asked = 0;
+    const get = q => A[q];
+    const ask = (q, why) => ({ done: false, next: Object.assign(q, { why }), fields: f, asked, trace });
+    const W = { role: "учитель неизвестен; роль ограничивает допустимые сцены", group: "сцена неизвестна; вид сцены сужает примеры без шестёрки случайных карточек", n: "вид не выбран; вопрос различает один вид и остальные, «не знаю» ≠ «нет»",
+      e: "вид известен; проверяем конкретную сцену (двоичный ответ — свайп)", meaning: "сцена узнана; смысл различает направления и кандидаты зеркала", reaction: "смысл известен; реакция нужна для цепочки и кандидатов зеркала",
+      contra: "противоречие смысла и реакции — уточняем, не выбирая за человека", now: "реакция известна; что она дала сразу — без назначения мотива", later: "что было позже — цена прежнего ответа",
+      confirmA: "учитель, сцена, смысл и реакция собраны — первое подтверждение", mir: "учитель подтверждён; гипотеза зеркала, выбранная по ответам", check: "зеркало узнано; пример или прогноз делает его проверяемым",
+      perm: "зеркало узнано; разрешение — выбор человека, не обязанность", goal: "зеркало не узнано; помогаем с тем, что важно сейчас, без выдуманного объяснения", action: "направление выбрано; шаг рядом с учителем, фразу можно поправить", when: "дата последнего случая — для начала практики" };
+    const ok = (q, why, a) => { asked++; trace.push({ q, why: (W[q.split(":")[0]] || why) + (q.startsWith("mir:") ? ` (${why})` : ""), a }); };
+    /* 1. учитель: роль известна со входа — повторно не спрашиваем */
+    const roles = bank.roles.map(r => r[0]);
+    const role = st.role || (get("role") && get("role").v);
+    if (!role || !(roles.includes(role) || role === "__own")) return ask({ id: "role", kind: "choice", options: bank.roles.map(r => [r[0], r[1]]), own: true }, "учитель неизвестен; роль ограничивает допустимые сцены");
+    if (!st.role) ok("role", "роль учителя", role);
+    f.role = role; f.roleLabel = role === "__own" ? (get("role").text || "близкий") : (bank.roles.find(r => r[0] === role) || [])[2];
+    const roleOk = ev => role === "__own" || ev.roles.includes(role);
+    /* 2. вид сцены: жизненные категории; «трудно сказать» — различающие вопросы, «не знаю» ≠ «нет» */
+    const groups = bank.groups.filter(g => g.events.some(e => roleOk(bank.events[e])));
+    const ga = get("group");
+    if (!ga || !(groups.some(g => g.id === ga.v) || ga.v === "unknown")) return ask({ id: "group", kind: "choice", options: groups.map(g => [g.id, g.label]).concat([["unknown", "__unknown"]]) }, "сцена неизвестна; вид сцены сужает примеры без шестёрки случайных карточек");
+    ok("group", "вид сцены", ga.v);
+    let group = ga.v;
+    if (group === "unknown") {
+      group = null;
+      for (const n of bank.narrow) {
+        if (!groups.some(g => g.id === n.id)) continue;
+        const a = get("n:" + n.id);
+        if (!a || !["yes", "probably", "probablyNot", "no", "unknown"].includes(a.v)) return ask({ id: "n:" + n.id, kind: "yn", text: n.text, group: n.id }, "вид сцены не выбран; вопрос различает «" + n.id + "» и остальные");
+        ok("n:" + n.id, "различение вида", a.v);
+        if (R.YES(a.v)) { group = n.id; break; }
+      }
+      if (!group) return { done: false, next: { id: "unsupported", kind: "unsupported", why: "ни один вид не подтверждён — свой текст или наблюдение" }, fields: f, asked, trace };
+    }
+    f.group = group;
+    /* 3. конкретная сцена: только совместимые с ролью; «не про меня» отклоняет пример, не весь вид */
+    const g = bank.groups.find(x => x.id === group), evs = g.events.filter(e => roleOk(bank.events[e]));
+    let event = null;
+    for (const eid of evs) {
+      if ((st.rejected || []).includes(eid)) continue;
+      const a = get("e:" + eid);
+      if (!a || !["yes", "no", "unsure"].includes(a.v)) return ask({ id: "e:" + eid, kind: "swipe", event: eid, text: bank.events[eid].card }, "вид известен; проверяем конкретную сцену (двоичный ответ — свайп)");
+      ok("e:" + eid, "сцена", a.v);
+      if (a.v === "yes") { event = eid; break; }
+    }
+    if (!event) return { done: false, next: { id: "noEvent", kind: "noEvent", why: "ни одна сцена вида не узнана" }, fields: f, asked, trace };
+    const ev = bank.events[event]; f.event = event; f.eventText = ev.card; f.when = ev.when;
+    /* 4. личный смысл */
+    const ma = get("meaning");
+    const mOk = ma && (ev.meanings.some(m => m.id === ma.v) || (ma.v === "__own" && ma.text) || ma.v === "__unsure");
+    if (!mOk) return ask({ id: "meaning", kind: "choice", options: ev.meanings.map(m => [m.id, m.text]).concat([["__unsure", "__unsure"]]), own: true }, "сцена узнана; смысл различает направления и кандидаты зеркала");
+    ok("meaning", "смысл", ma.v);
+    const mm = ev.meanings.find(m => m.id === ma.v);
+    f.meaning = mm ? { id: mm.id, text: mm.text, tags: mm.tags, origin: "user_selected" } : ma.v === "__own" ? { id: "own", text: R.trimEnd(ma.text), tags: [], origin: "user_written" } : { id: "unsure", text: "", tags: [], origin: "user_unsure" };
+    /* 5. привычная реакция; при противоречии с выбранным смыслом — короткая проверка */
+    const ra = get("reaction");
+    const rOk = ra && (bank.reactions.includes(ra.v) || (ra.v === "__own" && ra.text) || ra.v === "__unknown");
+    if (!rOk) return ask({ id: "reaction", kind: "choice", options: bank.reactions.map(r => [r, r]).concat([["__unknown", "__unknown"]]), own: true }, "смысл известен; реакция нужна для цепочки и кандидатов зеркала");
+    ok("reaction", "реакция", ra.v);
+    f.reaction = ra.v === "__own" ? R.trimEnd(ra.text) : ra.v === "__unknown" ? "" : ra.v;
+    if (f.meaning.tags.includes("conflict") && f.reaction === "Спорю или оправдываюсь") {
+      const ca = get("contra");
+      if (!ca || !["agree", "argue", "mixed"].includes(ca.v)) return ask({ id: "contra", kind: "choice", text: `Сначала ты отметил «${f.meaning.text}», а сейчас — «${f.reaction}». Как точнее для этого случая?`, options: [["agree", "Чаще соглашаюсь"], ["argue", "Чаще спорю"], ["mixed", "Бывает по-разному"]] }, "противоречие смысла и реакции — уточняем, не выбирая за человека");
+      ok("contra", "противоречие", ca.v);
+      if (ca.v === "agree") f.reaction = "Соглашаюсь, чтобы не ссориться"; if (ca.v === "mixed") f.reaction = "По-разному: то соглашаюсь, то спорю";
+    }
+    /* 6. последствия: что дало сразу и что потом (мотив не назначается) */
+    if (f.reaction) {
+      for (const [qid, list] of [["now", bank.now], ["later", bank.later]]) {
+        const a = get(qid);
+        if (!a || !(list.includes(a.v) || (a.v === "__own" && a.text) || a.v === "__unknown")) return ask({ id: qid, kind: "choice", options: list.map(x => [x, x]).concat([["__unknown", "__unknown"]]), own: true }, qid === "now" ? "реакция известна; что она дала сразу — без назначения мотива" : "что было позже — цена прежнего ответа");
+        ok(qid, qid, a.v);
+        f[qid] = a.v === "__own" ? R.trimEnd(a.text) : a.v === "__unknown" ? "" : a.v;
+      }
+    } else { f.now = ""; f.later = ""; }
+    /* 7. подтверждение учителя и ситуации — отдельно от зеркала */
+    const cA = get("confirmA");
+    if (!cA || cA.v !== "yes") return ask({ id: "confirmA", kind: "confirmA" }, "учитель, сцена, смысл и реакция собраны — первое подтверждение");
+    ok("confirmA", "учитель подтверждён", "yes"); f.teacherConfirmed = true;
+    /* 8. зеркало: 2–4 гипотезы по ответам; «не моё» отменяет только эту формулировку */
+    const cands = R.familyMirrors(bank, f); f.candidates = cands.map(c => c.id);
+    let chosen = null, mStatus = null;
+    for (const c of cands) {
+      const a = get("mir:" + c.id);
+      if (!a || !["yes", "partly", "no", "own", "unsure"].includes(a.v) || ((a.v === "partly" || a.v === "own") && !a.text)) return ask({ id: "mir:" + c.id, kind: "mirror", mirror: c, index: cands.indexOf(c), total: cands.length }, "учитель подтверждён; проверяем гипотезу зеркала, выбранную по ответам (" + c.type + ")");
+      ok("mir:" + c.id, "гипотеза " + c.type, a.v);
+      if (a.v === "no") continue;
+      if (a.v === "unsure") { mStatus = "unknown"; break; }
+      chosen = { id: c.id, type: c.type, text: a.v === "yes" ? c.text : R.trimEnd(a.text), candidateText: c.text, origin: a.v === "yes" ? "candidate_recognized" : a.v === "partly" ? "candidate_edited" : "user_written", permissions: c.permissions, check: c.check, predictions: c.predictions };
+      if (a.v === "own") { chosen.type = "own"; chosen.permissions = []; chosen.check = "prediction"; chosen.predictions = []; }
+      break;
+    }
+    if (!chosen && !mStatus) mStatus = "none";
+    /* 9. проверка зеркала опытом: пример (для «сам так делаю») или прогноз */
+    if (chosen && chosen.type !== "need") {
+      const ca = get("check");
+      const preds = chosen.predictions.length ? chosen.predictions : ["Будет конфликт", "Меня осудят", "Мне самому будет неловко"];
+      if (chosen.check === "example") {
+        if (!ca || !((ca.v === "__example" && ca.text) || ca.v === "__later")) return ask({ id: "check", kind: "check", mode: "example", mirrorText: chosen.text }, "зеркало «сам так поступаю» — нужен собственный реальный пример, не вынужденное признание");
+      } else if (!ca || !(preds.includes(ca.v) || (ca.v === "__own" && ca.text) || (ca.v === "__example" && ca.text) || ca.v === "__unknown")) return ask({ id: "check", kind: "check", mode: "prediction", options: preds, mirrorText: chosen.text }, "правило узнано; прогноз «если поступить иначе» делает его проверяемым");
+      ok("check", "проверка зеркала", ca.v);
+      chosen.example = ca.v === "__example" ? R.trimEnd(ca.text) : "";
+      chosen.prediction = preds.includes(ca.v) ? ca.v : ca.v === "__own" ? R.trimEnd(ca.text) : "";
+      chosen.status = chosen.example ? "recognized_with_example" : chosen.prediction ? "recognized" : "to_check";
+      if (chosen.origin === "candidate_edited" && chosen.status !== "to_check") chosen.status = "partial";
+      f.mirror = chosen;
+    } else if (chosen && chosen.type === "need") { f.mirror = { status: "none" }; f.need = chosen.text; }
+    else f.mirror = { status: mStatus };
+    /* 10. внутреннее разрешение (если зеркало узнано) или что важно (если нет) — помощь не блокируется */
+    let actIds = [];
+    if (f.mirror.type && f.mirror.type !== "need") {
+      const pa = get("perm"), ps = f.mirror.permissions || [];
+      if (!pa || !(ps.some(p => p.id === pa.v) || (pa.v === "__own" && pa.text))) return ask({ id: "perm", kind: "choice", options: ps.map(p => [p.id, p.text]), own: true }, "зеркало узнано; разрешение — выбор человека, не обязанность");
+      ok("perm", "разрешение", pa.v);
+      const pp = ps.find(p => p.id === pa.v);
+      f.permission = pp ? { id: pp.id, text: pp.text, short: pp.short, origin: "user_selected" } : { id: "own", text: R.trimEnd(pa.text), short: R.trimEnd(pa.text), origin: "user_written" };
+      actIds = pp ? pp.actions : bank.needs[group].goals.flatMap(gl => gl[2]);
+    } else {
+      const goals = bank.needs[group].goals, gA = get("goal");
+      if (!gA || !(goals.some(gl => gl[0] === gA.v) || (gA.v === "__own" && gA.text) || gA.v === "__observe")) return ask({ id: "goal", kind: "choice", options: goals.map(gl => [gl[0], gl[1]]).concat([["__observe", "__observe"]]), own: true, mirrorStatus: f.mirror.status }, "зеркало не узнано (" + f.mirror.status + "); помогаем с тем, что важно сейчас, без выдуманного объяснения");
+      ok("goal", "что важно", gA.v);
+      const gl = goals.find(x => x[0] === gA.v);
+      f.goal = gl ? { id: gl[0], text: gl[1], origin: "user_selected" } : gA.v === "__own" ? { id: "own", text: R.trimEnd(gA.text), origin: "user_written" } : { id: "observe", text: "", origin: "user_selected" };
+      actIds = gl ? gl[2] : gA.v === "__own" ? [...new Set(goals.flatMap(x => x[2]))].slice(0, 3) : [];
+    }
+    /* 11. поступок рядом с учителем: редактируемая фраза; своё действие; наблюдение */
+    if (!(f.goal && f.goal.id === "observe")) {
+      const aa = get("action");
+      if (!aa || !((actIds.includes(aa.v) && aa.text) || (aa.v === "__own" && aa.text) || aa.v === "__observe")) return ask({ id: "action", kind: "action", options: actIds.map(id => bank.actions[id]).filter(Boolean) }, "направление выбрано; шаг — поступок рядом с учителем, фразу можно поправить");
+      ok("action", "шаг", aa.v);
+      f.action = aa.v === "__observe" ? { id: "observe", phrase: "", origin: "user_selected" } : aa.v === "__own" ? { id: "own", phrase: R.trimEnd(aa.text), origin: "user_written" } : { id: aa.v, phrase: String(aa.text).trim(), origin: aa.text.trim() === bank.actions[aa.v].phrase ? "user_selected" : "user_edited" };
+    } else f.action = { id: "observe", phrase: "", origin: "user_selected" };
+    /* 12. когда — для честной даты случая */
+    const wa = get("when");
+    if (!wa || !wa.v) return ask({ id: "when", kind: "when" }, "дата последнего случая — для начала практики");
+    ok("when", "когда", wa.v); f.whenCase = wa.v;
+    return { done: true, next: { id: "summary", kind: "summary", why: "всё собрано — итог подтверждается отдельно по полям" }, fields: f, asked, trace };
+  };
+  /* Правка части: снимаются только зависимые непроверенные выводы; учитель и сцена сохраняются, если не правятся сами */
+  R.familyFix = function (st, part) {
+    const drop = q => { delete st.answers[q]; st.order = (st.order || []).filter(x => x !== q); };
+    const mirrorChain = () => { Object.keys(st.answers).filter(q => q.startsWith("mir:")).forEach(drop); ["check", "perm", "goal", "action"].forEach(drop); };
+    if (part === "event") { Object.keys(st.answers).filter(q => q.startsWith("e:")).forEach(q => { if (st.answers[q].v === "yes") st.rejected = [...new Set([...(st.rejected || []), q.slice(2)])]; drop(q); }); ["meaning", "contra", "confirmA"].forEach(drop); mirrorChain(); }
+    if (part === "meaning") { ["meaning", "contra", "confirmA"].forEach(drop); mirrorChain(); }
+    if (part === "reaction") { ["reaction", "contra", "now", "later", "confirmA"].forEach(drop); mirrorChain(); }
+    if (part === "mirror") mirrorChain();
+    if (part === "goal") { ["perm", "goal", "action"].forEach(drop); }
+    if (part === "action") drop("action");
+    if (part === "all") { st.misses = (st.misses || 0) + 1; st.answers = {}; st.order = []; st.rejected = []; }
+    return st;
+  };
   R.dialogAnswer = function (st, qid, v, text) { st.answers = st.answers || {}; st.order = (st.order || []).filter(q => q !== qid); st.answers[qid] = { v, text: text || "", at: Date.now() }; st.order.push(qid); return st; };
   R.dialogUndo = function (st) { const q = (st.order || []).pop(); if (q) delete st.answers[q]; return q || null; };
   /* Поправить часть: снимаются только ответы этого поля (и для события — выбор примера). */
@@ -667,7 +834,8 @@
   R.PLAN_SLOT_RE = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g;
   R.templateSlots = tpl => { const out = []; String(tpl || "").replace(R.PLAN_SLOT_RE, (m, k) => { if (!out.includes(k)) out.push(k); return m; }); return out; };
   /* v6.6: ответ человека подставляется как есть. Шаблоны ставят место вставки после двоеточия или в кавычки, чтобы не зависеть от падежа. */
-  R.fillTemplate = (tpl, slots) => String(tpl || "").replace(R.PLAN_SLOT_RE, (m, k) => { const v = slots && slots[k]; return v != null && String(v).trim() ? String(v).trim() : m; });
+  /* слово человека не меняется; только его завершающий знак не склеивается со знаком шаблона («формат: наедине.» + «.») */
+  R.fillTemplate = (tpl, slots) => { const t = String(tpl || ""); return t.replace(R.PLAN_SLOT_RE, (m, k, off) => { const v = slots && slots[k]; if (v == null || !String(v).trim()) return m; let s = String(v).trim(); const nx = t.charAt(off + m.length); if (/[.,;:!?]/.test(nx)) s = s.replace(/[.,;:!?…]+$/u, ""); return s; }); };
   R.hasUnfilled = txt => /\{[a-zA-Z_][a-zA-Z0-9_]*\}/.test(String(txt || ""));
   /* Проверка значения слота по типу: минуты — положительное целое; время/срок — непустая строка (дата или контекст); остальное — непустой текст. */
   R.validateSlot = function (key, value) {
